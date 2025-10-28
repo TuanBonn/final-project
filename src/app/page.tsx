@@ -1,120 +1,61 @@
-// import Image from "next/image";
-
-// export default function Home() {
-//   return (
-//     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-//       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-//         <Image
-//           className="dark:invert"
-//           src="/next.svg"
-//           alt="Next.js logo"
-//           width={180}
-//           height={38}
-//           priority
-//         />
-//         <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-//           <li className="mb-2 tracking-[-.01em]">
-//             Get started by editing{" "}
-//             <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-//               src/app/page.tsx
-//             </code>
-//             .
-//           </li>
-//           <li className="tracking-[-.01em]">
-//             Save and see your changes instantly.
-//           </li>
-//         </ol>
-
-//         <div className="flex gap-4 items-center flex-col sm:flex-row">
-//           <a
-//             className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-//             href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//             target="_blank"
-//             rel="noopener noreferrer"
-//           >
-//             <Image
-//               className="dark:invert"
-//               src="/vercel.svg"
-//               alt="Vercel logomark"
-//               width={20}
-//               height={20}
-//             />
-//             Deploy now
-//           </a>
-//           <a
-//             className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-//             href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//             target="_blank"
-//             rel="noopener noreferrer"
-//           >
-//             Read our docs
-//           </a>
-//         </div>
-//       </main>
-//       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/file.svg"
-//             alt="File icon"
-//             width={16}
-//             height={16}
-//           />
-//           Learn
-//         </a>
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/window.svg"
-//             alt="Window icon"
-//             width={16}
-//             height={16}
-//           />
-//           Examples
-//         </a>
-//         <a
-//           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-//           href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           <Image
-//             aria-hidden
-//             src="/globe.svg"
-//             alt="Globe icon"
-//             width={16}
-//             height={16}
-//           />
-//           Go to nextjs.org →
-//         </a>
-//       </footer>
-//     </div>
-//   );
-// }
-
 // src/app/page.tsx
-
-import { createClient } from "@/lib/supabase/server";
+// KHÔNG cần import createClient nữa
+// import { createClient } from '@/lib/supabase/server';
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
+import { Button } from "@/components/ui/button";
+import { cookies } from "next/headers"; // Vẫn cần để fetch API từ Server Component
+
+// Định nghĩa kiểu dữ liệu User (phải khớp với dữ liệu API trả về)
+interface User {
+  id: string;
+  email: string;
+  username: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  is_verified: boolean;
+}
+
+// Hàm fetch dữ liệu user từ API
+async function getUserData(): Promise<{ user: User | null }> {
+  try {
+    // Lấy cookie trực tiếp để gửi kèm request
+    const cookieStore = cookies();
+    const token = cookieStore.get("auth-token")?.value; // Lấy token cookie
+
+    // Gọi API /api/auth/me từ server-side
+    // Phải cung cấp URL đầy đủ khi fetch từ Server Component
+    // và gửi kèm cookie nếu API cần
+    const res = await fetch(
+      `${
+        process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
+      }/api/auth/me`,
+      {
+        headers: {
+          // Gửi cookie nếu API /api/auth/me cần đọc nó (API này đọc cookie server-side nên ok)
+          Cookie: cookieStore.toString(),
+        },
+        cache: "no-store", // Không cache lại kết quả để luôn lấy trạng thái mới nhất
+      }
+    );
+
+    if (!res.ok) {
+      console.error("API /api/auth/me trả về lỗi:", res.status);
+      return { user: null };
+    }
+
+    const data = await res.json();
+    return data; // Trả về { user: User | null }
+  } catch (error) {
+    console.error("Lỗi khi fetch /api/auth/me:", error);
+    return { user: null };
+  }
+}
 
 export default async function Home() {
-  const supabase = createClient();
-
-  // Lấy thông tin session của người dùng từ server
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Gọi hàm fetch để lấy thông tin user
+  const { user } = await getUserData();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">
@@ -123,17 +64,20 @@ export default async function Home() {
 
         {user ? (
           <div>
-            <p className="mb-4">Chào mừng, {user.email}!</p>
+            {/* Hiển thị email hoặc username */}
+            <p className="mb-4">Chào mừng trở lại, {user.email}!</p>
+            {/* LogoutButton vẫn hoạt động vì nó gọi /api/auth/logout */}
             <LogoutButton />
           </div>
         ) : (
-          <Link href="/login">
-            <button className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-              Đăng nhập
-            </button>
-          </Link>
+          <Button asChild>
+            <Link href="/login">Đăng nhập / Đăng ký</Link>
+          </Button>
         )}
       </div>
     </main>
   );
 }
+
+// Quan trọng: Thêm biến môi trường NEXT_PUBLIC_BASE_URL vào .env.local
+// Ví dụ: NEXT_PUBLIC_BASE_URL=http://localhost:3000
