@@ -1,182 +1,250 @@
 // // src/app/api/profile/me/route.ts
+// // Vá lỗi import 'cookie' trong hàm PATCH (lần nữa!)
 
 // import { NextResponse } from "next/server";
-// import { cookies } from "next/headers";
+// import { cookies } from "next/headers"; // Dùng cho GET
 // import jwt from "jsonwebtoken";
-// import { createServerClient, type CookieOptions } from "@supabase/ssr"; // Cần để query DB
+// import { createClient } from "@supabase/supabase-js"; // Client cơ bản
+// // === SỬA LẠI IMPORT NÀY ===
+// import { parse as parseCookie } from "cookie"; // Dùng named import 'parse' cho hàm PATCH
+// // ==========================
 
+// // --- Cấu hình ---
 // const COOKIE_NAME = "auth-token";
 // const JWT_SECRET = process.env.JWT_SECRET;
+// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+// const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Dùng cho PATCH
 
+// // --- Interface Payload JWT ---
 // interface JwtPayload {
-//   userId: string;
-//   email: string; // Hoặc thông tin khác trong token
+//   /* ... */
 // }
 
+// // === HÀM GET (Giữ nguyên như trước) ===
 // export async function GET(request: Request) {
-//   console.log("Attempting GET /api/profile/me"); // Log bắt đầu
-//   if (!JWT_SECRET) {
-//     console.error("API /profile/me: JWT_SECRET not configured");
-//     return NextResponse.json(
-//       { error: "Server configuration error." },
-//       { status: 500 }
-//     );
+//   /* ... code hàm GET ... */
+// }
+
+// // === HÀM PATCH (Đã sửa lỗi import cookie) ===
+// export async function PATCH(request: Request) {
+//   // console.log("API /me PATCH: Bắt đầu");
+//   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
+//     /* ... check config ... */
 //   }
 
-//   const cookieStore = cookies();
-//   const token = cookieStore.get(COOKIE_NAME)?.value;
-//   console.log(
-//     "API /profile/me: Token from cookie:",
-//     token ? "Exists" : "Not Found"
-//   ); // Log token
-
-//   if (!token) {
-//     // Chưa đăng nhập, không thể lấy profile
-//     console.log("API /profile/me: No token, denying access."); // Log
-//     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//   }
-
+//   // --- Lấy token từ header (dùng thư viện cookie đã sửa import) ---
+//   let token: string | undefined = undefined;
 //   try {
-//     // 1. Xác thực token
-//     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-//     console.log("API /profile/me: Token decoded:", decoded.userId); // Log user ID
+//     const cookieHeader = request.headers.get("cookie");
+//     // console.log("API PATCH /me: Received Cookie Header:", cookieHeader);
+//     if (cookieHeader) {
+//       const cookiesParsed = parseCookie(cookieHeader); // <-- SỬA Ở ĐÂY: Dùng parseCookie
+//       token = cookiesParsed[COOKIE_NAME];
+//     }
+//     // console.log("API PATCH /me: Token extracted via 'cookie' lib:", token ? "Tìm thấy" : "KHÔNG TÌM THẤY");
+//   } catch (e) {
+//     console.error("API PATCH /me: Lỗi đọc cookie header:", e);
+//   }
+//   // ===============================================
 
-//     // === KHỞI TẠO SUPABASE CLIENT ĐỂ QUERY DB ===
-//     const supabase = createServerClient(
-//       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-//       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-//       {
-//         cookies: {
-//           get(name: string) {
-//             return cookieStore.get(name)?.value;
-//           },
-//         },
-//       }
+//   // --- Xác thực token ---
+//   let userId: string;
+//   try {
+//     if (!token) throw new jwt.JsonWebTokenError("Token not found in header");
+//     const decoded = jwt.verify(token, JWT_SECRET!) as JwtPayload; // Thêm ! cho JWT_SECRET
+//     if (!decoded?.userId)
+//       throw new Error("Invalid token payload (missing userId)");
+//     userId = decoded.userId;
+//     // console.log("API PATCH /me: User hợp lệ:", userId);
+//   } catch (error) {
+//     console.error("API PATCH /me: Lỗi xác thực token:", error);
+//     return NextResponse.json(
+//       { error: "Yêu cầu xác thực hoặc token không hợp lệ." },
+//       { status: 401 }
 //     );
-//     // ============================================
+//   }
 
-//     // 2. Lấy toàn bộ thông tin profile từ bảng 'users'
-//     console.log("API /profile/me: Fetching profile for user:", decoded.userId); // Log
-//     const { data: userProfile, error: profileError } = await supabase
-//       .from("users") // Bảng users
-//       .select("*") // Lấy tất cả các cột
-//       .eq("id", decoded.userId)
-//       .single(); // Chỉ mong đợi 1 kết quả
+//   // --- Khởi tạo Admin Client (Dùng Service Key) ---
+//   let supabaseAdmin;
+//   try {
+//     supabaseAdmin = createClient(supabaseUrl!, supabaseServiceKey!, {
+//       // Thêm ! cho key
+//       auth: { persistSession: false },
+//     });
+//     if (!supabaseAdmin) throw new Error("Admin client creation failed.");
+//     // console.log("API PATCH /me: Admin Client created.");
+//   } catch (clientError) {
+//     /* ... lỗi client init ... */
+//   }
 
-//     if (profileError) {
-//       console.error("API /profile/me: Error fetching profile:", profileError);
-//       if (profileError.code === "PGRST116") {
-//         // Mã lỗi "No rows found"
-//         return NextResponse.json(
-//           { error: "Profile not found for authenticated user." },
-//           { status: 404 }
-//         );
-//       }
-//       throw profileError; // Ném lỗi khác để xuống catch
+//   // --- Xử lý logic cập nhật ---
+//   try {
+//     const body = await request.json();
+//     const { fullName, username, avatarUrl } = body;
+//     const updateData: {
+//       full_name?: string;
+//       username?: string;
+//       avatar_url?: string;
+//     } = {};
+
+//     // --- Validation & Prepare Data (giữ nguyên logic) ---
+//     // ... (code chuẩn bị updateData, check username unique bằng supabaseAdmin) ...
+//     if (fullName !== undefined && fullName.trim() !== "")
+//       updateData.full_name = fullName.trim();
+//     if (username !== undefined) {
+//       /* ... logic check unique ... */
+//     }
+//     if (
+//       avatarUrl !== undefined &&
+//       typeof avatarUrl === "string" &&
+//       avatarUrl.startsWith("http")
+//     )
+//       updateData.avatar_url = avatarUrl;
+
+//     if (Object.keys(updateData).length === 0) {
+//       /* ... trả về profile hiện tại (dùng adminClient để fetch) ... */
 //     }
 
-//     // 3. Quan trọng: Xóa password_hash trước khi trả về
-//     if (userProfile) {
-//       delete (userProfile as any).password_hash;
-//     }
+//     // --- Update DB (DÙNG ADMIN CLIENT) ---
+//     // console.log("API PATCH /me: Updating user (as admin):", userId, "with:", updateData);
+//     const { data: updatedProfile, error: updateError } = await supabaseAdmin // <-- Dùng adminClient
+//       .from("users")
+//       .update(updateData)
+//       .eq("id", userId)
+//       .select("*")
+//       .single();
 
-//     console.log("API /profile/me: Profile fetched successfully."); // Log
-//     return NextResponse.json({ profile: userProfile }, { status: 200 });
+//     // ... (Xử lý lỗi Update, PGRST116, 23505) ...
+//     if (updateError) throw updateError;
+//     if (!updatedProfile)
+//       throw new Error("Update OK but no profile data returned.");
+
+//     delete (updatedProfile as any).password_hash;
+//     // console.log("API PATCH /me: Update thành công (admin).");
+//     return NextResponse.json(
+//       { profile: updatedProfile, message: "Cập nhật thành công!" },
+//       { status: 200 }
+//     );
 //   } catch (error: unknown) {
-//     // Lỗi xác thực token hoặc lỗi DB khác
-//     console.error("API /profile/me: Error:", error);
-//     let errorMessage = "An unexpected error occurred.";
-//     let statusCode = 500;
-//     if (error instanceof jwt.JsonWebTokenError) {
-//       errorMessage = "Invalid token.";
-//       statusCode = 401; // Unauthorized
-//     } else if (error instanceof Error) {
-//       errorMessage = error.message;
-//     }
-
-//     // Trả về lỗi Unauthorized nếu token không hợp lệ
-//     return NextResponse.json({ error: errorMessage }, { status: statusCode });
+//     // Catch lỗi trong logic update
+//     console.error("API PATCH /me: LỖI BẤT NGỜ TRONG TRY BLOCK CHÍNH:", error);
+//     let errorMessage = "Lỗi server không xác định khi cập nhật.";
+//     // ... (xử lý lỗi chi tiết hơn) ...
+//     return NextResponse.json({ error: errorMessage }, { status: 500 });
 //   }
 // }
 
 // src/app/api/profile/me/route.ts
+// GET uses basic client, PATCH uses Admin client with detailed error logging
 
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { cookies } from "next/headers"; // Used for GET
 import jwt from "jsonwebtoken";
-import { createServerClient, type CookieOptions } from "@supabase/ssr"; // Still need this for DB access
+import { createClient, SupabaseClient } from "@supabase/supabase-js"; // Basic client & Admin
+import { parse as parseCookie } from "cookie"; // Used for PATCH
 
-const COOKIE_NAME = "auth-token"; // Your JWT cookie name
-const JWT_SECRET = process.env.JWT_SECRET; // Your secret key from .env
+// --- Configuration ---
+const COOKIE_NAME = "auth-token";
+const JWT_SECRET = process.env.JWT_SECRET;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Used for PATCH
 
+// --- JWT Payload Interface ---
 interface JwtPayload {
   userId: string;
-  email: string; // Or whatever you put in your token
+  email: string;
+  role?: string;
 }
 
-// --- GET Request: Fetch current user's profile ---
+// === GET Request: Fetch current user's profile ===
+// Uses basic client + JWT verification. Relies on RLS for SELECT on 'users' table.
 export async function GET(request: Request) {
-  // console.log("Attempting GET /api/profile/me");
-  if (!JWT_SECRET) {
-    console.error("API GET /profile/me: JWT_SECRET not configured");
+  // console.log("API /me GET: Starting...");
+  if (!JWT_SECRET || !supabaseUrl || !supabaseAnonKey) {
+    console.error("API /me GET: Missing .env config");
     return NextResponse.json(
       { error: "Server configuration error." },
       { status: 500 }
     );
   }
 
-  const cookieStore = cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-  // console.log("API GET /profile/me: Token found:", !!token);
+  // --- Read Cookie using Next.js helper ---
+  let token: string | undefined = undefined;
+  try {
+    console.log("API /me GET: Attempting to read cookies...");
+    const cookieStore = cookies();
+    token = cookieStore.get(COOKIE_NAME)?.value;
+    console.log("API /me GET: Token read:", token ? "Found" : "Missing");
+  } catch (error) {
+    // Catch potential errors from cookies() itself
+    console.error("API /me GET: Error reading cookies:", error);
+    return NextResponse.json(
+      { error: "Server error reading session." },
+      { status: 500 }
+    );
+  }
+  // ------------------------------------
 
   if (!token) {
-    // console.log("API GET /profile/me: No token, denying access.");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // console.log("API /me GET: No token found -> 401");
+    return NextResponse.json(
+      { error: "Authentication required." },
+      { status: 401 }
+    );
   }
 
+  // --- Main Logic within Try/Catch ---
   try {
+    // Verify Token
+    // console.log("API /me GET: Verifying token...");
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    // console.log("API GET /profile/me: User verified:", decoded.userId);
+    // console.log("API /me GET: Token valid, User ID:", decoded.userId);
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    // Initialize Basic Client
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // console.log("API GET /profile/me: Fetching profile for user:", decoded.userId);
+    // Fetch Profile
+    // console.log("API /me GET: Fetching profile...");
     const { data: userProfile, error: profileError } = await supabase
-      .from("users") // Your user table
-      .select("*") // Get all profile fields
+      .from("users")
+      .select(
+        "id, email, username, full_name, avatar_url, role, is_verified, reputation_score, created_at"
+      )
       .eq("id", decoded.userId)
       .single();
 
+    // Handle DB Errors
     if (profileError) {
-      console.error(
-        "API GET /profile/me: Error fetching profile:",
-        profileError
-      );
+      console.error("API /me GET: DB error fetching profile:", profileError);
       if (profileError.code === "PGRST116")
         return NextResponse.json(
           { error: "Profile not found." },
           { status: 404 }
         );
-      throw profileError;
+      return NextResponse.json({ error: "DB query error." }, { status: 500 });
+    }
+    // Handle case where query is successful but no data (shouldn't happen with .single())
+    if (!userProfile) {
+      console.error(
+        `API /me GET: Query OK but profile is null/undefined for ID ${decoded.userId}?`
+      );
+      return NextResponse.json(
+        { error: "Profile data not found (logic error)." },
+        { status: 404 }
+      );
     }
 
-    if (userProfile) delete (userProfile as any).password_hash; // Don't send the hash back!
-
-    // console.log("API GET /profile/me: Profile fetched.");
+    // Remove sensitive data
+    delete (userProfile as any).password_hash;
+    // console.log("API /me GET: Success, returning profile.");
+    // Return Success
     return NextResponse.json({ profile: userProfile }, { status: 200 });
   } catch (error: unknown) {
-    // console.error('API GET /profile/me: Error:', error);
-    let errorMessage = "An unexpected error occurred.";
+    // Catch JWT errors or unexpected errors
+    console.error("API /me GET: ERROR IN MAIN TRY-CATCH:", error);
+    let errorMessage = "Server error.";
     let statusCode = 500;
     if (error instanceof jwt.JsonWebTokenError) {
       errorMessage = "Invalid or expired token.";
@@ -184,141 +252,232 @@ export async function GET(request: Request) {
     } else if (error instanceof Error) {
       errorMessage = error.message;
     }
+    // Ensure a response is always returned on error
     return NextResponse.json({ error: errorMessage }, { status: statusCode });
   }
+  // This line should be unreachable
+  // console.error("API /me GET: !!! CRITICAL ERROR: Reached end without returning!");
+  // return NextResponse.json({ error: 'Internal server error (unreachable code).' }, { status: 500 });
 }
 
-// --- PATCH Request: Update current user's profile ---
+// === PATCH Request: Update current user's profile ===
+// Uses Admin client (Service Key) to bypass RLS for update. Includes detailed error logging.
 export async function PATCH(request: Request) {
-  // console.log("Attempting PATCH /api/profile/me");
-  if (!JWT_SECRET) {
-    console.error("API PATCH /profile/me: JWT_SECRET not configured");
+  // console.log("API /me PATCH: Starting...");
+  if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
+    console.error("API /me PATCH: Missing .env config");
     return NextResponse.json(
       { error: "Server configuration error." },
       { status: 500 }
     );
   }
 
-  const cookieStore = cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-
-  if (!token) {
-    // console.log("API PATCH /profile/me: No token, denying access.");
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // --- Get token from header using 'cookie' library ---
+  let token: string | undefined = undefined;
+  try {
+    const cookieHeader = request.headers.get("cookie");
+    if (cookieHeader) {
+      const cookiesParsed = parseCookie(cookieHeader); // Use parseCookie here
+      token = cookiesParsed[COOKIE_NAME];
+    }
+    // console.log("API PATCH /me: Token from header:", token ? "Found" : "Missing");
+  } catch (e) {
+    console.error("API PATCH /me: Error parsing cookie header:", e);
   }
 
+  // --- Verify token ---
+  let userId: string;
   try {
+    if (!token) throw new jwt.JsonWebTokenError("Token not found in header");
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    const userId = decoded.userId;
-    // console.log("API PATCH /profile/me: User verified:", userId);
-
-    const body = await request.json();
-    const { fullName, username /*, avatarUrl */ } = body; // Destructure expected fields
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
+    if (!decoded?.userId)
+      throw new Error("Invalid token payload (missing userId)");
+    userId = decoded.userId;
+    // console.log("API PATCH /me: User valid:", userId);
+  } catch (error) {
+    console.error("API PATCH /me: Token verification failed:", error);
+    return NextResponse.json(
+      { error: "Authentication required or token invalid." },
+      { status: 401 }
     );
+  }
 
-    const updateData: { full_name?: string; username?: string } = {};
+  // --- Initialize Admin Client (Service Key) ---
+  let supabaseAdmin: SupabaseClient | null = null;
+  try {
+    supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false },
+    });
+    if (!supabaseAdmin)
+      throw new Error("Admin client creation returned null/undefined.");
+    // console.log("API PATCH /me: Admin Client created.");
+  } catch (clientError) {
+    console.error("API PATCH /me: FAILED TO CREATE ADMIN CLIENT:", clientError);
+    return NextResponse.json(
+      { message: "Server config error (Admin Client)." },
+      { status: 500 }
+    );
+  }
 
-    // Validate and prepare update data
-    if (fullName !== undefined) {
-      const trimmedFullName = fullName.trim();
-      if (trimmedFullName === "")
-        return NextResponse.json(
-          { error: "Full name cannot be empty." },
-          { status: 400 }
-        );
-      updateData.full_name = trimmedFullName;
-    }
+  // --- Process Update Logic ---
+  try {
+    const body = await request.json();
+    // console.log("API PATCH /me: Received body:", body);
+    const { fullName, username, avatarUrl } = body;
+    const updateData: {
+      full_name?: string;
+      username?: string;
+      avatar_url?: string;
+    } = {};
+
+    // --- Validation & Prepare Data ---
+    // console.log("API PATCH /me: Preparing update data...");
+    if (fullName !== undefined && fullName.trim() !== "")
+      updateData.full_name = fullName.trim();
     if (username !== undefined) {
       const trimmedUsername = username.trim();
-      if (trimmedUsername.length > 0 && trimmedUsername.length < 3) {
-        // Allow empty, but not too short
+      if (trimmedUsername && trimmedUsername.length < 3)
         return NextResponse.json(
-          { error: "Username must be at least 3 characters (or empty)." },
+          { error: "Username too short." },
           { status: 400 }
         );
-      }
-      // Check for uniqueness only if username is provided and potentially changed
+      // Check unique using Admin Client
       if (trimmedUsername) {
-        const { data: existingUser, error: checkError } = await supabase
+        // console.log("API PATCH /me: Checking username uniqueness for:", trimmedUsername);
+        const { data: existing, error: checkUniqueError } = await supabaseAdmin
           .from("users")
           .select("id")
           .eq("username", trimmedUsername)
-          .neq("id", userId) // Exclude self
+          .neq("id", userId)
           .maybeSingle();
-        if (checkError) throw checkError;
-        if (existingUser)
+        if (checkUniqueError) throw checkUniqueError; // Throw DB error
+        if (existing)
           return NextResponse.json(
-            { error: "Username already taken." },
+            { error: "Username already exists." },
             { status: 409 }
           );
         updateData.username = trimmedUsername;
       } else {
-        // Handle setting username to empty/null if your DB allows it
-        // updateData.username = null; // Or handle as needed
+        // Handle setting username to null if needed (depends on DB schema)
+        // updateData.username = null;
       }
     }
-    // TODO: Handle avatarUrl update logic (likely requires separate upload step first)
+    if (
+      avatarUrl !== undefined &&
+      typeof avatarUrl === "string" &&
+      avatarUrl.startsWith("http")
+    ) {
+      updateData.avatar_url = avatarUrl;
+    }
 
+    // If nothing to update, fetch current profile and return
     if (Object.keys(updateData).length === 0) {
+      // console.log("API PATCH /me: No text fields changed.");
+      const { data: currentProfile, error: currentError } = await supabaseAdmin
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      if (currentError) {
+        console.error(
+          "API PATCH /me: Error fetching current profile:",
+          currentError
+        );
+        throw currentError;
+      }
+      if (currentProfile) delete (currentProfile as any).password_hash;
       return NextResponse.json(
-        { message: "No changes submitted." },
+        { profile: currentProfile, message: "No profile details changed." },
         { status: 200 }
       );
     }
 
-    // console.log("API PATCH /profile/me: Updating user:", userId, "with data:", updateData);
-    const { data: updatedProfile, error: updateError } = await supabase
+    // --- Update DB using Admin Client ---
+    console.log(
+      "API PATCH /me: Attempting DB update for user:",
+      userId,
+      "with data:",
+      updateData
+    ); // LOG BEFORE UPDATE
+    const { data: updatedProfile, error: updateError } = await supabaseAdmin
       .from("users")
       .update(updateData)
       .eq("id", userId)
-      .select("*") // Select all fields to return updated profile
-      .single();
+      .select("*") // Select all columns to return
+      .single(); // Expect one row back
 
+    // Log update results
+    console.log("API PATCH /me: DB update completed."); // LOG AFTER UPDATE
+
+    // Handle Update Errors (including not found - PGRST116)
     if (updateError) {
-      console.error(
-        "API PATCH /profile/me: Error updating profile:",
-        updateError
-      );
-      // Handle specific DB errors like unique constraint violation
-      if (updateError.code === "23505") {
-        // Postgres unique violation code
+      console.error("API PATCH /me: DB UPDATE FAILED:", updateError); // Log detailed error
+      if (updateError.code === "23505")
         return NextResponse.json(
-          { error: "Username already taken (database constraint)." },
+          { error: "Username already exists (DB)." },
           { status: 409 }
         );
-      }
-      throw updateError;
+      if (updateError.code === "PGRST116")
+        return NextResponse.json(
+          { error: "User not found for update." },
+          { status: 404 }
+        );
+      throw updateError; // Throw other DB errors
     }
+    // Check if profile data was actually returned
+    if (!updatedProfile) {
+      console.error(
+        "API PATCH /me: Update OK but profile data is missing after select?"
+      );
+      throw new Error(
+        "Update successful but failed to retrieve updated profile."
+      );
+    }
+    console.log("API PATCH /me: DB update successful, profile fetched."); // LOG SUCCESS
 
-    if (updatedProfile) delete (updatedProfile as any).password_hash; // ALWAYS remove hash
-
-    // console.log("API PATCH /profile/me: Update successful.");
+    delete (updatedProfile as any).password_hash; // Remove hash
     return NextResponse.json(
       { profile: updatedProfile, message: "Profile updated successfully!" },
       { status: 200 }
-    );
+    ); // Return success
   } catch (error: unknown) {
-    // console.error('API PATCH /profile/me: Error:', error);
-    let errorMessage = "An unexpected error occurred.";
+    // Catch errors during update logic (DB, JSON parse, etc.)
+    // === DETAILED ERROR LOGGING ADDED HERE ===
+    console.error("API PATCH /me: UNEXPECTED ERROR IN MAIN TRY BLOCK:", error); // Log the raw error
+
+    let errorMessage = "Server error during profile update.";
     let statusCode = 500;
-    if (error instanceof jwt.JsonWebTokenError) {
-      errorMessage = "Invalid or expired token.";
-      statusCode = 401;
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
+
+    // Try to get more specific info from the error
+    if (typeof error === "object" && error !== null) {
+      // Is it a Supabase/PostgREST error?
+      if ("code" in error && typeof error.code === "string") {
+        console.error("Supabase/Postgres Error Code in Catch:", error.code);
+        errorMessage = `Database Error (${error.code}).`;
+        if (error.code === "23505") {
+          errorMessage = "Data conflict (e.g., username already exists).";
+          statusCode = 409;
+        } else if (error.code === "PGRST116") {
+          errorMessage = "Resource not found (PGRST116).";
+          statusCode = 404;
+        }
+        // Add other specific codes if needed
+      }
+      // Is it a standard JS Error?
+      else if ("message" in error && typeof error.message === "string") {
+        errorMessage = error.message;
+      }
     }
-    // Add more specific error handling if needed
+    // Is it just a string?
+    else if (typeof error === "string") {
+      errorMessage = error;
+    }
+    // ============================================
+
+    // Return the analyzed error
     return NextResponse.json({ error: errorMessage }, { status: statusCode });
   }
-}
+  // This line should be unreachable
+  // console.error("API PATCH /me: !!! CRITICAL ERROR: Reached end without returning!");
+  // return NextResponse.json({ error: 'Internal server error (no return).' }, { status: 500 });
+} // End of PATCH function

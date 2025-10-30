@@ -1,13 +1,247 @@
+// // src/app/login/page.tsx
+// "use client";
+
+// import { useState } from "react";
+// import { useRouter } from "next/navigation";
+// import { Chrome } from "lucide-react"; // Google Icon
+
+// // Make sure you've added these via shadcn-ui CLI
+// import { Button } from "@/components/ui/button";
+// import {
+//   Card,
+//   CardContent,
+//   CardDescription,
+//   CardHeader,
+//   CardTitle,
+// } from "@/components/ui/card";
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// export default function LoginPage() {
+//   // States for form inputs
+//   const [email, setEmail] = useState("");
+//   const [password, setPassword] = useState("");
+//   const [username, setUsername] = useState("");
+//   const [fullName, setFullName] = useState("");
+
+//   const router = useRouter();
+
+//   // === REGISTER HANDLER (Calls your API) ===
+//   const handleSignUp = async (e: React.FormEvent) => {
+//     e.preventDefault();
+//     if (username.length < 3) {
+//       alert("Username phải ít nhất 3 ký tự.");
+//       return;
+//     }
+//     if (fullName.trim() === "") {
+//       alert("Nhập họ tên đi chứ.");
+//       return;
+//     }
+
+//     try {
+//       const response = await fetch("/api/auth/register", {
+//         // Calling your API
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({
+//           email: email,
+//           password: password,
+//           username: username.trim(),
+//           fullName: fullName.trim(), // Sending fullName (camelCase)
+//         }),
+//       });
+//       const data = await response.json();
+//       if (!response.ok) throw new Error(data.error || "Đăng ký thất bại.");
+//       alert(data.message); // Show success message from API
+//       // Maybe switch to login tab here?
+//     } catch (error: unknown) {
+//       console.error("Lỗi gọi API đăng ký:", error);
+//       let errorMessage = "Lỗi không xác định.";
+//       if (error instanceof Error) errorMessage = error.message;
+//       alert("Lỗi đăng ký: " + errorMessage);
+//     }
+//   };
+
+//   // === LOGIN HANDLER (Calls your API) ===
+//   const handleSignIn = async (e: React.FormEvent) => {
+//     e.preventDefault();
+//     try {
+//       const response = await fetch("/api/auth/login", {
+//         // Calling your API
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({ email, password }),
+//       });
+//       const data = await response.json();
+//       if (!response.ok) throw new Error(data.error || "Login failed.");
+
+//       // Login successful! API set the cookie.
+//       router.push("/"); // Redirect to home
+//       await new Promise((resolve) => setTimeout(resolve, 50)); // Tiny delay
+//       router.refresh(); // Refresh server components
+//     } catch (error: unknown) {
+//       console.error("Lỗi gọi API đăng nhập:", error);
+//       let errorMessage = "Lỗi không xác định.";
+//       if (error instanceof Error) errorMessage = error.message;
+//       alert("Lỗi đăng nhập: " + errorMessage);
+//     }
+//   };
+
+//   // === GOOGLE SIGN IN (Placeholder) ===
+//   const handleSignInWithGoogle = async () => {
+//     alert("Google Sign-In sắp có...");
+//   };
+
+//   return (
+//     <div className="flex justify-center items-center min-h-screen py-12 bg-gray-50">
+//       <Card className="w-full max-w-md mx-4 shadow-lg">
+//         <CardHeader className="text-center">
+//           <CardTitle className="text-2xl font-bold">Chào mừng!</CardTitle>
+//           <CardDescription>
+//             Đăng nhập hoặc đăng ký để tiếp tục khám phá.
+//           </CardDescription>
+//         </CardHeader>
+//         <CardContent>
+//           {/* === TABS Component === */}
+//           <Tabs defaultValue="login" className="w-full">
+//             {" "}
+//             {/* Default to login */}
+//             <TabsList className="grid w-full grid-cols-2">
+//               <TabsTrigger value="login">Đăng nhập</TabsTrigger>
+//               <TabsTrigger value="register">Đăng ký</TabsTrigger>
+//             </TabsList>
+//             {/* === LOGIN TAB CONTENT === */}
+//             <TabsContent value="login" className="mt-4">
+//               <form onSubmit={handleSignIn}>
+//                 <div className="grid w-full items-center gap-4">
+//                   <div className="flex flex-col space-y-1.5">
+//                     <Label htmlFor="login-email">Email</Label>
+//                     <Input
+//                       id="login-email"
+//                       type="email"
+//                       placeholder="you@example.com"
+//                       value={email}
+//                       onChange={(e) => setEmail(e.target.value)}
+//                       required
+//                     />
+//                   </div>
+//                   <div className="flex flex-col space-y-1.5">
+//                     <Label htmlFor="login-password">Mật khẩu</Label>
+//                     <Input
+//                       id="login-password"
+//                       type="password"
+//                       placeholder="Mật khẩu của bạn"
+//                       value={password}
+//                       onChange={(e) => setPassword(e.target.value)}
+//                       required
+//                     />
+//                   </div>
+//                 </div>
+//                 <Button type="submit" className="w-full mt-6">
+//                   {" "}
+//                   Đăng nhập{" "}
+//                 </Button>
+//               </form>
+//             </TabsContent>
+//             {/* === REGISTER TAB CONTENT === */}
+//             <TabsContent value="register" className="mt-4">
+//               <form onSubmit={handleSignUp}>
+//                 <div className="grid w-full items-center gap-4">
+//                   <div className="flex flex-col space-y-1.5">
+//                     {" "}
+//                     <Label htmlFor="reg-fullName">Họ và tên</Label>{" "}
+//                     <Input
+//                       id="reg-fullName"
+//                       placeholder="Nguyễn Văn A"
+//                       value={fullName}
+//                       onChange={(e) => setFullName(e.target.value)}
+//                       required
+//                     />{" "}
+//                   </div>
+//                   <div className="flex flex-col space-y-1.5">
+//                     {" "}
+//                     <Label htmlFor="reg-username">Tên người dùng</Label>{" "}
+//                     <Input
+//                       id="reg-username"
+//                       placeholder="nguyenvana (min 3 chars)"
+//                       value={username}
+//                       onChange={(e) => setUsername(e.target.value)}
+//                       required
+//                       minLength={3}
+//                     />{" "}
+//                   </div>
+//                   <div className="flex flex-col space-y-1.5">
+//                     {" "}
+//                     <Label htmlFor="reg-email">Email</Label>{" "}
+//                     <Input
+//                       id="reg-email"
+//                       type="email"
+//                       placeholder="you@example.com"
+//                       value={email}
+//                       onChange={(e) => setEmail(e.target.value)}
+//                       required
+//                     />{" "}
+//                   </div>
+//                   <div className="flex flex-col space-y-1.5">
+//                     {" "}
+//                     <Label htmlFor="reg-password">Mật khẩu</Label>{" "}
+//                     <Input
+//                       id="reg-password"
+//                       type="password"
+//                       placeholder="Chọn mật khẩu mạnh"
+//                       value={password}
+//                       onChange={(e) => setPassword(e.target.value)}
+//                       required
+//                       minLength={6}
+//                     />{" "}
+//                   </div>
+//                 </div>
+//                 <Button type="submit" className="w-full mt-6">
+//                   {" "}
+//                   Đăng ký{" "}
+//                 </Button>
+//               </form>
+//             </TabsContent>
+//           </Tabs>
+
+//           {/* === OR Separator === */}
+//           <div className="relative my-6">
+//             {" "}
+//             <div className="absolute inset-0 flex items-center">
+//               <span className="w-full border-t" />
+//             </div>{" "}
+//             <div className="relative flex justify-center text-xs uppercase">
+//               <span className="bg-card px-2 text-muted-foreground">
+//                 {" "}
+//                 Hoặc tiếp tục với{" "}
+//               </span>
+//             </div>{" "}
+//           </div>
+
+//           {/* === Google Sign In Button === */}
+//           <Button
+//             variant="outline"
+//             className="w-full"
+//             onClick={handleSignInWithGoogle}
+//             disabled
+//           >
+//             <Chrome className="mr-2 h-4 w-4" /> Google
+//           </Button>
+//         </CardContent>
+//       </Card>
+//     </div>
+//   );
+// }
+
 // src/app/login/page.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-// No Supabase client needed here for custom auth forms
-// import { createClient } from '@/lib/supabase/client';
-import { Chrome } from "lucide-react"; // Google Icon
+import { Chrome } from "lucide-react";
 
-// Make sure you've added these via shadcn-ui CLI
+// === CÁC IMPORTS ĐÃ SỬA ĐÚNG CHUẨN SHADCNUI (KHÔNG CÒN @/components/ui/all) ===
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,195 +253,166 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// ==============================================================================
+
+import { useUser } from "@/contexts/UserContext"; // Dùng Context Hook
 
 export default function LoginPage() {
-  // States for form inputs - shared between tabs but maybe clear on tab switch? Up to you.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
-
   const router = useRouter();
+  const { fetchUserData: refetchUserContext } = useUser(); // Lấy hàm phát loa
 
-  // === REGISTER HANDLER (Calls your API) ===
+  // === REGISTER HANDLER ===
   const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault(); // Stop the form from submitting the old-fashioned way
-    // Basic frontend validation
+    e.preventDefault();
     if (username.length < 3) {
-      alert("Hold up! Username needs at least 3 characters.");
+      alert("Username phải ít nhất 3 ký tự.");
       return;
     }
     if (fullName.trim() === "") {
-      alert("Seriously? We need your full name.");
+      alert("Nhập họ tên đi chứ.");
       return;
     }
 
     try {
       const response = await fetch("/api/auth/register", {
-        // Calling your API
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: email,
-          password: password,
+          email,
+          password,
           username: username.trim(),
-          fullName: fullName.trim(), // Sending fullName (camelCase)
+          fullName: fullName.trim(),
         }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        // If the API threw an error (like 400, 409, 500)
-        throw new Error(data.error || "Registration failed. Try again maybe?");
-      }
-
-      // Success!
-      alert(data.message); // Show success message from API
-      // Maybe switch to login tab here? Or clear the form. Your call.
+      if (!response.ok) throw new Error(data.error || "Đăng ký thất bại.");
+      alert(data.message);
     } catch (error: unknown) {
-      // Handle fetch/network errors or errors thrown above
-      console.error("Error calling registration API:", error);
-      let errorMessage = "Something went haywire. Please try again.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      alert("Registration Error: " + errorMessage);
+      console.error("Lỗi gọi API đăng ký:", error);
+      let errorMessage = "Lỗi không xác định.";
+      if (error instanceof Error) errorMessage = error.message;
+      alert("Lỗi đăng ký: " + errorMessage);
     }
   };
 
-  // === LOGIN HANDLER (Calls your API) ===
+  // === LOGIN HANDLER ===
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const response = await fetch("/api/auth/login", {
-        // Calling your API
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }), // Only need email/password
+        body: JSON.stringify({ email, password }),
       });
-
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Đăng nhập thất bại.");
 
-      if (!response.ok) {
-        throw new Error(data.error || "Login failed. Check your credentials.");
-      }
+      // Báo cáo Tổng đài TRƯỚC KHI redirect
+      console.log("LoginPage: Login successful, triggering context refresh.");
+      await refetchUserContext();
 
-      // Login successful! API set the cookie.
-      console.log("Login successful, user:", data.user);
-      // alert('Login successful!'); // Maybe skip the alert for a smoother UX
-
-      // Redirect to home and refresh to update server components (like Header)
+      // Redirect
       router.push("/");
-      router.refresh();
     } catch (error: unknown) {
-      console.error("Error calling login API:", error);
-      let errorMessage = "An unexpected error occurred.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      alert("Login Error: " + errorMessage);
+      console.error("Lỗi gọi API đăng nhập:", error);
+      let errorMessage = "Lỗi không xác định.";
+      if (error instanceof Error) errorMessage = error.message;
+      alert("Lỗi đăng nhập: " + errorMessage);
     }
   };
 
-  // === GOOGLE SIGN IN (Placeholder for now) ===
+  // === GOOGLE SIGN IN (Placeholder) ===
   const handleSignInWithGoogle = async () => {
-    // This will require a different flow - setting up Google OAuth
-    // on your backend API and handling the callback. Much more involved.
-    alert("Google Sign-In coming soon... ish.");
+    alert("Google Sign-In sắp có...");
   };
 
   return (
-    // Centering the card on the page
     <div className="flex justify-center items-center min-h-screen py-12 bg-gray-50">
-      {" "}
-      {/* Added a light background */}
       <Card className="w-full max-w-md mx-4 shadow-lg">
-        {" "}
-        {/* Added shadow */}
         <CardHeader className="text-center">
-          {" "}
-          {/* Centered header text */}
-          <CardTitle className="text-2xl font-bold">Welcome Back!</CardTitle>
+          <CardTitle className="text-2xl font-bold">Chào mừng!</CardTitle>
           <CardDescription>
-            Log in or sign up to dive into the world of diecast models.
+            Đăng nhập hoặc đăng ký để tiếp tục khám phá.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* === TABS Component === */}
           <Tabs defaultValue="login" className="w-full">
-            {" "}
-            {/* Default to login */}
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Log In</TabsTrigger>
-              <TabsTrigger value="register">Sign Up</TabsTrigger>
+              <TabsTrigger value="login">Đăng nhập</TabsTrigger>
+              <TabsTrigger value="register">Đăng ký</TabsTrigger>
             </TabsList>
+
             {/* === LOGIN TAB CONTENT === */}
             <TabsContent value="login" className="mt-4">
-              {" "}
-              {/* Added margin top */}
               <form onSubmit={handleSignIn}>
                 <div className="grid w-full items-center gap-4">
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="login-email">Email</Label>
+                    {" "}
+                    <Label htmlFor="login-email">Email</Label>{" "}
                     <Input
                       id="login-email"
                       type="email"
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      required // Added basic HTML validation
-                    />
+                      required
+                    />{" "}
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="login-password">Password</Label>
+                    {" "}
+                    <Label htmlFor="login-password">Mật khẩu</Label>{" "}
                     <Input
                       id="login-password"
                       type="password"
-                      placeholder="Your secure password"
+                      placeholder="Mật khẩu của bạn"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                    />
+                    />{" "}
                   </div>
                 </div>
                 <Button type="submit" className="w-full mt-6">
                   {" "}
-                  {/* Added margin top */}
-                  Log In
+                  Đăng nhập{" "}
                 </Button>
               </form>
             </TabsContent>
+
             {/* === REGISTER TAB CONTENT === */}
             <TabsContent value="register" className="mt-4">
-              {" "}
-              {/* Added margin top */}
               <form onSubmit={handleSignUp}>
                 <div className="grid w-full items-center gap-4">
-                  {/* Registration fields */}
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="reg-fullName">Full Name</Label>
+                    {" "}
+                    <Label htmlFor="reg-fullName">Họ và tên</Label>{" "}
                     <Input
                       id="reg-fullName"
-                      placeholder="Nguyen Van A"
+                      placeholder="Nguyễn Văn A"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
-                    />
+                    />{" "}
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="reg-username">Username</Label>
+                    {" "}
+                    <Label htmlFor="reg-username">Tên người dùng</Label>{" "}
                     <Input
                       id="reg-username"
                       placeholder="nguyenvana (min 3 chars)"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
-                      minLength={3} // Added basic HTML validation
-                    />
+                      minLength={3}
+                    />{" "}
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="reg-email">Email</Label>
+                    {" "}
+                    <Label htmlFor="reg-email">Email</Label>{" "}
                     <Input
                       id="reg-email"
                       type="email"
@@ -215,25 +420,25 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                    />
+                    />{" "}
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="reg-password">Password</Label>
+                    {" "}
+                    <Label htmlFor="reg-password">Mật khẩu</Label>{" "}
                     <Input
                       id="reg-password"
                       type="password"
-                      placeholder="Choose a strong password"
+                      placeholder="Chọn mật khẩu mạnh"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      minLength={6} // Example: Enforce minimum length
-                    />
+                      minLength={6}
+                    />{" "}
                   </div>
                 </div>
                 <Button type="submit" className="w-full mt-6">
                   {" "}
-                  {/* Added margin top */}
-                  Sign Up
+                  Đăng ký{" "}
                 </Button>
               </form>
             </TabsContent>
@@ -242,17 +447,15 @@ export default function LoginPage() {
           {/* === OR Separator === */}
           <div className="relative my-6">
             {" "}
-            {/* Increased margin */}
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
-            </div>
+            </div>{" "}
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-card px-2 text-muted-foreground">
                 {" "}
-                {/* Use card background */}
-                Or continue with
+                Hoặc tiếp tục với{" "}
               </span>
-            </div>
+            </div>{" "}
           </div>
 
           {/* === Google Sign In Button === */}
@@ -260,10 +463,9 @@ export default function LoginPage() {
             variant="outline"
             className="w-full"
             onClick={handleSignInWithGoogle}
-            disabled // Still disabled as the backend isn't ready
+            disabled
           >
-            <Chrome className="mr-2 h-4 w-4" /> {/* Google Icon */}
-            Google
+            <Chrome className="mr-2 h-4 w-4" /> Google
           </Button>
         </CardContent>
       </Card>

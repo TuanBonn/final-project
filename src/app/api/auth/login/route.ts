@@ -1,116 +1,223 @@
-// src/app/api/auth/login/route.ts
+// // src/app/api/auth/login/route.ts
 
-import { createClient } from "@supabase/supabase-js"; // Client cơ bản để query DB
+// import { createClient } from "@supabase/supabase-js"; // Client cơ bản để query DB
+// import { NextResponse } from "next/server";
+// import bcrypt from "bcrypt";
+// import jwt from "jsonwebtoken";
+// import { cookies } from "next/headers"; // Để set cookie
+
+// const JWT_SECRET = process.env.JWT_SECRET;
+// const COOKIE_NAME = "auth-token"; // Tên cookie chứa JWT
+// const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // Ví dụ: 7 ngày
+
+// export async function POST(request: Request) {
+//   if (!JWT_SECRET) {
+//     console.error("JWT_SECRET chưa được cấu hình!");
+//     return NextResponse.json(
+//       { error: "Lỗi cấu hình server." },
+//       { status: 500 }
+//     );
+//   }
+
+//   const supabase = createClient(
+//     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+//     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+//   );
+
+//   try {
+//     // 1. Lấy email và password từ request
+//     const body = await request.json();
+//     const { email, password } = body;
+
+//     if (!email || !password) {
+//       return NextResponse.json(
+//         { error: "Vui lòng nhập email và mật khẩu." },
+//         { status: 400 }
+//       );
+//     }
+
+//     // 2. Tìm user trong database bằng email
+//     console.log(`Tìm kiếm user với email: ${email}`); // Log
+//     const { data: user, error: findError } = await supabase
+//       .from("users") // Bảng users
+//       .select(
+//         "id, email, password_hash, username, full_name, avatar_url, role, is_verified"
+//       ) // Lấy cả hash và các thông tin khác
+//       .eq("email", email)
+//       .single(); // Chỉ mong đợi 1 kết quả
+
+//     if (findError || !user) {
+//       console.error("Lỗi tìm user hoặc user không tồn tại:", findError);
+//       return NextResponse.json(
+//         { error: "Email hoặc mật khẩu không đúng." },
+//         { status: 401 }
+//       ); // Unauthorized
+//     }
+//     console.log("User tìm thấy:", user.email); // Log
+
+//     // 3. So sánh mật khẩu nhập vào với hash trong database
+//     console.log("So sánh mật khẩu..."); // Log
+//     const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+//     if (!passwordMatch) {
+//       console.warn(`Sai mật khẩu cho user: ${email}`); // Log
+//       return NextResponse.json(
+//         { error: "Email hoặc mật khẩu không đúng." },
+//         { status: 401 }
+//       );
+//     }
+//     console.log("Mật khẩu khớp!"); // Log
+
+//     // 4. Mật khẩu đúng -> Tạo JWT (Token)
+//     console.log("Tạo JWT..."); // Log
+//     const tokenPayload = {
+//       userId: user.id,
+//       email: user.email,
+//       role: user.role, // Thêm role vào token nếu cần phân quyền nhanh
+//       // Bạn có thể thêm các thông tin khác không nhạy cảm vào đây
+//     };
+//     const token = jwt.sign(
+//       tokenPayload,
+//       JWT_SECRET,
+//       { expiresIn: `${COOKIE_MAX_AGE_SECONDS}s` } // Đặt thời gian hết hạn cho token
+//     );
+//     console.log("JWT đã tạo."); // Log
+
+//     // 5. Chuẩn bị thông tin user trả về (LOẠI BỎ password_hash)
+//     const userResponse = { ...user };
+//     delete (userResponse as any).password_hash; // Cực kỳ quan trọng: Xóa hash trước khi gửi về client
+
+//     // 6. Set JWT vào cookie httpOnly
+//     const cookieStore = cookies();
+//     cookieStore.set({
+//       name: COOKIE_NAME,
+//       value: token,
+//       httpOnly: true, // Chỉ server mới đọc được, tăng bảo mật
+//       path: "/",
+//       maxAge: COOKIE_MAX_AGE_SECONDS,
+//       // secure: process.env.NODE_ENV === 'production', // Bật khi deploy HTTPS
+//       // sameSite: 'strict', // Chống CSRF
+//     });
+//     console.log("Cookie đã được set."); // Log
+
+//     // 7. Trả về thành công cùng thông tin user (đã loại bỏ hash)
+//     return NextResponse.json(
+//       { user: userResponse, message: "Đăng nhập thành công." },
+//       { status: 200 }
+//     );
+//   } catch (error: unknown) {
+//     console.error("Lỗi không mong muốn trong API Đăng nhập:", error);
+//     let errorMessage = "Đã xảy ra lỗi không mong muốn.";
+//     if (error instanceof Error) {
+//       errorMessage = error.message;
+//     }
+//     return NextResponse.json({ error: errorMessage }, { status: 500 });
+//   }
+// }
+
+// src/app/api/auth/login/route.ts
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { cookies } from "next/headers"; // Để set cookie
+import { cookies } from "next/headers";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const COOKIE_NAME = "auth-token"; // Tên cookie chứa JWT
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // Ví dụ: 7 ngày
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const JWT_SECRET = process.env.JWT_SECRET; // Lấy key từ .env
+const COOKIE_NAME = "auth-token";
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 ngày
+
+// Client Supabase cơ bản
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function POST(request: Request) {
+  // Check xem có JWT_SECRET không ngay từ đầu
   if (!JWT_SECRET) {
-    console.error("JWT_SECRET chưa được cấu hình!");
+    console.error("API Login: **ALARM!** JWT_SECRET chưa được cấu hình!");
     return NextResponse.json(
-      { error: "Lỗi cấu hình server." },
+      { error: "Lỗi cấu hình server nghiêm trọng." },
       { status: 500 }
     );
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   try {
-    // 1. Lấy email và password từ request
-    const body = await request.json();
-    const { email, password } = body;
-
-    if (!email || !password) {
+    const { email, password } = await request.json();
+    if (!email || !password)
       return NextResponse.json(
-        { error: "Vui lòng nhập email và mật khẩu." },
+        { error: "Thiếu email hoặc mật khẩu." },
         { status: 400 }
       );
-    }
 
-    // 2. Tìm user trong database bằng email
-    console.log(`Tìm kiếm user với email: ${email}`); // Log
+    // --- Find User ---
     const { data: user, error: findError } = await supabase
-      .from("users") // Bảng users
-      .select(
-        "id, email, password_hash, username, full_name, avatar_url, role, is_verified"
-      ) // Lấy cả hash và các thông tin khác
+      .from("users")
+      .select("*")
       .eq("email", email)
-      .single(); // Chỉ mong đợi 1 kết quả
-
-    if (findError || !user) {
-      console.error("Lỗi tìm user hoặc user không tồn tại:", findError);
+      .single();
+    if (findError || !user)
       return NextResponse.json(
-        { error: "Email hoặc mật khẩu không đúng." },
-        { status: 401 }
-      ); // Unauthorized
-    }
-    console.log("User tìm thấy:", user.email); // Log
-
-    // 3. So sánh mật khẩu nhập vào với hash trong database
-    console.log("So sánh mật khẩu..."); // Log
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
-
-    if (!passwordMatch) {
-      console.warn(`Sai mật khẩu cho user: ${email}`); // Log
-      return NextResponse.json(
-        { error: "Email hoặc mật khẩu không đúng." },
+        { error: "Email hoặc mật khẩu sai." },
         { status: 401 }
       );
-    }
-    console.log("Mật khẩu khớp!"); // Log
 
-    // 4. Mật khẩu đúng -> Tạo JWT (Token)
-    console.log("Tạo JWT..."); // Log
+    // --- Compare Password ---
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch)
+      return NextResponse.json(
+        { error: "Email hoặc mật khẩu sai." },
+        { status: 401 }
+      );
+
+    // --- Create JWT ---
+    console.log("API Login: Chuẩn bị tạo JWT..."); // Log
+
+    // === LOG KEY SỬ DỤNG ĐỂ TẠO TOKEN ===
+    console.log(
+      "API Login: Dùng JWT_SECRET:",
+      JWT_SECRET
+        ? `"${JWT_SECRET.substring(0, 5)}... (dài ${JWT_SECRET.length})"`
+        : "!!! BỊ THIẾU !!!"
+    );
+    // ===================================
+
     const tokenPayload = {
       userId: user.id,
       email: user.email,
-      role: user.role, // Thêm role vào token nếu cần phân quyền nhanh
-      // Bạn có thể thêm các thông tin khác không nhạy cảm vào đây
+      role: user.role,
     };
-    const token = jwt.sign(
-      tokenPayload,
-      JWT_SECRET,
-      { expiresIn: `${COOKIE_MAX_AGE_SECONDS}s` } // Đặt thời gian hết hạn cho token
-    );
-    console.log("JWT đã tạo."); // Log
+    const token = jwt.sign(tokenPayload, JWT_SECRET, {
+      expiresIn: `${COOKIE_MAX_AGE_SECONDS}s`,
+    });
+    // console.log('API Login: JWT đã tạo.'); // Log
 
-    // 5. Chuẩn bị thông tin user trả về (LOẠI BỎ password_hash)
+    // --- Prepare User Response ---
     const userResponse = { ...user };
-    delete (userResponse as any).password_hash; // Cực kỳ quan trọng: Xóa hash trước khi gửi về client
+    delete (userResponse as any).password_hash;
 
-    // 6. Set JWT vào cookie httpOnly
+    // --- Set Cookie ---
     const cookieStore = cookies();
     cookieStore.set({
       name: COOKIE_NAME,
       value: token,
-      httpOnly: true, // Chỉ server mới đọc được, tăng bảo mật
+      httpOnly: true,
       path: "/",
       maxAge: COOKIE_MAX_AGE_SECONDS,
-      // secure: process.env.NODE_ENV === 'production', // Bật khi deploy HTTPS
-      // sameSite: 'strict', // Chống CSRF
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax", // Dùng 'lax'
     });
-    console.log("Cookie đã được set."); // Log
+    console.log(
+      `API Login: Cookie '${COOKIE_NAME}' đã được set với SameSite=Lax.`
+    ); // Log
 
-    // 7. Trả về thành công cùng thông tin user (đã loại bỏ hash)
     return NextResponse.json(
       { user: userResponse, message: "Đăng nhập thành công." },
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error("Lỗi không mong muốn trong API Đăng nhập:", error);
-    let errorMessage = "Đã xảy ra lỗi không mong muốn.";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    console.error("API Login Error:", error);
+    let message = "Lỗi server.";
+    if (error instanceof Error) message = error.message;
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
