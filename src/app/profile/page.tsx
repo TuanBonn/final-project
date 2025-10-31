@@ -18,8 +18,9 @@
 // } from "@/components/ui/dialog";
 // import { Input } from "@/components/ui/input";
 // import { Label } from "@/components/ui/label";
-// import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation"; // <-- ĐÃ THÊM IMPORT THIẾU
 // import { uploadFileViaApi } from "@/lib/storageUtils";
+// import { useUser } from "@/contexts/UserContext"; // <-- DÙNG HOOK TỪ CONTEXT
 
 // // Kiểu dữ liệu Profile (phải khớp với API /api/profile/me trả về)
 // interface UserProfile {
@@ -34,27 +35,16 @@
 //   created_at: string;
 // }
 
-// // --- Hàm lấy tên viết tắt (tách ra ngoài cho gọn) ---
-// const getInitials = (name: string | null): string => {
-//   if (!name) return "??";
-//   return name
-//     .split(" ")
-//     .map((n) => n[0])
-//     .join("")
-//     .toUpperCase()
-//     .slice(0, 2);
-// };
-
 // export default function ProfilePage() {
-//   console.log(
-//     "%c--- ProfilePage Render START ---",
-//     "color: blue; font-weight: bold;"
-//   ); // LOG 1: Bắt đầu render
+//   // console.log("--- ProfilePage Component Render START ---"); // Log debug
 
 //   const [profile, setProfile] = useState<UserProfile | null>(null);
-//   const [loading, setLoading] = useState(true); // Khởi đầu là true
+//   const [loading, setLoading] = useState(true);
 //   const [error, setError] = useState<string | null>(null);
-//   const router = useRouter(); // Khai báo router nếu cần redirect
+//   const router = useRouter(); // <-- Đã sửa lỗi useRouter
+
+//   // Lấy hàm fetchUserData từ Context
+//   const { fetchUserData: refetchUserContext } = useUser();
 
 //   // State cho form edit
 //   const [isSaving, setIsSaving] = useState(false);
@@ -68,74 +58,73 @@
 //   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 //   const fileInputRef = useRef<HTMLInputElement>(null);
 
+//   // --- Hàm lấy tên viết tắt ---
+//   const getInitials = useCallback((name: string | null): string => {
+//     if (!name) return "??";
+//     return name
+//       .split(" ")
+//       .map((n) => n[0])
+//       .join("")
+//       .toUpperCase()
+//       .slice(0, 2);
+//   }, []);
+
 //   // --- Hàm fetch profile (Đã thêm log chi tiết) ---
 //   const fetchProfile = useCallback(async () => {
-//     setLoading(true); // Set loading true khi bắt đầu fetch
+//     setLoading(true);
 //     setError(null);
-//     console.log("%cProfilePage: Fetching /api/profile/me...", "color: orange;"); // LOG 2
+//     // console.log("ProfilePage: Bắt đầu fetch /api/profile/me");
 //     try {
 //       const response = await fetch("/api/profile/me", {
 //         cache: "no-store", // Không dùng cache
 //         credentials: "include", // Gửi kèm cookie
 //       });
-//       console.log(`ProfilePage: Fetch status: ${response.status}`); // LOG 3
+//       // console.log(`ProfilePage: Fetch status: ${response.status}`);
 
-//       const responseText = await response.text(); // Đọc text trước
-//       // Log một phần để tránh tràn console nếu response quá dài
-//       // console.log("ProfilePage: Fetch response text (sample):", responseText.slice(0, 200) + '...'); // LOG 3.5 (Tùy chọn)
+//       const responseText = await response.text();
+//       // console.log("ProfilePage: Fetch response text:", responseText.slice(0, 200) + '...');
 
 //       if (!response.ok) {
-//         // Log lỗi cụ thể hơn
-//         console.error(
-//           `ProfilePage: Fetch failed! Status: ${response.status}, Body: ${responseText}`
-//         ); // LOG 4: Lỗi fetch
-//         let errorMsg = `Lỗi ${response.status}. Không thể tải profile.`;
-//         try {
-//           const errorData = JSON.parse(responseText);
-//           errorMsg = errorData.error || errorMsg; // Lấy lỗi từ JSON nếu có
-//         } catch (e) {
-//           /* Bỏ qua nếu không phải JSON */
-//         }
-//         // Phân biệt 401 để xử lý riêng
+//         // Xử lý lỗi 401 Unauthorized
 //         if (response.status === 401) {
 //           setError("Yêu cầu đăng nhập để xem trang này.");
-//           console.log("ProfilePage: Received 401, redirecting..."); // LOG 401
 //           router.push("/login?message=Session expired"); // Chuyển hướng về login
 //         } else {
+//           let errorMsg = `Lỗi ${response.status}. Không thể tải profile.`;
+//           try {
+//             const errorData = JSON.parse(responseText);
+//             errorMsg = errorData.error || errorMsg;
+//           } catch (e) {}
 //           setError(errorMsg); // Các lỗi khác
 //         }
 //         setProfile(null); // Đảm bảo profile là null khi lỗi
 //         return; // Dừng hàm khi lỗi
 //       }
 
-//       // Chỉ parse JSON khi response.ok
+//       // Parse JSON
 //       const data = JSON.parse(responseText);
-//       console.log("%cProfilePage: API data received:", "color: green;", data); // LOG 5: Dữ liệu nhận được
+//       // console.log("ProfilePage: API data received:", data);
 
 //       if (data.profile) {
 //         setProfile(data.profile); // Cập nhật state profile
 //         // Cập nhật state form edit chỉ sau khi fetch thành công
 //         setEditFullName(data.profile.full_name || "");
 //         setEditUsername(data.profile.username || "");
-//         console.log(
-//           "%cProfilePage: Profile state UPDATED.",
-//           "color: green; font-weight: bold;"
-//         ); // LOG 6: State đã cập nhật
 //       } else {
-//         console.warn("ProfilePage: API returned OK but no profile data?"); // LOG Cảnh báo
-//         setError("Không tìm thấy dữ liệu profile."); // Set lỗi nhẹ
-//         setProfile(null); // Đảm bảo profile là null
+//         console.warn("ProfilePage: API returned OK but no profile data?");
+//         setError("Không tìm thấy dữ liệu profile.");
+//         setProfile(null);
 //       }
 //     } catch (err: unknown) {
-//       console.error("ProfilePage: Exception during fetchProfile:", err); // LOG 7: Lỗi catch
+//       console.error("ProfilePage: Exception during fetchProfile:", err);
 //       setError(
 //         err instanceof Error
 //           ? err.message
 //           : "Lỗi không xác định khi tải profile."
 //       );
-//       setProfile(null); // Đảm bảo profile là null khi có exception
+//       setProfile(null);
 //     } finally {
-//       console.log("ProfilePage: Fetch finished, setLoading(false)."); // LOG 8: Kết thúc fetch
+//       // console.log("ProfilePage: Fetch finished, setting loading to false.");
 //       setLoading(false); // Luôn tắt loading
 //     }
 //   }, [router]); // Thêm router vì có dùng
@@ -167,7 +156,7 @@
 //     }
 //   };
 
-//   // --- Xử lý submit edit form ---
+//   // --- Xử lý submit edit form (Gọi Context refetch khi thành công) ---
 //   const handleEditSubmit = async (e: React.FormEvent) => {
 //     e.preventDefault();
 //     if (!profile) return;
@@ -197,9 +186,7 @@
 
 //       // Bước 3: Gọi API PATCH nếu có thay đổi
 //       if (Object.keys(updatePayload).length === 0) {
-//         setIsSaving(false);
-//         setIsDialogOpen(false);
-//         /* ... reset file ... */ return;
+//         /* ... xử lý không đổi ... */ return;
 //       }
 //       const response = await fetch("/api/profile/me", {
 //         method: "PATCH",
@@ -210,11 +197,18 @@
 //       if (!response.ok) throw new Error(data.error || "Update failed.");
 
 //       // Bước 4: Xử lý thành công
-//       setProfile(data.profile);
-//       setIsDialogOpen(false);
+//       setProfile(data.profile); // Cập nhật state local
+//       setIsDialogOpen(false); // Đóng Dialog
 //       setSelectedFile(null);
 //       setPreviewUrl(null);
 //       if (fileInputRef.current) fileInputRef.current.value = "";
+
+//       // === BÁO CÁO TỔNG ĐÀI ĐỂ HEADER CẬP NHẬT ẢNH/TÊN MỚI ===
+//       console.log(
+//         "ProfilePage: Update successful, triggering context refetch..."
+//       );
+//       await refetchUserContext(); // <-- BÁO CÁO (Header sẽ tự update)
+//       // ===========================================
 //     } catch (err: unknown) {
 //       setEditError(err instanceof Error ? err.message : "Update error.");
 //     } finally {
@@ -238,14 +232,10 @@
 //   };
 
 //   // --- Render UI ---
-//   console.log("ProfilePage: Checking render conditions...", {
-//     loading,
-//     error,
-//     profileIsNull: profile === null,
-//   }); // LOG 9: Điều kiện render
+//   // console.log("ProfilePage: Checking render conditions...", { loading, error, profileIsNull: profile === null }); // Log debug
 
 //   if (loading) {
-//     console.log("ProfilePage: Rendering LOADING..."); // LOG 10
+//     // console.log("ProfilePage: Rendering LOADING state");
 //     return (
 //       <div className="text-center py-10">
 //         <Loader2 className="animate-spin inline-block mr-2 h-6 w-6" /> Đang load
@@ -254,32 +244,28 @@
 //     );
 //   }
 //   if (error) {
-//     console.log("ProfilePage: Rendering ERROR:", error); // LOG 11
+//     // console.log("ProfilePage: Rendering ERROR state:", error);
+//     // Khi lỗi, có thể trả về lỗi hoặc component login (nếu là 401)
 //     return (
 //       <div className="text-center py-10 px-4">
 //         <Card className="inline-block bg-red-100 border-red-400 p-4">
-//           <p className="text-red-700 font-semibold">Toang:</p>
+//           <p className="text-red-700 font-semibold">Error:</p>
 //           <p className="text-red-600">{error}</p>
 //         </Card>
 //       </div>
 //     );
 //   }
-//   // Check lại !profile sau khi đã hết loading và không có error
 //   if (!profile) {
-//     console.log("ProfilePage: Rendering NO PROFILE (after checks)"); // LOG 12
-//     // Có thể hiển thị một thông báo thân thiện hơn hoặc component trống
+//     // console.log("ProfilePage: Rendering NO PROFILE state");
+//     // Dù không lỗi, nhưng không có profile (đã bị redirect)
 //     return (
 //       <div className="text-center py-10 text-muted-foreground">
-//         Không tìm thấy thông tin profile. Bạn đã đăng nhập chưa?
+//         Không tìm thấy thông tin profile.
 //       </div>
 //     );
 //   }
 
-//   // Nếu qua được hết -> Phải render cái này
-//   console.log(
-//     "%cProfilePage: RENDERING PROFILE JSX!",
-//     "color: green; font-weight: bold;"
-//   ); // LOG 13
+//   // console.log("ProfilePage: RENDERING PROFILE JSX!");
 
 //   return (
 //     <div className="space-y-8 max-w-3xl mx-auto p-4 md:p-0">
@@ -302,12 +288,12 @@
 //             </DialogTrigger>
 //             <DialogContent className="sm:max-w-[480px]">
 //               <DialogHeader>
-//                 {/* ĐÃ SỬA LỖI THIẾU DialogTitle */}
-//                 <DialogTitle>Chỉnh sửa hồ sơ</DialogTitle>
+//                 {" "}
+//                 <DialogTitle>Chỉnh sửa hồ sơ</DialogTitle>{" "}
 //                 <DialogDescription>
 //                   {" "}
 //                   Cập nhật xong thì Lưu nha.{" "}
-//                 </DialogDescription>
+//                 </DialogDescription>{" "}
 //               </DialogHeader>
 //               {/* --- Form Edit --- */}
 //               <form onSubmit={handleEditSubmit} className="pt-4">
@@ -471,7 +457,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Loader2, Upload } from "lucide-react";
+import { Edit, Loader2, Upload, KeyRound, ShieldCheck } from "lucide-react"; // Thêm icon
 import {
   Dialog,
   DialogContent,
@@ -484,11 +470,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation"; // <-- ĐÃ THÊM IMPORT THIẾU
+import { useRouter } from "next/navigation";
 import { uploadFileViaApi } from "@/lib/storageUtils";
-import { useUser } from "@/contexts/UserContext"; // <-- DÙNG HOOK TỪ CONTEXT
+import { useUser } from "@/contexts/UserContext"; // Dùng Context Hook
 
-// Kiểu dữ liệu Profile (phải khớp với API /api/profile/me trả về)
+// Kiểu dữ liệu Profile
 interface UserProfile {
   id: string;
   email: string;
@@ -501,99 +487,97 @@ interface UserProfile {
   created_at: string;
 }
 
+// --- Hàm lấy tên viết tắt ---
+const getInitials = (name: string | null): string => {
+  if (!name) return "??";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
+
 export default function ProfilePage() {
-  // console.log("--- ProfilePage Component Render START ---"); // Log debug
+  // console.log("--- ProfilePage Render START ---");
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter(); // <-- Đã sửa lỗi useRouter
+  const router = useRouter();
 
-  // Lấy hàm fetchUserData từ Context
+  // Lấy hàm "phát loa" từ Context
   const { fetchUserData: refetchUserContext } = useUser();
 
-  // State cho form edit
+  // State cho dialog SỬA PROFILE
   const [isSaving, setIsSaving] = useState(false);
   const [editFullName, setEditFullName] = useState("");
   const [editUsername, setEditUsername] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false); // State quản lý Dialog
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // State và Ref cho upload avatar
+  // State và Ref cho UPLOAD AVATAR
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Hàm lấy tên viết tắt ---
-  const getInitials = useCallback((name: string | null): string => {
-    if (!name) return "??";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  }, []);
+  // State cho dialog ĐỔI MẬT KHẨU
+  const [isChangePassOpen, setIsChangePassOpen] = useState(false);
+  const [isChangingPass, setIsChangingPass] = useState(false);
+  const [changePassError, setChangePassError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  // --- Hàm fetch profile (Đã thêm log chi tiết) ---
+  // --- Hàm fetch profile ban đầu ---
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
-    // console.log("ProfilePage: Bắt đầu fetch /api/profile/me");
+    // console.log("ProfilePage: Fetching /api/profile/me...");
     try {
       const response = await fetch("/api/profile/me", {
-        cache: "no-store", // Không dùng cache
-        credentials: "include", // Gửi kèm cookie
+        cache: "no-store",
+        credentials: "include",
       });
       // console.log(`ProfilePage: Fetch status: ${response.status}`);
-
       const responseText = await response.text();
       // console.log("ProfilePage: Fetch response text:", responseText.slice(0, 200) + '...');
 
       if (!response.ok) {
-        // Xử lý lỗi 401 Unauthorized
         if (response.status === 401) {
-          setError("Yêu cầu đăng nhập để xem trang này.");
-          router.push("/login?message=Session expired"); // Chuyển hướng về login
+          setError("Yêu cầu đăng nhập.");
+          router.push("/login?message=Session expired");
         } else {
-          let errorMsg = `Lỗi ${response.status}. Không thể tải profile.`;
+          let errorMsg = `Lỗi ${response.status}.`;
           try {
             const errorData = JSON.parse(responseText);
             errorMsg = errorData.error || errorMsg;
           } catch (e) {}
-          setError(errorMsg); // Các lỗi khác
+          setError(errorMsg);
         }
-        setProfile(null); // Đảm bảo profile là null khi lỗi
-        return; // Dừng hàm khi lỗi
+        setProfile(null);
+        return;
       }
 
-      // Parse JSON
       const data = JSON.parse(responseText);
-      // console.log("ProfilePage: API data received:", data);
-
       if (data.profile) {
-        setProfile(data.profile); // Cập nhật state profile
-        // Cập nhật state form edit chỉ sau khi fetch thành công
+        setProfile(data.profile);
+        // Set state ban đầu cho form edit
         setEditFullName(data.profile.full_name || "");
         setEditUsername(data.profile.username || "");
       } else {
-        console.warn("ProfilePage: API returned OK but no profile data?");
         setError("Không tìm thấy dữ liệu profile.");
         setProfile(null);
       }
     } catch (err: unknown) {
       console.error("ProfilePage: Exception during fetchProfile:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Lỗi không xác định khi tải profile."
-      );
+      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
       setProfile(null);
     } finally {
-      // console.log("ProfilePage: Fetch finished, setting loading to false.");
-      setLoading(false); // Luôn tắt loading
+      // console.log("ProfilePage: Fetch finished.");
+      setLoading(false);
     }
-  }, [router]); // Thêm router vì có dùng
+  }, [router]);
 
   useEffect(() => {
     fetchProfile();
@@ -604,7 +588,7 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        /* Check size */
+        /* Check size 5MB */
         setEditError("Ảnh quá bự (tối đa 5MB thôi).");
         setSelectedFile(null);
         setPreviewUrl(null);
@@ -622,7 +606,7 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Xử lý submit edit form (Gọi Context refetch khi thành công) ---
+  // --- Xử lý submit edit form ---
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
@@ -631,12 +615,12 @@ export default function ProfilePage() {
     let uploadedAvatarUrl: string | null = null;
 
     try {
-      // Bước 1: Upload avatar QUA API nếu có file mới
+      // 1. Upload avatar QUA API nếu có
       if (selectedFile) {
         uploadedAvatarUrl = await uploadFileViaApi("avatars", selectedFile);
       }
 
-      // Bước 2: Chuẩn bị payload
+      // 2. Chuẩn bị payload
       const updatePayload: {
         fullName?: string;
         username?: string;
@@ -650,31 +634,29 @@ export default function ProfilePage() {
         updatePayload.username = editUsername.trim();
       if (uploadedAvatarUrl) updatePayload.avatarUrl = uploadedAvatarUrl;
 
-      // Bước 3: Gọi API PATCH nếu có thay đổi
-      if (Object.keys(updatePayload).length === 0) {
-        /* ... xử lý không đổi ... */ return;
+      // 3. Gọi API PATCH (chỉ khi có gì đó thay đổi)
+      if (Object.keys(updatePayload).length > 0) {
+        const response = await fetch("/api/profile/me", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatePayload),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Update failed.");
+        setProfile(data.profile); // Cập nhật state local
+        console.log(
+          "ProfilePage: Update successful, triggering context refetch..."
+        );
+        await refetchUserContext(); // <-- BÁO CÁO TỔNG ĐÀI
+      } else {
+        // console.log("ProfilePage: Không có gì thay đổi.");
       }
-      const response = await fetch("/api/profile/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatePayload),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Update failed.");
 
-      // Bước 4: Xử lý thành công
-      setProfile(data.profile); // Cập nhật state local
+      // 4. Xử lý thành công
       setIsDialogOpen(false); // Đóng Dialog
       setSelectedFile(null);
       setPreviewUrl(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-
-      // === BÁO CÁO TỔNG ĐÀI ĐỂ HEADER CẬP NHẬT ẢNH/TÊN MỚI ===
-      console.log(
-        "ProfilePage: Update successful, triggering context refetch..."
-      );
-      await refetchUserContext(); // <-- BÁO CÁO (Header sẽ tự update)
-      // ===========================================
     } catch (err: unknown) {
       setEditError(err instanceof Error ? err.message : "Update error.");
     } finally {
@@ -682,7 +664,7 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Reset form khi đóng Dialog ---
+  // --- Reset form SỬA PROFILE khi đóng Dialog ---
   const handleDialogClose = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
@@ -697,41 +679,83 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Render UI ---
-  // console.log("ProfilePage: Checking render conditions...", { loading, error, profileIsNull: profile === null }); // Log debug
+  // === HÀM MỚI: XỬ LÝ SUBMIT ĐỔI MẬT KHẨU ===
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePassError(null);
 
-  if (loading) {
-    // console.log("ProfilePage: Rendering LOADING state");
+    // 1. Kiểm tra mật khẩu mới
+    if (newPassword.length < 6) {
+      setChangePassError("Mật khẩu mới phải ít nhất 6 ký tự.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setChangePassError("Mật khẩu mới không khớp.");
+      return;
+    }
+    setIsChangingPass(true);
+
+    try {
+      // 2. Gọi API đổi mật khẩu
+      const response = await fetch("/api/auth/change-password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Đổi mật khẩu thất bại.");
+
+      // 3. Thành công
+      alert(data.message);
+      setIsChangePassOpen(false); // Đóng dialog
+      // Reset form
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: unknown) {
+      setChangePassError(
+        err instanceof Error ? err.message : "Lỗi không xác định."
+      );
+    } finally {
+      setIsChangingPass(false);
+    }
+  };
+
+  // --- Reset form ĐỔI MẬT KHẨU khi đóng Dialog ---
+  const handleChangePassDialogClose = (open: boolean) => {
+    setIsChangePassOpen(open);
+    if (!open) {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setChangePassError(null);
+      setIsChangingPass(false);
+    }
+  };
+
+  // --- Render UI ---
+  if (loading)
     return (
       <div className="text-center py-10">
-        <Loader2 className="animate-spin inline-block mr-2 h-6 w-6" /> Đang load
-        profile...
+        <Loader2 className="animate-spin inline-block mr-2 h-6 w-6" /> Đang
+        tải...
       </div>
     );
-  }
-  if (error) {
-    // console.log("ProfilePage: Rendering ERROR state:", error);
-    // Khi lỗi, có thể trả về lỗi hoặc component login (nếu là 401)
+  if (error)
     return (
       <div className="text-center py-10 px-4">
         <Card className="inline-block bg-red-100 border-red-400 p-4">
-          <p className="text-red-700 font-semibold">Error:</p>
+          <p className="text-red-700 font-semibold">Lỗi:</p>
           <p className="text-red-600">{error}</p>
         </Card>
       </div>
     );
-  }
-  if (!profile) {
-    // console.log("ProfilePage: Rendering NO PROFILE state");
-    // Dù không lỗi, nhưng không có profile (đã bị redirect)
+  if (!profile)
     return (
       <div className="text-center py-10 text-muted-foreground">
-        Không tìm thấy thông tin profile.
+        Không tìm thấy profile.
       </div>
     );
-  }
-
-  // console.log("ProfilePage: RENDERING PROFILE JSX!");
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto p-4 md:p-0">
@@ -744,7 +768,7 @@ export default function ProfilePage() {
               Trung tâm vũ trụ diecast của riêng bạn.
             </p>
           </div>
-          {/* --- Nút Edit và Dialog --- */}
+          {/* --- Nút Edit và Dialog Sửa Profile --- */}
           <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1">
@@ -754,12 +778,11 @@ export default function ProfilePage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
-                {" "}
-                <DialogTitle>Chỉnh sửa hồ sơ</DialogTitle>{" "}
+                <DialogTitle>Chỉnh sửa hồ sơ</DialogTitle>
                 <DialogDescription>
                   {" "}
                   Cập nhật xong thì Lưu nha.{" "}
-                </DialogDescription>{" "}
+                </DialogDescription>
               </DialogHeader>
               {/* --- Form Edit --- */}
               <form onSubmit={handleEditSubmit} className="pt-4">
@@ -900,7 +923,106 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* --- Khu vực Wall Posts --- */}
+      {/* === CARD MỚI: BẢO MẬT & ĐỔI MẬT KHẨU === */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl font-bold flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5" />
+            Bảo mật & Đăng nhập
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Quản lý cài đặt bảo mật và đổi mật khẩu của bạn.
+          </p>
+          <Dialog
+            open={isChangePassOpen}
+            onOpenChange={handleChangePassDialogClose}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <KeyRound className="mr-2 h-4 w-4" />
+                Đổi mật khẩu
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Đổi mật khẩu</DialogTitle>
+                <DialogDescription>
+                  Nhập mật khẩu cũ và mật khẩu mới của bạn.
+                </DialogDescription>
+              </DialogHeader>
+              {/* --- Form đổi mật khẩu --- */}
+              <form onSubmit={handleChangePasswordSubmit}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="currentPass" className="text-right">
+                      Mật khẩu cũ
+                    </Label>
+                    <Input
+                      id="currentPass"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="col-span-3"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="newPass" className="text-right">
+                      Mật khẩu mới
+                    </Label>
+                    <Input
+                      id="newPass"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="col-span-3"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="confirmPass" className="text-right">
+                      Xác nhận mới
+                    </Label>
+                    <Input
+                      id="confirmPass"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="col-span-3"
+                      required
+                    />
+                  </div>
+                  {changePassError && (
+                    <p className="col-span-4 text-red-600 text-sm text-center">
+                      {changePassError}
+                    </p>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleChangePassDialogClose(false)}
+                  >
+                    Hủy
+                  </Button>
+                  <Button type="submit" disabled={isChangingPass}>
+                    {isChangingPass ? (
+                      <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    ) : null}
+                    Xác nhận
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
+
+      {/* --- Khu vực Wall Posts (Giữ nguyên) --- */}
       <Card>
         {" "}
         <CardHeader>
