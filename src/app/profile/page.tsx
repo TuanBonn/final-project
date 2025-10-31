@@ -1022,7 +1022,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {/* --- Khu vực Wall Posts (Giữ nguyên) --- */}
       <Card>
         {" "}
         <CardHeader>

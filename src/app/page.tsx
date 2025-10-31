@@ -1,83 +1,140 @@
 // src/app/page.tsx
-// KHÔNG cần import createClient nữa
-// import { createClient } from '@/lib/supabase/server';
-import Link from "next/link";
-import LogoutButton from "@/components/LogoutButton";
-import { Button } from "@/components/ui/button";
-import { cookies } from "next/headers"; // Vẫn cần để fetch API từ Server Component
+"use client";
 
-// Định nghĩa kiểu dữ liệu User (phải khớp với dữ liệu API trả về)
-interface User {
-  id: string;
-  email: string;
+import { useEffect, useState } from "react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { FilterSidebar } from "@/components/FilterSidebar"; // Bộ lọc
+import { ProductCard } from "@/components/ProductCard"; // Card sản phẩm (Cần tạo file này)
+
+// Định nghĩa kiểu dữ liệu (import nếu đã tách file)
+interface Seller {
   username: string | null;
-  full_name: string | null;
   avatar_url: string | null;
-  role: string;
   is_verified: boolean;
 }
-
-// Hàm fetch dữ liệu user từ API
-async function getUserData(): Promise<{ user: User | null }> {
-  try {
-    // Lấy cookie trực tiếp để gửi kèm request
-    const cookieStore = cookies();
-    const token = cookieStore.get("auth-token")?.value; // Lấy token cookie
-
-    // Gọi API /api/auth/me từ server-side
-    // Phải cung cấp URL đầy đủ khi fetch từ Server Component
-    // và gửi kèm cookie nếu API cần
-    const res = await fetch(
-      `${
-        process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
-      }/api/auth/me`,
-      {
-        headers: {
-          // Gửi cookie nếu API /api/auth/me cần đọc nó (API này đọc cookie server-side nên ok)
-          Cookie: cookieStore.toString(),
-        },
-        cache: "no-store", // Không cache lại kết quả để luôn lấy trạng thái mới nhất
-      }
-    );
-
-    if (!res.ok) {
-      console.error("API /api/auth/me trả về lỗi:", res.status);
-      return { user: null };
-    }
-
-    const data = await res.json();
-    return data; // Trả về { user: User | null }
-  } catch (error) {
-    console.error("Lỗi khi fetch /api/auth/me:", error);
-    return { user: null };
-  }
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  brand: string | null;
+  condition: "new" | "used" | "like_new" | "custom" | null;
+  image_urls: string[] | null;
+  created_at: string;
+  seller: Seller | null;
 }
 
-export default async function Home() {
-  // Gọi hàm fetch để lấy thông tin user
-  const { user } = await getUserData();
+export default function HomePage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // --- State cho bộ lọc (SỬA MẶC ĐỊNH) ---
+  const [sort, setSort] = useState("created_at_desc"); // <-- Sửa mặc định
+  const [filterVerified, setFilterVerified] = useState(false);
+  const [filterConditions, setFilterConditions] = useState<string[]>([]);
+  const [filterBrands, setFilterBrands] = useState<string[]>([]);
+  // -------------------------
+
+  // useEffect sẽ chạy lại mỗi khi state của filter thay đổi
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoading(true);
+      setError(null);
+      console.log("HomePage: Đang fetch products với filter...");
+
+      // 1. Xây dựng URLSearchParams
+      const params = new URLSearchParams();
+      params.append("sort", sort);
+      if (filterVerified) {
+        params.append("verified", "true");
+      }
+      filterConditions.forEach((cond) => params.append("condition", cond));
+      filterBrands.forEach((brand) => params.append("brand", brand));
+
+      try {
+        // 2. Gọi API với các filter
+        const response = await fetch(`/api/products?${params.toString()}`);
+        console.log("HomePage: Fetch status:", response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("HomePage: Fetch failed:", errorData);
+          throw new Error(
+            errorData.error || `HTTP error! Status: ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+        console.log("HomePage: Products received:", data.products?.length);
+        setProducts(data.products || []);
+      } catch (err: unknown) {
+        console.error("HomePage: Lỗi fetch:", err);
+        setError(
+          err instanceof Error ? err.message : "Không thể tải sản phẩm."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [sort, filterVerified, filterConditions, filterBrands]); // Phụ thuộc
+
+  // --- Render UI ---
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Sàn Giao Dịch Mô Hình Xe</h1>
+    <div className="flex flex-col lg:flex-row gap-8">
+      {/* 1. Thanh Filter (Bên trái) */}
+      <FilterSidebar
+        sort={sort}
+        setSort={setSort}
+        filterVerified={filterVerified}
+        setFilterVerified={setFilterVerified}
+        filterConditions={filterConditions}
+        setFilterConditions={setFilterConditions}
+        filterBrands={filterBrands}
+        setFilterBrands={setFilterBrands}
+      />
 
-        {user ? (
-          <div>
-            {/* Hiển thị email hoặc username */}
-            <p className="mb-4">Chào mừng trở lại, {user.email}!</p>
-            {/* LogoutButton vẫn hoạt động vì nó gọi /api/auth/logout */}
-            <LogoutButton />
+      {/* 2. Lưới sản phẩm (Bên phải) */}
+      <main className="flex-1">
+        <h1 className="text-3xl font-bold tracking-tight mb-6">
+          Sản phẩm nổi bật
+        </h1>
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
           </div>
-        ) : (
-          <Button asChild>
-            <Link href="/login">Đăng nhập / Đăng ký</Link>
-          </Button>
         )}
-      </div>
-    </main>
+
+        {/* Error */}
+        {error && (
+          <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+            <AlertCircle className="h-8 w-8 text-destructive mr-3" />
+            <p className="text-destructive font-medium">Lỗi: {error}</p>
+          </div>
+        )}
+
+        {/* Hiển thị sản phẩm */}
+        {!loading && !error && (
+          <>
+            {products.length === 0 ? (
+              <p className="text-center text-muted-foreground py-20">
+                Không tìm thấy sản phẩm nào khớp với bộ lọc.
+              </p>
+            ) : (
+              // Lưới 5 cột
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {products.map((product) => (
+                  // Giả sử sếp đã có file /components/ProductCard.tsx
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </div>
   );
 }
-
-// Quan trọng: Thêm biến môi trường NEXT_PUBLIC_BASE_URL vào .env.local
-// Ví dụ: NEXT_PUBLIC_BASE_URL=http://localhost:3000
