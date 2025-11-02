@@ -173,7 +173,7 @@ export default function Header() {
   const { user, loadingUser } = useUser();
 
   const logoSrc =
-    "https://xiuswadifrrbocuiiygs.supabase.co/storage/v1/object/public/public-assets/logo.png";
+    "https://xiuswadifrrbocuiiygs.supabase.co/storage/v1/object/public/public-assets/logo1.png";
 
   // --- RENDER HEADER ---
   if (loadingUser) {
