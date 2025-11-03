@@ -5,21 +5,22 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { BRAND_OPTIONS } from "@/lib/brands";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CheckCircle } from "lucide-react";
 
 // Props nhận từ page.tsx
 interface FilterSidebarProps {
   sort: string;
   setSort: (value: string) => void;
-  filterVerified: boolean;
-  setFilterVerified: (checked: boolean) => void;
   filterConditions: string[];
   setFilterConditions: (conditions: string[]) => void;
   filterBrands: string[];
+  // === SỬA LỖI Ở DÒNG NÀY (BỎ CHỮ 'D') ===
   setFilterBrands: (brands: string[]) => void;
 }
 
-// Dữ liệu filter (sau này có thể fetch từ API)
-const ALL_BRANDS = ["Tomica", "Hotwheels", "MiniGT", "Inno64", "Kyosho"];
+// Dữ liệu Tình trạng (giữ nguyên)
 const ALL_CONDITIONS = [
   { id: "new", label: "Mới (New)" },
   { id: "used", label: "Đã sử dụng (Used)" },
@@ -30,25 +31,20 @@ const ALL_CONDITIONS = [
 export function FilterSidebar({
   sort,
   setSort,
-  filterVerified,
-  setFilterVerified,
   filterConditions,
   setFilterConditions,
   filterBrands,
   setFilterBrands,
 }: FilterSidebarProps) {
-  // Hàm xử lý check/uncheck (cho mảng)
+  // Hàm xử lý check/uncheck (cho mảng - giữ nguyên)
   const handleCheckedChange = (
     checked: boolean,
     value: string,
     currentValues: string[],
     setter: (values: string[]) => void
   ) => {
-    if (checked) {
-      setter([...currentValues, value]); // Thêm vào mảng
-    } else {
-      setter(currentValues.filter((v) => v !== value)); // Lọc bỏ khỏi mảng
-    }
+    if (checked) setter([...currentValues, value]);
+    else setter(currentValues.filter((v) => v !== value));
   };
 
   return (
@@ -57,15 +53,19 @@ export function FilterSidebar({
       <div>
         <h3 className="font-semibold mb-3 text-lg">Sắp xếp</h3>
         <RadioGroup value={sort} onValueChange={setSort}>
-          {/* Mặc định là 'created_at_desc' */}
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="created_at_desc" id="sort-newest" />
             <Label htmlFor="sort-newest">Mới nhất</Label>
           </div>
-          {/* Thêm lựa chọn 'verified_first' */}
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="verified_first" id="sort-verified" />
-            <Label htmlFor="sort-verified">Ưu tiên Verified</Label>
+            <Label
+              htmlFor="sort-verified"
+              className="flex items-center gap-1.5"
+            >
+              Ưu tiên Verified
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            </Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="price_asc" id="sort-price-asc" />
@@ -80,27 +80,17 @@ export function FilterSidebar({
 
       <Separator />
 
-      {/* Lọc chung */}
+      {/* Lọc chung (ĐÃ BỎ CHECKBOX VERIFIED) */}
       <div>
         <h3 className="font-semibold mb-3 text-lg">Lọc</h3>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="filter-verified"
-            checked={filterVerified}
-            onCheckedChange={(checked) => setFilterVerified(checked === true)}
-          />
-          <Label
-            htmlFor="filter-verified"
-            className="font-medium text-green-600"
-          >
-            Chỉ hiển thị người bán Verified
-          </Label>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          (Chọn Tình trạng và Hãng xe bên dưới)
+        </p>
       </div>
 
       <Separator />
 
-      {/* Lọc theo Tình trạng */}
+      {/* Lọc theo Tình trạng (Giữ nguyên) */}
       <div>
         <h3 className="font-semibold mb-3">Tình trạng</h3>
         <div className="space-y-2">
@@ -126,28 +116,30 @@ export function FilterSidebar({
 
       <Separator />
 
-      {/* Lọc theo Hãng */}
+      {/* Lọc theo Hãng (Dùng "sớ" và ScrollArea) */}
       <div>
         <h3 className="font-semibold mb-3">Hãng xe</h3>
-        <div className="space-y-2">
-          {ALL_BRANDS.map((brand) => (
-            <div key={brand} className="flex items-center space-x-2">
-              <Checkbox
-                id={`brand-${brand}`}
-                checked={filterBrands.includes(brand)}
-                onCheckedChange={(checked) =>
-                  handleCheckedChange(
-                    checked === true,
-                    brand,
-                    filterBrands,
-                    setFilterBrands
-                  )
-                }
-              />
-              <Label htmlFor={`brand-${brand}`}>{brand}</Label>
-            </div>
-          ))}
-        </div>
+        <ScrollArea className="h-60 w-full rounded-md border p-4">
+          <div className="space-y-2">
+            {BRAND_OPTIONS.map((brand) => (
+              <div key={brand.value} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`brand-${brand.value}`}
+                  checked={filterBrands.includes(brand.value)}
+                  onCheckedChange={(checked) =>
+                    handleCheckedChange(
+                      checked === true,
+                      brand.value,
+                      filterBrands,
+                      setFilterBrands
+                    )
+                  }
+                />
+                <Label htmlFor={`brand-${brand.value}`}>{brand.label}</Label>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
       </div>
     </aside>
   );

@@ -167,6 +167,14 @@ export async function POST(request: Request) {
         { status: 401 }
       );
 
+    if (user.status === "banned") {
+      console.warn(`API Login: User ${email} (banned) đang cố đăng nhập!`); // Log
+      return NextResponse.json(
+        { error: "Tài khoản này đã bị khóa." },
+        { status: 403 }
+      ); // 403 Forbidden
+    }
+
     // --- Compare Password ---
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     if (!passwordMatch)
