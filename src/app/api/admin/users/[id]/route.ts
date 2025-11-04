@@ -1,5 +1,153 @@
+// // src/app/api/admin/users/[id]/route.ts
+// // ĐÃ SỬA LỖI: Tách logic 'role' và 'is_verified'
+
+// import { NextResponse, type NextRequest } from "next/server";
+// import { createClient, SupabaseClient } from "@supabase/supabase-js";
+// import { parse as parseCookie } from "cookie";
+// import jwt from "jsonwebtoken";
+
+// // === GHIM VÀO NODE.JS ===
+// export const runtime = "nodejs";
+// // ======================
+
+// // --- Cấu hình ---
+// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+// const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// const JWT_SECRET = process.env.JWT_SECRET;
+// const COOKIE_NAME = "auth-token";
+// interface JwtPayload {
+//   role?: string;
+//   [key: string]: unknown;
+// }
+
+// // --- Hàm khởi tạo Admin Client ---
+// function getSupabaseAdmin(): SupabaseClient | null {
+//   if (!supabaseUrl || !supabaseServiceKey) return null;
+//   try {
+//     return createClient(supabaseUrl, supabaseServiceKey, {
+//       auth: { persistSession: false },
+//     });
+//   } catch (error) {
+//     console.error("API Admin/PATCH: Lỗi tạo Admin Client:", error);
+//     return null;
+//   }
+// }
+
+// // --- Hàm xử lý PATCH request (ĐÃ SỬA) ---
+// export async function PATCH(
+//   request: NextRequest,
+//   ctx: { params: Promise<{ id: string }> }
+// ) {
+//   // 1. Xác thực Admin
+//   try {
+//     let token: string | undefined = undefined;
+//     const cookieHeader = request.headers.get("cookie");
+//     if (cookieHeader) token = parseCookie(cookieHeader)[COOKIE_NAME];
+//     if (!token)
+//       return NextResponse.json({ error: "Yêu cầu xác thực." }, { status: 401 });
+//     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+//     if (decoded.role !== "admin") {
+//       return NextResponse.json(
+//         { error: "Không có quyền truy cập." },
+//         { status: 403 }
+//       );
+//     }
+//   } catch (error) {
+//     return NextResponse.json({ error: "Token không hợp lệ." }, { status: 401 });
+//   }
+
+//   // 2. Lấy ID
+//   const { id: targetUserId } = await ctx.params;
+//   if (!targetUserId) {
+//     return NextResponse.json(
+//       { error: "Thiếu ID user cần cập nhật." },
+//       { status: 400 }
+//     );
+//   }
+
+//   // 3. Lấy dữ liệu update
+//   let updateData: {
+//     status?: "active" | "banned";
+//     role?: "user" | "dealer";
+//     is_verified?: boolean;
+//   } = {};
+
+//   try {
+//     const body = await request.json();
+
+//     // Cập nhật Status (nếu có)
+//     if (body.status && ["active", "banned"].includes(body.status)) {
+//       updateData.status = body.status;
+//     }
+
+//     // === SỬA LOGIC Ở ĐÂY ===
+//     // Cập nhật Role (nếu có)
+//     if (body.role && ["user", "dealer"].includes(body.role)) {
+//       updateData.role = body.role;
+//       // KHÔNG CÒN GÁN is_verified ở đây nữa
+//     }
+
+//     // Cập nhật is_verified (nếu có)
+//     if (
+//       body.is_verified !== undefined &&
+//       typeof body.is_verified === "boolean"
+//     ) {
+//       updateData.is_verified = body.is_verified;
+//     }
+//     // =====================
+
+//     if (Object.keys(updateData).length === 0) {
+//       return NextResponse.json(
+//         { error: "Không có lệnh cập nhật hợp lệ." },
+//         { status: 400 }
+//       );
+//     }
+//   } catch (error) {
+//     return NextResponse.json(
+//       { error: "Request body không hợp lệ." },
+//       { status: 400 }
+//     );
+//   }
+
+//   // 4. Cập nhật (Dùng Admin Client)
+//   try {
+//     const supabaseAdmin = getSupabaseAdmin();
+//     if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");
+
+//     const { data: updatedUser, error } = await supabaseAdmin
+//       .from("users")
+//       .update(updateData)
+//       .eq("id", targetUserId)
+//       .select("id, username, status, role, is_verified")
+//       .single();
+
+//     if (error) {
+//       if (error.code === "PGRST116") {
+//         return NextResponse.json(
+//           { error: "Không tìm thấy user để cập nhật." },
+//           { status: 404 }
+//         );
+//       }
+//       throw error;
+//     }
+//     if (!updatedUser) {
+//       throw new Error("Update OK nhưng không nhận được data trả về.");
+//     }
+
+//     return NextResponse.json(
+//       { user: updatedUser, message: "Cập nhật thành công!" },
+//       { status: 200 }
+//     );
+//   } catch (error: unknown) {
+//     console.error("API Admin/PATCH: Lỗi bất ngờ:", error);
+//     let message = "Lỗi server khi cập nhật user.";
+//     if (error instanceof Error) message = error.message;
+//     return NextResponse.json({ error: message }, { status: 500 });
+//   }
+// }
+
 // src/app/api/admin/users/[id]/route.ts
-// ĐÃ SỬA LỖI: Tách logic 'role' và 'is_verified'
+// ĐÃ SỬA LỖI: Cú pháp "await params"
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -22,7 +170,10 @@ interface JwtPayload {
 
 // --- Hàm khởi tạo Admin Client ---
 function getSupabaseAdmin(): SupabaseClient | null {
-  if (!supabaseUrl || !supabaseServiceKey) return null;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("API Admin/PATCH: Thiếu Supabase URL hoặc Service Key!");
+    return null;
+  }
   try {
     return createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
@@ -33,9 +184,10 @@ function getSupabaseAdmin(): SupabaseClient | null {
   }
 }
 
-// --- Hàm xử lý PATCH request (ĐÃ SỬA) ---
+// --- Hàm xử lý PATCH request (ĐÃ SỬA LỖI await) ---
 export async function PATCH(
   request: NextRequest,
+  // === SỬA LỖI 1: Thêm Promise<> vào kiểu ===
   ctx: { params: Promise<{ id: string }> }
 ) {
   // 1. Xác thực Admin
@@ -56,8 +208,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Token không hợp lệ." }, { status: 401 });
   }
 
-  // 2. Lấy ID
+  // === SỬA LỖI 2: Thêm "await" và đổi cách lấy "id" ===
   const { id: targetUserId } = await ctx.params;
+  // ===========================================
+
   if (!targetUserId) {
     return NextResponse.json(
       { error: "Thiếu ID user cần cập nhật." },
@@ -75,26 +229,18 @@ export async function PATCH(
   try {
     const body = await request.json();
 
-    // Cập nhật Status (nếu có)
     if (body.status && ["active", "banned"].includes(body.status)) {
       updateData.status = body.status;
     }
-
-    // === SỬA LOGIC Ở ĐÂY ===
-    // Cập nhật Role (nếu có)
     if (body.role && ["user", "dealer"].includes(body.role)) {
       updateData.role = body.role;
-      // KHÔNG CÒN GÁN is_verified ở đây nữa
     }
-
-    // Cập nhật is_verified (nếu có)
     if (
       body.is_verified !== undefined &&
       typeof body.is_verified === "boolean"
     ) {
       updateData.is_verified = body.is_verified;
     }
-    // =====================
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
