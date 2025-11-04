@@ -2,13 +2,14 @@
 // "use client";
 
 // import { useState } from "react";
-// // import { useRouter } from 'next/navigation'; // Bỏ router.refresh()
+// // import { useRouter } from 'next/navigation'; // Bỏ
 // import {
 //   MoreHorizontal,
 //   ShieldAlert,
 //   ShieldCheck,
 //   UserCog,
 //   Loader2,
+//   Award,
 // } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 // import {
@@ -30,7 +31,7 @@
 //   AlertDialogTitle,
 // } from "@/components/ui/alert-dialog";
 
-// // Kiểu UserRow (để nhận props)
+// // Kiểu UserRow
 // type UserRow = {
 //   id: string;
 //   username: string | null;
@@ -39,15 +40,14 @@
 //   is_verified?: boolean;
 // };
 
-// // === SỬA LẠI PROPS (Thêm "bộ đàm") ===
+// // Props (thêm "bộ đàm")
 // interface UserActionsProps {
 //   user: UserRow;
-//   onActionSuccess: () => void; // <-- "Bộ đàm"
+//   onActionSuccess: () => void; // "Bộ đàm"
 // }
 
 // export function UserActions({ user, onActionSuccess }: UserActionsProps) {
-//   // const router = useRouter(); // Bỏ
-//   const [isLoading, setIsLoading] = useState(false); // Dùng chung 1 state loading
+//   const [isLoading, setIsLoading] = useState(false);
 //   const [alertOpen, setAlertOpen] = useState(false);
 //   const [error, setError] = useState<string | null>(null);
 
@@ -59,54 +59,37 @@
 //     setError(null);
 //     try {
 //       const response = await fetch(`/api/admin/users/${user.id}`, {
-//         // Gọi API động
 //         method: "PATCH",
 //         headers: { "Content-Type": "application/json" },
 //         body: JSON.stringify(payload),
 //       });
 
 //       const data = await response.json();
-//       if (!response.ok) {
-//         throw new Error(data.error || "Hành động thất bại.");
-//       }
+//       if (!response.ok) throw new Error(data.error || "Hành động thất bại.");
 
-//       console.log(`Update user ${user.id} thành công!`);
-
-//       // === "BÁO CÁO" CHO CHA ===
-//       onActionSuccess(); // "Alo, xong rồi, F5 data đi!"
-//       // ========================
-//       return true; // Báo thành công
+//       onActionSuccess(); // Báo cáo
+//       return true;
 //     } catch (err: unknown) {
 //       console.error("Lỗi khi update user:", err);
 //       setError(err instanceof Error ? err.message : "Lỗi không xác định.");
-//       return false; // Báo thất bại
+//       return false;
 //     } finally {
 //       setIsLoading(false);
 //     }
 //   };
 
-//   // Hàm xử lý "Ban" / "Bỏ Ban" (Đã gọi API thật)
+//   // Hàm "Ban" / "Bỏ Ban"
 //   const handleToggleBan = async () => {
 //     const newStatus = user.status === "active" ? "banned" : "active";
 //     const success = await callUpdateApi({ status: newStatus });
-//     if (success) {
-//       setAlertOpen(false); // Đóng hộp thoại nếu thành công
-//     }
+//     if (success) setAlertOpen(false);
 //   };
 
-//   // Hàm xử lý "Verify" (Đã gọi API thật)
-//   const handleToggleVerify = async () => {
-//     // Logic Verify: Đổi role 'dealer' + is_verified 'true'
-//     // Logic Hủy Verify: Đổi role 'user' + is_verified 'false'
-//     const newVerified = !user.is_verified;
-//     const newRole = newVerified ? "dealer" : "user";
-
-//     console.log(`Đang ${newVerified ? "Verify" : "Hủy Verify"} user...`);
-//     await callUpdateApi({
-//       is_verified: newVerified,
-//       role: newRole,
-//     });
-//     // Không cần đóng gì vì nó là DropdownMenuItem
+//   // Hàm "Đổi Role"
+//   const handleToggleRole = async () => {
+//     const newRole =
+//       user.role === "dealer" || user.is_verified ? "user" : "dealer";
+//     await callUpdateApi({ role: newRole });
 //   };
 
 //   return (
@@ -116,17 +99,24 @@
 //         <AlertDialogContent>
 //           <AlertDialogHeader>
 //             <AlertDialogTitle>Sếp chắc chưa?</AlertDialogTitle>
-//             <AlertDialogDescription>
-//               Sếp sắp {currentAction.toLowerCase()} tài khoản
-//               <strong> {user.username || user.id}</strong>.
-//               {user.status === "active"
-//                 ? " User này sẽ không thể đăng nhập được nữa."
-//                 : " User này sẽ có thể đăng nhập trở lại."}
-//               {/* Hiển thị lỗi nếu API thất bại */}
-//               {error && (
-//                 <p className="text-red-600 mt-2 font-medium">{error}</p>
-//               )}
+
+//             {/* === SỬA LỖI P TRONG P === */}
+//             <AlertDialogDescription asChild>
+//               <div>
+//                 {" "}
+//                 {/* Bọc nội dung bằng <div> */}
+//                 Sếp sắp {currentAction.toLowerCase()} tài khoản
+//                 <strong> {user.username || user.id}</strong>.
+//                 {user.status === "active"
+//                   ? " User này sẽ không thể đăng nhập được nữa."
+//                   : " User này sẽ có thể đăng nhập trở lại."}
+//                 {/* Giờ <p> nằm trong <div>, không còn là con của <p> nữa */}
+//                 {error && (
+//                   <p className="text-red-600 mt-2 font-medium">{error}</p>
+//                 )}
+//               </div>
 //             </AlertDialogDescription>
+//             {/* ======================= */}
 //           </AlertDialogHeader>
 //           <AlertDialogFooter>
 //             <AlertDialogCancel disabled={isLoading}>Hủy</AlertDialogCancel>
@@ -149,7 +139,6 @@
 //       <DropdownMenu>
 //         <DropdownMenuTrigger asChild>
 //           <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
-//             {/* Hiển thị loading ngay trên nút 3 chấm nếu đang xử lý */}
 //             {isLoading ? (
 //               <Loader2 className="h-4 w-4 animate-spin" />
 //             ) : (
@@ -159,31 +148,34 @@
 //         </DropdownMenuTrigger>
 //         <DropdownMenuContent align="end">
 //           <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-//           {/* Nút Verify / Hủy Verify */}
-//           <DropdownMenuItem
-//             onClick={handleToggleVerify}
-//             disabled={isLoading} // Disable khi đang load
-//             className={
-//               user.is_verified
-//                 ? "text-yellow-600 focus:text-yellow-600"
-//                 : "text-green-600 focus:text-green-600"
-//             }
-//           >
-//             <UserCog className="mr-2 h-4 w-4" />
-//             <span>
-//               {user.is_verified
-//                 ? "Hủy Verify (thành user)"
-//                 : "Cấp Verify (thành dealer)"}
-//             </span>
-//           </DropdownMenuItem>
+
+//           {/* Nút "Đổi Role" (User <-> Dealer) */}
+//           {user.role !== "admin" && (
+//             <DropdownMenuItem
+//               onClick={handleToggleRole}
+//               disabled={isLoading}
+//               className={
+//                 user.is_verified
+//                   ? "text-yellow-600 focus:text-yellow-600"
+//                   : "text-green-600 focus:text-green-600"
+//               }
+//             >
+//               <Award className="mr-2 h-4 w-4" />
+//               <span>
+//                 {user.is_verified ? "Hủy Dealer (về User)" : "Nâng cấp Dealer"}
+//               </span>
+//             </DropdownMenuItem>
+//           )}
+
 //           <DropdownMenuSeparator />
+
 //           {/* Nút Ban / Bỏ Ban */}
 //           <DropdownMenuItem
 //             onClick={() => {
 //               setError(null);
 //               setAlertOpen(true);
-//             }} // Mở hộp thoại + reset lỗi cũ
-//             disabled={isLoading} // Disable khi đang load
+//             }}
+//             disabled={isLoading || user.role === "admin"} // Không cho Ban Admin
 //             className={
 //               user.status === "active"
 //                 ? "text-red-600 focus:text-red-600"
@@ -207,7 +199,6 @@
 "use client";
 
 import { useState } from "react";
-// import { useRouter } from 'next/navigation'; // Bỏ
 import {
   MoreHorizontal,
   ShieldAlert,
@@ -215,6 +206,7 @@ import {
   UserCog,
   Loader2,
   Award,
+  BadgeCheck, // <-- SỬA LỖI 1: Tên đúng là BadgeCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -276,7 +268,11 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
       return true;
     } catch (err: unknown) {
       console.error("Lỗi khi update user:", err);
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+      if (alertOpen) {
+        setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+      } else {
+        alert(err instanceof Error ? err.message : "Lỗi không xác định.");
+      }
       return false;
     } finally {
       setIsLoading(false);
@@ -292,9 +288,14 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
 
   // Hàm "Đổi Role"
   const handleToggleRole = async () => {
-    const newRole =
-      user.role === "dealer" || user.is_verified ? "user" : "dealer";
+    const newRole = user.role === "dealer" ? "user" : "dealer";
     await callUpdateApi({ role: newRole });
+  };
+
+  // Hàm "Đổi Verify"
+  const handleToggleVerify = async () => {
+    const newVerified = !user.is_verified;
+    await callUpdateApi({ is_verified: newVerified });
   };
 
   return (
@@ -304,24 +305,19 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Sếp chắc chưa?</AlertDialogTitle>
-
-            {/* === SỬA LỖI P TRONG P === */}
             <AlertDialogDescription asChild>
               <div>
                 {" "}
-                {/* Bọc nội dung bằng <div> */}
                 Sếp sắp {currentAction.toLowerCase()} tài khoản
                 <strong> {user.username || user.id}</strong>.
                 {user.status === "active"
                   ? " User này sẽ không thể đăng nhập được nữa."
                   : " User này sẽ có thể đăng nhập trở lại."}
-                {/* Giờ <p> nằm trong <div>, không còn là con của <p> nữa */}
                 {error && (
                   <p className="text-red-600 mt-2 font-medium">{error}</p>
                 )}
               </div>
             </AlertDialogDescription>
-            {/* ======================= */}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isLoading}>Hủy</AlertDialogCancel>
@@ -354,10 +350,22 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Hành động</DropdownMenuLabel>
 
-          {/* Nút "Đổi Role" (User <-> Dealer) */}
+          {/* 1. Nút "Đổi Role" (User <-> Dealer) */}
+          {user.role !== "admin" && (
+            <DropdownMenuItem onClick={handleToggleRole} disabled={isLoading}>
+              <Award className="mr-2 h-4 w-4" />
+              <span>
+                {user.role === "dealer"
+                  ? "Hạ cấp (về User)"
+                  : "Nâng cấp Dealer"}
+              </span>
+            </DropdownMenuItem>
+          )}
+
+          {/* 2. Nút "Verify" (True <-> False) */}
           {user.role !== "admin" && (
             <DropdownMenuItem
-              onClick={handleToggleRole}
+              onClick={handleToggleVerify}
               disabled={isLoading}
               className={
                 user.is_verified
@@ -365,22 +373,23 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
                   : "text-green-600 focus:text-green-600"
               }
             >
-              <Award className="mr-2 h-4 w-4" />
+              {/* === SỬA LỖI 2: Dùng tên đúng === */}
+              <BadgeCheck className="mr-2 h-4 w-4" />
               <span>
-                {user.is_verified ? "Hủy Dealer (về User)" : "Nâng cấp Dealer"}
+                {user.is_verified ? "Hủy trạng thái Verify" : "Cấp Verify"}
               </span>
             </DropdownMenuItem>
           )}
 
           <DropdownMenuSeparator />
 
-          {/* Nút Ban / Bỏ Ban */}
+          {/* 3. Nút Ban / Bỏ Ban (Giữ nguyên) */}
           <DropdownMenuItem
             onClick={() => {
               setError(null);
               setAlertOpen(true);
             }}
-            disabled={isLoading || user.role === "admin"} // Không cho Ban Admin
+            disabled={isLoading || user.role === "admin"}
             className={
               user.status === "active"
                 ? "text-red-600 focus:text-red-600"

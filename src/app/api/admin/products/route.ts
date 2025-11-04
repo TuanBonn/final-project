@@ -1,14 +1,13 @@
-// src/app/api/admin/users/route.ts
-// Đã SỬA LỖI: Đảo Filter lên trước Order + 'runtime = nodejs'
+// src/app/api/admin/products/route.ts
+// API route này cho phép Admin lấy TẤT CẢ sản phẩm (kể cả đã bán) + tìm kiếm
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
 
-// === GHIM VÀO NODE.JS ===
+// Ghim vào Node.js runtime để đọc được .env
 export const runtime = "nodejs";
-// ======================
 
 // --- Cấu hình ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -24,7 +23,7 @@ interface JwtPayload {
 // --- Hàm khởi tạo Admin Client (Dùng Service Key) ---
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("API Admin/Users: Thiếu Supabase URL hoặc Service Key!");
+    console.error("API Admin/Products: Thiếu Supabase URL hoặc Service Key!");
     return null;
   }
   try {
@@ -32,16 +31,19 @@ function getSupabaseAdmin(): SupabaseClient | null {
       auth: { persistSession: false },
     });
   } catch (error) {
-    console.error("API Admin/Users: Lỗi tạo Admin Client:", error);
+    console.error("API Admin/Products: Lỗi tạo Admin Client:", error);
     return null;
   }
 }
 
-// --- Hàm xử lý GET request (ĐÃ SỬA) ---
+// --- Hàm xử lý GET (Lấy danh sách sản phẩm) ---
 export async function GET(request: NextRequest) {
   // 1. Kiểm tra cấu hình
   if (!JWT_SECRET) {
-    /* ... check config ... */
+    return NextResponse.json(
+      { error: "Lỗi cấu hình server." },
+      { status: 500 }
+    );
   }
 
   // 2. Xác thực Admin (Đọc cookie thủ công)
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest) {
     }
     if (!token)
       return NextResponse.json({ error: "Yêu cầu xác thực." }, { status: 401 });
+
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     if (decoded.role !== "admin") {
       return NextResponse.json(
@@ -71,35 +74,34 @@ export async function GET(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");
 
-    let query = supabaseAdmin
-      .from("users")
-      .select(
-        "id, username, full_name, email, role, is_verified, status, created_at"
-      ); // <-- Bỏ order ở đây
+    let query = supabaseAdmin.from("products").select(
+      `
+        id, name, price, status, created_at,
+        seller:users!seller_id ( username ) 
+      `
+    );
 
-    // === LỌC TRƯỚC ===
+    // Lọc (Filter)
     if (search) {
-      console.log(`API Admin/Users: Đang tìm kiếm với: "${search}"`);
-      query = query.or(
-        `username.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`
-      );
+      console.log(`API Admin/Products: Đang tìm kiếm với: "${search}"`);
+      // Tìm theo tên sản phẩm
+      query = query.ilike("name", `%${search}%`);
+      // (Bạn có thể thêm tìm theo tên người bán nếu muốn, nhưng sẽ phức tạp hơn)
     }
-    // ===================
 
-    // === SẮP XẾP SAU ===
+    // Sắp xếp (Order)
     query = query.order("created_at", { ascending: false });
-    // ===================
 
-    const { data: users, error } = await query;
+    const { data: products, error } = await query;
     if (error) {
-      console.error("API Admin/Users: Lỗi query DB:", error);
+      console.error("API Admin/Products: Lỗi query DB:", error);
       throw error;
     }
 
-    return NextResponse.json({ users: users || [] }, { status: 200 });
+    return NextResponse.json({ products: products || [] }, { status: 200 });
   } catch (error: unknown) {
-    console.error("API Admin/Users: Lỗi bất ngờ:", error);
-    let message = "Lỗi server khi lấy danh sách user.";
+    console.error("API Admin/Products: Lỗi bất ngờ:", error);
+    let message = "Lỗi server khi lấy danh sách sản phẩm.";
     if (error instanceof Error) message = error.message;
     return NextResponse.json({ error: message }, { status: 500 });
   }

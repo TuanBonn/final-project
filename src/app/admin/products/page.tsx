@@ -1,7 +1,7 @@
-// src/app/admin/users/page.tsx
+// src/app/admin/products/page.tsx
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -19,53 +19,61 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertCircle, Search } from "lucide-react";
-import { UserActions } from "@/components/admin/UserActions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ProductActions } from "@/components/admin/ProductActions";
 
-// Định nghĩa kiểu User
-interface User {
+// Định nghĩa kiểu Product
+interface Product {
   id: string;
-  username: string | null;
-  full_name: string | null;
-  email: string;
-  role: "user" | "dealer" | "admin";
-  is_verified: boolean;
-  status: "active" | "banned";
+  name: string;
+  price: number;
+  status: "available" | "in_transaction" | "sold";
   created_at: string;
+  seller: {
+    username: string | null;
+  } | null;
 }
 
-export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
+// Hàm format tiền
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(amount);
+};
+
+export default function AdminProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true); // Chỉ loading lần đầu
-  const [isSearching, setIsSearching] = useState(false); // Dùng cho các lần refetch
+  const [isSearching, setIsSearching] = useState(false); // Dùng cho refetch
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   // === HÀM FETCH (ĐÃ SỬA LOGIC LOADING) ===
-  const fetchUsers = useCallback(
+  const fetchProducts = useCallback(
     async (searchQuery: string, isInitialLoad: boolean = false) => {
       // 1. Phân loại loading
       if (isInitialLoad) {
-        setLoading(true); // Chỉ dùng cho lần đầu
+        setLoading(true);
       } else {
-        setIsSearching(true); // Dùng cho search và actions
+        setIsSearching(true);
       }
       setError(null);
 
       try {
         const params = new URLSearchParams();
-        if (searchQuery) {
-          params.append("search", searchQuery);
-        }
+        if (searchQuery) params.append("search", searchQuery);
 
-        const response = await fetch(`/api/admin/users?${params.toString()}`);
+        const response = await fetch(
+          `/api/admin/products?${params.toString()}`
+        );
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
           throw new Error(data.error || `Lỗi HTTP: ${response.status}`);
         }
         const data = await response.json();
-        setUsers(data.users || []);
+        setProducts(data.products || []);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Lỗi không xác định.");
       } finally {
@@ -75,30 +83,32 @@ export default function AdminUsersPage() {
       }
     },
     []
-  ); // Dependency rỗng
+  );
 
-  // useEffect ban đầu (Chạy 1 lần)
+  // Fetch lần đầu
   useEffect(() => {
     // 3. Đánh dấu đây là lần tải ĐẦU TIÊN
-    fetchUsers("", true);
-  }, [fetchUsers]);
+    fetchProducts("", true);
+  }, [fetchProducts]);
 
-  // Xử lý bấm nút "Tìm"
+  // Xử lý bấm nút tìm
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // 4. Đây KHÔNG phải lần tải đầu tiên
-    fetchUsers(searchTerm, false);
+    fetchProducts(searchTerm, false);
+  };
+
+  // Hàm "bộ đàm" cho component Action
+  const handleActionSuccess = () => {
+    // 5. Đây KHÔNG phải lần tải đầu tiên
+    fetchProducts(searchTerm, false);
   };
 
   // --- Render UI ---
   if (loading) {
-    // Chỉ show loading xoay tròn lần đầu (trang trắng)
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">
-          Đang tải danh sách dân làng...
-        </p>
       </div>
     );
   }
@@ -108,9 +118,7 @@ export default function AdminUsersPage() {
     return (
       <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4">
         <AlertCircle className="h-8 w-8 text-destructive mr-3" />
-        <p className="text-destructive font-medium">
-          Toang! Không tải được: {error}
-        </p>
+        <p className="text-destructive font-medium">Lỗi: {error}</p>
       </div>
     );
   }
@@ -118,9 +126,9 @@ export default function AdminUsersPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quản lý Người dùng ({users.length})</CardTitle>
+        <CardTitle>Quản lý Sản phẩm ({products.length})</CardTitle>
         <CardDescription>
-          Xem, sửa, và ban/bỏ ban tài khoản người dùng trong hệ thống.
+          Tìm kiếm và xem tất cả sản phẩm trong hệ thống.
         </CardDescription>
         <form
           onSubmit={handleSearchSubmit}
@@ -129,24 +137,19 @@ export default function AdminUsersPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Tìm theo email, username, hoặc tên..."
+              placeholder="Tìm theo tên sản phẩm..."
               className="w-full max-w-sm pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <Button type="submit" disabled={isSearching}>
-            {isSearching ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              "Tìm kiếm"
-            )}
+            {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tìm"}
           </Button>
         </form>
       </CardHeader>
-
       <CardContent>
-        {/* Hiển thị loading nhỏ khi đang search/action (đã có data cũ) */}
+        {/* Hiển thị loading nhỏ khi đang search/action */}
         {isSearching && (
           <div className="flex justify-center items-center py-4">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -159,58 +162,40 @@ export default function AdminUsersPage() {
         <Table>
           <TableHeader>{/* ... (giữ nguyên) ... */}</TableHeader>
           <TableBody>
-            {!isSearching && users.length === 0 ? (
+            {!isSearching && products.length === 0 ? (
               <TableRow>{/* ... (giữ nguyên) ... */}</TableRow>
             ) : (
-              users.map((user) => (
-                <TableRow key={user.id}>
+              products.map((product) => (
+                <TableRow key={product.id}>
                   {/* ... (giữ nguyên các TableCell) ... */}
-                  <TableCell className="font-medium">
-                    <div>{user.full_name || "Chưa đặt tên"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      @{user.username || "..."}
-                    </div>
+                  <TableCell className="font-medium">{product.name}</TableCell>
+                  <TableCell>
+                    @{product.seller?.username || "Không rõ"}
                   </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell className="capitalize">
+                  <TableCell>{formatCurrency(product.price)}</TableCell>
+                  <TableCell>
                     <Badge
                       variant={
-                        user.role === "admin" ? "destructive" : "secondary"
+                        product.status === "available" ? "default" : "outline"
+                      }
+                      className={
+                        product.status === "sold"
+                          ? "bg-red-500 text-white"
+                          : product.status === "in_transaction"
+                          ? "bg-yellow-500 text-white"
+                          : ""
                       }
                     >
-                      {user.role}
+                      {product.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {user.is_verified ? (
-                      <Badge className="bg-green-600 hover:bg-green-700">
-                        Verified
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">Chưa</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={user.status === "active" ? "default" : "outline"}
-                    >
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(user.created_at).toLocaleDateString("vi-VN")}
+                    {new Date(product.created_at).toLocaleDateString("vi-VN")}
                   </TableCell>
                   <TableCell className="text-right">
-                    <UserActions
-                      user={{
-                        id: user.id,
-                        username: user.username,
-                        status: user.status,
-                        role: user.role,
-                        is_verified: user.is_verified,
-                      }}
-                      // 5. Đây KHÔNG phải lần tải đầu tiên
-                      onActionSuccess={() => fetchUsers(searchTerm, false)}
+                    <ProductActions
+                      product={product}
+                      onActionSuccess={handleActionSuccess} // Hàm "bộ đàm"
                     />
                   </TableCell>
                 </TableRow>
