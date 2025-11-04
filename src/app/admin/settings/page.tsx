@@ -1,6 +1,7 @@
 // src/app/admin/settings/page.tsx
 "use client";
 
+// Đã sửa 'in' thành 'from'
 import { useEffect, useState, useCallback } from "react";
 import {
   Card,
@@ -20,8 +21,42 @@ interface AppSetting {
   key: string;
   value: string | null;
   description: string | null;
-  updated_at: string | null; // (Chỉ để đọc)
+  updated_at: string | null;
 }
+
+// === CÁC HÀM TIỆN ÍCH ===
+
+// 1. Phân loại key
+const isPercentKey = (key: string) => key === "TRANSACTION_COMMISSION_PERCENT";
+
+// === SỬA LỖI TÊN KEY Ở ĐÂY ===
+// (Khớp với tên key bạn vừa cung cấp)
+const isCurrencyKey = (key: string) =>
+  key === "verification_fee" || key === "AUCTION_PARTICIPATION_FEE";
+// ==========================
+
+// 2. Format tiền (10000000 -> "10.000.000")
+const formatCurrency = (value: string | null | undefined): string => {
+  if (!value) return "";
+  const numericValue = parseInt(value.replace(/\D/g, ""), 10);
+  if (isNaN(numericValue)) return "";
+  return new Intl.NumberFormat("vi-VN").format(numericValue);
+};
+
+// 3. Chuyển đổi giá trị TỪ DB ra UI
+const formatValueForDisplay = (key: string, value: string | null): string => {
+  if (value === null) return "";
+  if (isPercentKey(key)) {
+    const numericValue = parseFloat(value);
+    if (isNaN(numericValue)) return "";
+    return (numericValue * 100).toString(); // 0.05 -> "5"
+  }
+  // Hàm này sẽ được gọi cho CẢ 2 key tiền tệ
+  if (isCurrencyKey(key)) {
+    return formatCurrency(value);
+  }
+  return value;
+};
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<AppSetting[]>([]);
@@ -49,21 +84,30 @@ export default function AdminSettingsPage() {
     }
   }, []);
 
-  // Fetch lần đầu
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
 
   // --- Hàm xử lý khi thay đổi input ---
-  const handleInputChange = (key: string, newValue: string) => {
-    setSettings((currentSettings) =>
-      currentSettings.map((setting) =>
-        setting.key === key ? { ...setting, value: newValue } : setting
-      )
-    );
-    // Reset thông báo
+  const handleInputChange = (key: string, newValueFromInput: string) => {
     setSuccess(null);
     setError(null);
+
+    let processedValue = newValueFromInput;
+
+    if (isCurrencyKey(key)) {
+      processedValue = newValueFromInput.replace(/\D/g, ""); // "10.000.000" -> "10000000"
+    } else if (isPercentKey(key)) {
+      processedValue = newValueFromInput
+        .replace(/[^0-9.,]/g, "")
+        .replace(",", ".");
+    }
+
+    setSettings((currentSettings) =>
+      currentSettings.map((setting) =>
+        setting.key === key ? { ...setting, value: processedValue } : setting
+      )
+    );
   };
 
   // --- Hàm xử lý khi Lưu ---
@@ -73,8 +117,13 @@ export default function AdminSettingsPage() {
     setError(null);
     setSuccess(null);
     try {
-      // Chỉ gửi đi key và value
-      const payload = settings.map((s) => ({ key: s.key, value: s.value }));
+      const payload = settings.map((s) => {
+        let valueToSend = s.value || "";
+        if (isCurrencyKey(s.key)) {
+          valueToSend = valueToSend.replace(/\D/g, "");
+        }
+        return { key: s.key, value: valueToSend };
+      });
 
       const response = await fetch("/api/admin/settings", {
         method: "PATCH",
@@ -86,8 +135,7 @@ export default function AdminSettingsPage() {
       if (!response.ok) throw new Error(data.error || "Lưu thất bại.");
 
       setSuccess(data.message);
-      // Tải lại data mới (ví dụ: updated_at)
-      fetchSettings();
+      fetchSettings(); // Tải lại data mới từ DB
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Lỗi không xác định.");
     } finally {
@@ -124,23 +172,40 @@ export default function AdminSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {settings.length === 0 && !error ? (
-            <p className="text-muted-foreground">
-              Không tìm thấy cài đặt nào (Bảng 'app_settings' đang trống?).
-            </p>
+            <p className="text-muted-foreground">Không tìm thấy cài đặt nào.</p>
           ) : (
             settings.map((setting) => (
               <div key={setting.key} className="space-y-2">
                 <Label htmlFor={setting.key} className="text-base">
                   {setting.key}
                 </Label>
-                <Input
-                  id={setting.key}
-                  value={setting.value || ""}
-                  onChange={(e) =>
-                    handleInputChange(setting.key, e.target.value)
-                  }
-                  placeholder={setting.description || "Nhập giá trị..."}
-                />
+
+                <div className="relative">
+                  <Input
+                    id={setting.key}
+                    value={formatValueForDisplay(setting.key, setting.value)}
+                    onChange={(e) =>
+                      handleInputChange(setting.key, e.target.value)
+                    }
+                    placeholder={setting.description || "Nhập giá trị..."}
+                    className={
+                      isPercentKey(setting.key) || isCurrencyKey(setting.key)
+                        ? "pr-12"
+                        : ""
+                    }
+                  />
+                  {isPercentKey(setting.key) && (
+                    <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground">
+                      %
+                    </span>
+                  )}
+                  {isCurrencyKey(setting.key) && (
+                    <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground">
+                      VND
+                    </span>
+                  )}
+                </div>
+
                 <p className="text-sm text-muted-foreground">
                   {setting.description}
                 </p>

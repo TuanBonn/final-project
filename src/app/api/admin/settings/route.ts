@@ -1,5 +1,4 @@
 // src/app/api/admin/settings/route.ts
-// API này xử lý cả GET (lấy) và PATCH (cập nhật)
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -23,23 +22,17 @@ type AppSetting = {
   value: string | null;
 };
 
-// --- Hàm khởi tạo Admin Client ---
+// --- (Hàm getSupabaseAdmin và verifyAdmin giữ nguyên...) ---
 function getSupabaseAdmin(): SupabaseClient | null {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("API Admin/Settings: Thiếu Key!");
-    return null;
-  }
+  if (!supabaseUrl || !supabaseServiceKey) return null;
   try {
     return createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
   } catch (error) {
-    console.error("API Admin/Settings: Lỗi tạo Admin Client:", error);
     return null;
   }
 }
-
-// --- Hàm xác thực Admin ---
 async function verifyAdmin(request: NextRequest): Promise<boolean> {
   if (!JWT_SECRET) return false;
   try {
@@ -54,21 +47,18 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === HÀM GET (Lấy tất cả cài đặt) ===
+// === HÀM GET (Giữ nguyên) ===
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
   }
-
   try {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
-
     const { data: settings, error } = await supabaseAdmin
       .from("app_settings")
       .select("*")
       .order("key", { ascending: true });
-
     if (error) throw error;
     return NextResponse.json({ settings: settings || [] }, { status: 200 });
   } catch (error: unknown) {
@@ -78,7 +68,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === HÀM PATCH (Cập nhật cài đặt) ===
+// === HÀM PATCH (Cập nhật cài đặt - ĐÃ SỬA) ===
 export async function PATCH(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
@@ -88,7 +78,6 @@ export async function PATCH(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
 
-    // Nhận một MẢNG các cài đặt cần update
     const settingsToUpdate: AppSetting[] = await request.json();
     if (!Array.isArray(settingsToUpdate) || settingsToUpdate.length === 0) {
       return NextResponse.json(
@@ -97,10 +86,33 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Dùng .upsert() để cập nhật (hoặc tạo mới nếu key chưa có)
+    // === LOGIC MỚI BẮT ĐẦU TỪ ĐÂY ===
+    const transformedSettings = settingsToUpdate.map((setting) => {
+      // 1. Xử lý logic cho key PERCENT
+      const percentKeys = ["TRANSACTION_COMMISSION_PERCENT"];
+      if (percentKeys.includes(setting.key) && setting.value) {
+        const numericValue = parseFloat(setting.value);
+        if (!isNaN(numericValue)) {
+          return { ...setting, value: (numericValue / 100).toString() }; // "5" -> "0.05"
+        }
+      }
+
+      // 2. Xử lý logic cho key TIỀN TỆ (VND)
+      // === SỬA LỖI TÊN KEY Ở ĐÂY ===
+      const currencyKeys = ["verification_fee", "AUCTION_PARTICIPATION_FEE"];
+      // ==========================
+      if (currencyKeys.includes(setting.key) && setting.value) {
+        const rawValue = setting.value.replace(/\D/g, ""); // "10.000.000" -> "10000000"
+        return { ...setting, value: rawValue };
+      }
+
+      return setting;
+    });
+    // === LOGIC MỚI KẾT THÚC Ở ĐÂY ===
+
     const { data: updatedSettings, error } = await supabaseAdmin
       .from("app_settings")
-      .upsert(settingsToUpdate) // Lệnh upsert thần thánh
+      .upsert(transformedSettings)
       .select();
 
     if (error) {

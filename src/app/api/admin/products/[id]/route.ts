@@ -1,5 +1,4 @@
 // src/app/api/admin/products/[id]/route.ts
-// API để Admin thay đổi trạng thái sản phẩm
 // ĐÃ SỬA LỖI 1 (await params) VÀ LỖI 2 (bỏ updated_at)
 
 import { NextResponse, type NextRequest } from "next/server";
