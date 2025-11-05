@@ -6,8 +6,12 @@ import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import Image from "next/image";
+import Link from "next/link";
+import { uploadFileViaApi } from "@/lib/storageUtils";
+import { cn } from "@/lib/utils"; // <-- SỬA LỖI: THÊM DÒNG NÀY
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // <-- SỬA LỖI: THÊM buttonVariants
 import {
   Card,
   CardContent,
@@ -33,16 +37,27 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label"; // <-- SỬA LỖI: THÊM DÒNG NÀY
+import { Loader2, AlertCircle, ArrowLeft, Trash2, Upload } from "lucide-react";
 
-// Định nghĩa Brand (lấy từ API /api/admin/brands)
+// === HÀM FORMAT TIỀN (Thêm dấu chấm) ===
+const formatCurrencyForInput = (value: string | number): string => {
+  if (typeof value === "number") {
+    value = value.toString();
+  }
+  const numericValue = (value || "").replace(/\D/g, "");
+  if (numericValue === "") return "";
+  return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
+};
+
+// Định nghĩa Brand
 interface Brand {
   id: string;
   name: string;
 }
 
-// Định nghĩa Product (lấy từ API /api/admin/products/[id])
+// Định nghĩa Product (lấy từ API)
 interface ProductData {
   id: string;
   name: string;
@@ -50,15 +65,23 @@ interface ProductData {
   price: number;
   condition: "new" | "used" | "like_new" | "custom" | null;
   brand_id: string | null;
+  image_urls: string[] | null;
 }
 
-// Định nghĩa Zod Schema (giống /sell nhưng BỎ image)
+// Zod Schema (Sửa 'price' từ number -> string để format)
 const productSchema = z.object({
   name: z.string().min(5, { message: "Tên phải ít nhất 5 ký tự." }),
   description: z.string().optional(),
-  price: z.coerce
-    .number()
-    .min(1000, { message: "Giá phải ít nhất 1,000 VND." }),
+  price: z
+    .string()
+    .min(1, { message: "Vui lòng nhập giá." })
+    .refine(
+      (value) => {
+        const numericValue = parseInt(value.replace(/\D/g, ""), 10);
+        return numericValue >= 1000;
+      },
+      { message: "Giá phải ít nhất 1,000 VND." }
+    ),
   condition: z.enum(["new", "used", "like_new", "custom"], {
     required_error: "Vui lòng chọn tình trạng.",
   }),
@@ -77,44 +100,50 @@ export default function AdminEditProductPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Khởi tạo form
+  // --- STATE MỚI CHO ẢNH ---
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: "",
       description: "",
-      price: 0,
+      price: "0",
     },
   });
 
   // Load data (Product và Brands)
   useEffect(() => {
     if (!productId) return;
-
     const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        // 1. Lấy danh sách Brand (cho dropdown)
-        const brandsRes = await fetch("/api/admin/brands"); // Dùng API ta tạo ở bước trước
+        // 1. Lấy Brands
+        const brandsRes = await fetch("/api/admin/brands");
         if (!brandsRes.ok) throw new Error("Không thể tải danh sách brands.");
         const brandsData = await brandsRes.json();
         setBrands(brandsData.brands || []);
 
-        // 2. Lấy chi tiết Product (cho form)
+        // 2. Lấy chi tiết Product
         const productRes = await fetch(`/api/admin/products/${productId}`);
         if (!productRes.ok) throw new Error("Không thể tải chi tiết sản phẩm.");
         const productData = await productRes.json();
+        const p: ProductData = productData.product;
+        setProduct(p);
 
-        // 3. Set data vào state và form
-        setProduct(productData.product);
+        // 3. Set data vào form và state
         form.reset({
-          name: productData.product.name,
-          description: productData.product.description || "",
-          price: productData.product.price,
-          condition: productData.product.condition,
-          brand_id: productData.product.brand_id,
+          name: p.name,
+          description: p.description || "",
+          price: p.price.toString(),
+          condition: p.condition,
+          brand_id: p.brand_id,
         });
+        // 4. Set state ảnh
+        setImageUrls(p.image_urls || []);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Lỗi không xác định.");
       } finally {
@@ -124,15 +153,49 @@ export default function AdminEditProductPage() {
     fetchData();
   }, [productId, form]);
 
-  // Xử lý khi nhấn nút Lưu
+  // --- HÀM MỚI: Xử lý upload file ---
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    setError(null);
+    try {
+      const uploadPromises = files.map((file) =>
+        uploadFileViaApi("products", file)
+      );
+      const newUrls = await Promise.all(uploadPromises);
+      setImageUrls((prev) => [...prev, ...newUrls]); // Thêm ảnh mới vào danh sách
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Lỗi upload ảnh.");
+    } finally {
+      setIsUploading(false);
+      e.target.value = ""; // Reset input file
+    }
+  };
+
+  // --- HÀM MỚI: Xóa ảnh khỏi danh sách (chỉ xóa state) ---
+  const handleRemoveImage = (urlToRemove: string) => {
+    setImageUrls((prev) => prev.filter((url) => url !== urlToRemove));
+  };
+
+  // --- SỬA LẠI: Xử lý khi nhấn nút Lưu ---
   const onSubmit = async (values: ProductFormValues) => {
     setIsSaving(true);
     setError(null);
     try {
+      // Chuẩn bị payload
+      const payload = {
+        ...values,
+        price: values.price.replace(/\D/g, ""), // Gửi số thô
+        image_urls: imageUrls, // <-- Gửi danh sách ảnh đã cập nhật
+      };
+
       const response = await fetch(`/api/admin/products/${productId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values), // Gửi toàn bộ form data
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -147,6 +210,7 @@ export default function AdminEditProductPage() {
     }
   };
 
+  // --- Render (Loading, Error) ---
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -155,7 +219,8 @@ export default function AdminEditProductPage() {
     );
   }
 
-  if (error) {
+  if (error && !product) {
+    // Chỉ hiển thị lỗi toàn trang nếu không load được product
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <AlertCircle className="h-8 w-8 text-destructive mb-3" />
@@ -170,6 +235,7 @@ export default function AdminEditProductPage() {
     );
   }
 
+  // --- RENDER FORM CHÍNH ---
   return (
     <div className="max-w-2xl mx-auto">
       <Button variant="outline" size="sm" asChild className="mb-4">
@@ -179,14 +245,15 @@ export default function AdminEditProductPage() {
         </Link>
       </Button>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Sửa chi tiết sản phẩm</CardTitle>
-          <CardDescription>ID: {product?.id}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          {/* Card Thông tin cơ bản */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Sửa thông tin sản phẩm</CardTitle>
+              <CardDescription>ID: {product?.id}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
               {/* Tên Sản phẩm */}
               <FormField
                 control={form.control}
@@ -202,7 +269,7 @@ export default function AdminEditProductPage() {
                 )}
               />
 
-              {/* Giá bán */}
+              {/* Giá bán (SỬA: Thêm format) */}
               <FormField
                 control={form.control}
                 name="price"
@@ -210,14 +277,23 @@ export default function AdminEditProductPage() {
                   <FormItem>
                     <FormLabel>Giá bán (VND) *</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} />
+                      <Input
+                        placeholder="Ví dụ: 250.000"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(
+                            formatCurrencyForInput(e.target.value)
+                          );
+                        }}
+                        value={formatCurrencyForInput(field.value)}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* Hãng xe (ĐÃ SỬA THÀNH DROPDOWN) */}
+              {/* Hãng xe */}
               <FormField
                 control={form.control}
                 name="brand_id"
@@ -226,8 +302,7 @@ export default function AdminEditProductPage() {
                     <FormLabel>Hãng xe *</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value} // Dùng defaultValue
-                      value={field.value} // Và value (để sync)
+                      value={field.value || ""}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -235,17 +310,11 @@ export default function AdminEditProductPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="max-h-60">
-                        {brands.length === 0 ? (
-                          <SelectItem value="loading" disabled>
-                            Đang tải brand...
+                        {brands.map((brand) => (
+                          <SelectItem key={brand.id} value={brand.id}>
+                            {brand.name}
                           </SelectItem>
-                        ) : (
-                          brands.map((brand) => (
-                            <SelectItem key={brand.id} value={brand.id}>
-                              {brand.name}
-                            </SelectItem>
-                          ))
-                        )}
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -262,8 +331,7 @@ export default function AdminEditProductPage() {
                     <FormLabel>Tình trạng *</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      value={field.value}
+                      value={field.value || ""}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -295,7 +363,6 @@ export default function AdminEditProductPage() {
                       <Textarea
                         placeholder="Mô tả chi tiết..."
                         {...field}
-                        // Đảm bảo giá trị null/undefined được xử lý
                         value={field.value || ""}
                       />
                     </FormControl>
@@ -303,25 +370,100 @@ export default function AdminEditProductPage() {
                   </FormItem>
                 )}
               />
+            </CardContent>
+          </Card>
 
-              {/* Lỗi Server (nếu có) */}
-              {error && (
-                <div className="flex items-center gap-2 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <p>{error}</p>
-                </div>
-              )}
+          {/* === CARD MỚI: QUẢN LÝ ẢNH === */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Quản lý Hình ảnh</CardTitle>
+              <CardDescription>
+                Xem, xóa ảnh cũ hoặc tải lên ảnh mới.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Khu vực hiển thị ảnh */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                {imageUrls.map((url, index) => (
+                  <div key={url} className="relative aspect-square group">
+                    <Image
+                      src={url}
+                      alt={`Ảnh sản phẩm ${index + 1}`}
+                      fill
+                      sizes="(max-width: 640px) 33vw, 20vw"
+                      className="object-cover rounded-md border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon-sm"
+                      className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleRemoveImage(url)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    {index === 0 && (
+                      <Badge className="absolute bottom-1 left-1">
+                        Ảnh bìa
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+                {/* Khung loading khi upload */}
+                {isUploading && (
+                  <div className="relative aspect-square rounded-md border border-dashed flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                )}
+              </div>
 
-              <Button type="submit" disabled={isSaving} className="w-full">
-                {isSaving ? (
-                  <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                ) : null}
-                {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+              {/* Nút Upload (Chỗ này bị lỗi 'Label') */}
+              <div>
+                <Label
+                  htmlFor="file-upload"
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "cursor-pointer w-full"
+                  )}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Tải thêm ảnh mới
+                </Label>
+                <Input
+                  id="file-upload"
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lỗi Server (nếu có) */}
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <p>{error}</p>
+            </div>
+          )}
+
+          {/* Nút Lưu */}
+          <Button
+            type="submit"
+            disabled={isSaving || isUploading}
+            className="w-full"
+            size="lg"
+          >
+            {isSaving ? (
+              <Loader2 className="animate-spin mr-2 h-4 w-4" />
+            ) : null}
+            {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
+          </Button>
+        </form>
+      </Form>
     </div>
   );
 }
