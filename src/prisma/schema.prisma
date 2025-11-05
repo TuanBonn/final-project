@@ -1,0 +1,375 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Cấu hình "nguồn" database
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // Prisma sẽ đọc cái này từ file .env
+}
+
+// Cấu hình "đầu ra" (Prisma Client)
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- Enums (Kiểu dữ liệu tùy chỉnh) ---
+// (Giữ nguyên toàn bộ Enums của bạn)
+enum UserRole {
+  user
+  dealer
+  admin
+  @@map("user_role")
+}
+enum ProductCondition {
+  new
+  used
+  like_new
+  custom
+  @@map("product_condition_enum")
+}
+enum ProductStatus {
+  available
+  in_transaction
+  sold
+  @@map("product_status")
+}
+enum AuctionStatus {
+  draft
+  scheduled
+  active
+  ended
+  cancelled
+  @@map("auction_status")
+}
+enum TransactionStatus {
+  initiated
+  buyer_paid
+  seller_shipped
+  buyer_confirmed
+  completed
+  disputed
+  cancelled
+  @@map("transaction_status")
+}
+enum GroupBuyStatus {
+  open
+  successful
+  failed
+  completed
+  @@map("group_buy_status")
+}
+enum ParticipantStatus {
+  pending_payment
+  paid
+  shipped
+  @@map("participant_status")
+}
+enum PaymentForType {
+  auction_creation_fee
+  auction_bid_fee
+  transaction_commission
+  dealer_subscription
+  @@map("payment_for_type_enum")
+}
+enum PaymentStatus {
+  pending
+  succeeded
+  failed
+  @@map("payment_status_enum")
+}
+enum UserStatus {
+  active
+  banned
+  @@map("user_status")
+}
+
+// --- Bảng Dữ liệu ---
+
+// Bảng User "nhà làm" (Giữ nguyên)
+model User {
+  id               String   @id @default(uuid()) @db.Uuid
+  username         String?  @unique
+  avatar_url       String?
+  full_name        String?
+  email            String   @unique
+  password_hash    String?
+  role             UserRole @default(user)
+  is_verified      Boolean  @default(false)
+  reputation_score Int      @default(0)
+  status           UserStatus @default(active)
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  products              Product[]                 @relation("SellerProducts")
+  posts                 Post[]                    @relation("AuthorPosts")
+  comments              Comment[]                 @relation("AuthorComments")
+  wallPosts             WallPost[]                @relation("AuthorWallPosts")
+  wallPostLikes         WallPostLike[]
+  wallPostComments      WallPostComment[]
+  auctionsAsSeller      Auction[]                 @relation("AuctionSeller")
+  auctionsAsWinner      Auction[]                 @relation("AuctionWinner")
+  bids                  Bid[]
+  transactionsAsBuyer   Transaction[]             @relation("TransactionBuyer")
+  transactionsAsSeller  Transaction[]             @relation("TransactionSeller")
+  reviewsGiven          Review[]                  @relation("Reviewer")
+  reviewsReceived       Review[]                  @relation("Reviewee")
+  forumPostLikes        ForumPostLike[]
+  conversationParts     ConversationParticipant[]
+  sentMessages          Message[]
+  groupBuysHosted       GroupBuy[]
+  groupBuyParts         GroupBuyParticipant[]
+  platformPayments      PlatformPayment[]
+  auctionParticipations AuctionParticipant[]
+
+  @@map("users")
+}
+
+// === BẢNG BRAND MỚI ===
+model Brand {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @unique
+  created_at DateTime  @default(now()) @db.Timestamptz
+  products   Product[] // Liên kết ngược lại Product
+
+  @@map("brands")
+}
+
+// === BẢNG PRODUCT (ĐÃ SỬA) ===
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  seller      User     @relation("SellerProducts", fields: [seller_id], references: [id])
+  seller_id   String   @db.Uuid
+  name        String
+  description String?
+  price       Decimal  @db.Numeric
+  
+  // --- ĐÂY LÀ THAY ĐỔI ---
+  // brand       String? // <-- XÓA DÒNG NÀY
+  brand_id    String?  @db.Uuid // <-- THÊM DÒNG NÀY
+  brand       Brand?   @relation(fields: [brand_id], references: [id], onDelete: SetNull) // <-- THÊM DÒNG NÀY
+  // -----------------------
+
+  condition   ProductCondition?
+  status      ProductStatus     @default(available)
+  image_urls  Json?             @db.JsonB
+  created_at  DateTime          @default(now()) @db.Timestamptz
+
+  auctions     Auction[]
+  transactions Transaction[]
+
+  @@map("products")
+}
+
+// (Tất cả các model còn lại (Post, Comment, Auction, Transaction, v.v...) giữ nguyên y hệt)
+// --- Forum ---
+model Post {
+  id         String   @id @default(uuid()) @db.Uuid
+  author     User     @relation("AuthorPosts", fields: [author_id], references: [id])
+  author_id  String   @db.Uuid
+  title      String
+  content    String?
+  created_at DateTime @default(now()) @db.Timestamptz
+  likes      ForumPostLike[]
+  comments   Comment[]
+  @@map("posts")
+}
+model ForumPostLike {
+  user_id    String   @db.Uuid
+  post_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  @@id([user_id, post_id])
+  @@map("forum_post_likes")
+}
+model Comment {
+  id                String    @id @default(uuid()) @db.Uuid
+  post              Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  post_id           String    @db.Uuid
+  author            User      @relation("AuthorComments", fields: [author_id], references: [id])
+  author_id         String    @db.Uuid
+  content           String?
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  parent            Comment?  @relation("Replies", fields: [parent_comment_id], references: [id])
+  parent_comment_id String?   @db.Uuid
+  replies           Comment[] @relation("Replies")
+  @@map("comments")
+}
+// --- User Wall ---
+model WallPost {
+  id         String   @id @default(uuid()) @db.Uuid
+  author     User     @relation("AuthorWallPosts", fields: [user_id], references: [id])
+  user_id    String   @db.Uuid
+  caption    String?
+  image_urls Json?    @db.JsonB
+  created_at DateTime @default(now()) @db.Timestamptz
+  likes      WallPostLike[]
+  comments   WallPostComment[]
+  @@map("wall_posts")
+}
+model WallPostLike {
+  user_id    String   @db.Uuid
+  post_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post       WallPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  @@id([user_id, post_id])
+  @@map("wall_post_likes")
+}
+model WallPostComment {
+  id                String             @id @default(uuid()) @db.Uuid
+  post              WallPost           @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  post_id           String             @db.Uuid
+  author            User               @relation(fields: [author_id], references: [id])
+  author_id         String             @db.Uuid
+  content           String
+  created_at        DateTime           @default(now()) @db.Timestamptz
+  parent            WallPostComment?   @relation("WallReplies", fields: [parent_comment_id], references: [id])
+  parent_comment_id String?            @db.Uuid
+  replies           WallPostComment[]  @relation("WallReplies")
+  @@map("wall_post_comments")
+}
+// --- Auction ---
+model Auction {
+  id                String                 @id @default(uuid()) @db.Uuid
+  product           Product                @relation(fields: [product_id], references: [id])
+  product_id        String                 @db.Uuid
+  seller            User                   @relation("AuctionSeller", fields: [seller_id], references: [id])
+  seller_id         String                 @db.Uuid
+  start_time        DateTime               @db.Timestamptz
+  end_time          DateTime               @db.Timestamptz
+  starting_bid      Decimal                @db.Numeric
+  status            AuctionStatus          @default(draft)
+  winning_bidder    User?                  @relation("AuctionWinner", fields: [winning_bidder_id], references: [id])
+  winning_bidder_id String?                @db.Uuid
+  bids              Bid[]
+  participants      AuctionParticipant[]
+  @@map("auctions")
+}
+model Bid {
+  id         String   @id @default(uuid()) @db.Uuid
+  auction    Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+  auction_id String   @db.Uuid
+  bidder     User     @relation(fields: [bidder_id], references: [id])
+  bidder_id  String   @db.Uuid
+  bid_amount Decimal  @db.Numeric
+  created_at DateTime @default(now()) @db.Timestamptz
+  @@map("bids")
+}
+model AuctionParticipant {
+  auction_id String   @db.Uuid
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  auction    Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@id([auction_id, user_id])
+  @@map("auction_participants")
+}
+// --- Transaction & Review ---
+model Transaction {
+  id                  String            @id @default(uuid()) @db.Uuid
+  product             Product           @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  product_id          String            @db.Uuid
+  buyer               User              @relation("TransactionBuyer", fields: [buyer_id], references: [id], onDelete: Restrict)
+  buyer_id            String            @db.Uuid
+  seller              User              @relation("TransactionSeller", fields: [seller_id], references: [id], onDelete: Restrict)
+  seller_id           String            @db.Uuid
+  amount              Decimal           @db.Numeric
+  midman_fee          Decimal           @default(0) @db.Numeric
+  platform_commission Decimal           @default(0) @db.Numeric
+  status              TransactionStatus @default(initiated)
+  created_at          DateTime          @default(now()) @db.Timestamptz
+  updated_at          DateTime          @default(now()) @db.Timestamptz
+  review              Review?
+  @@map("transactions")
+}
+model Review {
+  id             String      @id @default(uuid()) @db.Uuid
+  transaction    Transaction @relation(fields: [transaction_id], references: [id])
+  transaction_id String      @unique @db.Uuid
+  reviewer       User        @relation("Reviewer", fields: [reviewer_id], references: [id])
+  reviewer_id    String      @db.Uuid
+  reviewee       User        @relation("Reviewee", fields: [reviewee_id], references: [id])
+  reviewee_id    String      @db.Uuid
+  rating         Int
+  comment        String?
+  created_at     DateTime    @default(now()) @db.Timestamptz
+  @@map("reviews")
+}
+// --- Chat ---
+model Conversation {
+  id           String                    @id @default(uuid()) @db.Uuid
+  created_at   DateTime                  @default(now()) @db.Timestamptz
+  participants ConversationParticipant[]
+  messages     Message[]
+  @@map("conversations")
+}
+model ConversationParticipant {
+  conversation_id String       @db.Uuid
+  user_id         String       @db.Uuid
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@id([conversation_id, user_id])
+  @@map("conversation_participants")
+}
+model Message {
+  id              String       @id @default(uuid()) @db.Uuid
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation_id String       @db.Uuid
+  sender          User         @relation(fields: [sender_id], references: [id])
+  sender_id       String       @db.Uuid
+  content         String?
+  created_at      DateTime     @default(now()) @db.Timestamptz
+  @@map("messages")
+}
+// --- Group Buy ---
+model GroupBuy {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  host                User                    @relation(fields: [host_id], references: [id], onDelete: SetNull)
+  host_id             String                  @db.Uuid
+  product_name        String
+  product_description String?
+  product_images      Json?                   @db.JsonB
+  price_per_unit      Decimal                 @db.Numeric
+  target_quantity     Int
+  max_quantity        Int?
+  join_deadline       DateTime                @db.Timestamptz
+  status              GroupBuyStatus          @default(open)
+  created_at          DateTime                @default(now()) @db.Timestamptz
+  participants        GroupBuyParticipant[]
+  @@map("group_buys")
+}
+model GroupBuyParticipant {
+  id           String            @id @default(uuid()) @db.Uuid
+  group_buy    GroupBuy          @relation(fields: [group_buy_id], references: [id], onDelete: Cascade)
+  group_buy_id String            @db.Uuid
+  user         User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id      String            @db.Uuid
+  quantity     Int
+  status       ParticipantStatus @default(pending_payment)
+  joined_at    DateTime          @default(now()) @db.Timestamptz
+  @@unique([group_buy_id, user_id])
+  @@map("group_buy_participants")
+}
+// --- Platform Payments ---
+model PlatformPayment {
+  id                     String         @id @default(uuid()) @db.Uuid
+  user                   User?          @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  user_id                String?        @db.Uuid
+  amount                 Decimal        @db.Numeric
+  currency               String         @default("VND")
+  payment_for_type       PaymentForType
+  related_id             String?        @db.Uuid
+  status                 PaymentStatus  @default(pending)
+  gateway_transaction_id String?
+  created_at             DateTime       @default(now()) @db.Timestamptz
+  updated_at             DateTime       @default(now()) @db.Timestamptz
+  @@map("platform_payments")
+}
+// --- App Settings ---
+model AppSetting {
+  key         String    @id
+  value       String?
+  description String?
+  updated_at  DateTime? @default(now()) @db.Timestamptz
+  @@map("app_settings")
+}
