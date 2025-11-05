@@ -3,24 +3,29 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
-import { FilterSidebar } from "@/components/FilterSidebar"; // Bộ lọc
-import { ProductCard } from "@/components/ProductCard"; // Card sản phẩm (Cần tạo file này)
+import { FilterSidebar } from "@/components/FilterSidebar";
+import { ProductCard } from "@/components/ProductCard";
 
-// Định nghĩa kiểu dữ liệu (import nếu đã tách file)
+// Định nghĩa kiểu dữ liệu (SỬA LẠI BRAND)
 interface Seller {
   username: string | null;
   avatar_url: string | null;
   is_verified: boolean;
 }
+interface Brand {
+  // <-- Thêm kiểu Brand
+  id: string;
+  name: string;
+}
 interface Product {
   id: string;
   name: string;
   price: number;
-  brand: string | null;
   condition: "new" | "used" | "like_new" | "custom" | null;
   image_urls: string[] | null;
   created_at: string;
   seller: Seller | null;
+  brand: Brand | null; // <-- Sửa: 'brand' giờ là một object
 }
 
 export default function HomePage() {
@@ -28,9 +33,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- State cho bộ lọc (SỬA MẶC ĐỊNH) ---
-  const [sort, setSort] = useState("created_at_desc"); // <-- Sửa mặc định
-  const [filterVerified, setFilterVerified] = useState(false);
+  // --- State cho bộ lọc ---
+  const [sort, setSort] = useState("created_at_desc");
+  const [filterVerified, setFilterVerified] = useState(false); // <-- Giữ state này
   const [filterConditions, setFilterConditions] = useState<string[]>([]);
   const [filterBrands, setFilterBrands] = useState<string[]>([]);
   // -------------------------
@@ -42,14 +47,19 @@ export default function HomePage() {
       setError(null);
       console.log("HomePage: Đang fetch products với filter...");
 
-      // 1. Xây dựng URLSearchParams
+      // 1. Xây dựng URLSearchParams (ĐÃ SỬA)
       const params = new URLSearchParams();
       params.append("sort", sort);
+
+      // === SỬA LỖI LOGIC VERIFIED ===
+      // Chỉ gửi param 'verified' KHI nó được check
       if (filterVerified) {
         params.append("verified", "true");
       }
+      // ===========================
+
       filterConditions.forEach((cond) => params.append("condition", cond));
-      filterBrands.forEach((brand) => params.append("brand", brand));
+      filterBrands.forEach((brand) => params.append("brand", brand)); // Gửi TÊN
 
       try {
         // 2. Gọi API với các filter
@@ -101,14 +111,12 @@ export default function HomePage() {
           Sản phẩm nổi bật
         </h1>
 
-        {/* Loading */}
+        {/* ... (Giữ nguyên Loading, Error) ... */}
         {loading && (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
           </div>
         )}
-
-        {/* Error */}
         {error && (
           <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4">
             <AlertCircle className="h-8 w-8 text-destructive mr-3" />
@@ -127,7 +135,7 @@ export default function HomePage() {
               // Lưới 5 cột
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {products.map((product) => (
-                  // Giả sử sếp đã có file /components/ProductCard.tsx
+                  // Truyền product (đã có schema mới)
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>

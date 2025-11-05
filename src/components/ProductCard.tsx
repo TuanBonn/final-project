@@ -9,13 +9,18 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CheckCircle } from "lucide-react"; // Icon cho "Verified"
+import { CheckCircle } from "lucide-react";
 
-// Định nghĩa kiểu dữ liệu (import từ file types chung nếu có)
+// Định nghĩa kiểu dữ liệu (ĐÃ SỬA)
 interface Seller {
   username: string | null;
   avatar_url: string | null;
   is_verified: boolean;
+}
+interface Brand {
+  // <-- Thêm kiểu Brand
+  id: string;
+  name: string;
 }
 interface Product {
   id: string;
@@ -23,6 +28,7 @@ interface Product {
   price: number;
   image_urls: string[] | null;
   seller: Seller | null;
+  brand: Brand | null; // <-- Sửa: 'brand' giờ là một object
 }
 
 // Hàm format tiền
@@ -47,12 +53,12 @@ export function ProductCard({ product }: { product: Product }) {
   const sellerUsername = product.seller?.username || "Ẩn danh";
   const sellerAvatar = product.seller?.avatar_url || "";
   const isVerified = product.seller?.is_verified === true;
-  const productUrl = `/products/${product.id}`; // Đường dẫn tới trang chi tiết (làm sau)
-  const sellerUrl = `/user/${sellerUsername}`; // Đường dẫn tới trang user (làm sau)
+  const productUrl = `/products/${product.id}`;
+  const sellerUrl = `/user/${sellerUsername}`;
 
   return (
     <Card className="overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
-      {/* 1. Ảnh sản phẩm */}
+      {/* 1. Ảnh sản phẩm (Giữ nguyên) */}
       <Link
         href={productUrl}
         className="block aspect-square relative bg-muted overflow-hidden"

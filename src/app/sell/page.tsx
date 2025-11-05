@@ -1,13 +1,13 @@
 // src/app/sell/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // <-- Thêm useEffect
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { z } from "zod"; // Thư viện validate
+import { useForm, Controller } from "react-hook-form"; // <-- Thêm Controller
+import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useUser } from "@/contexts/UserContext"; // Lấy user ID
-import { uploadFileViaApi } from "@/lib/storageUtils"; // Hàm upload "thần thánh"
+import { useUser } from "@/contexts/UserContext";
+import { uploadFileViaApi } from "@/lib/storageUtils";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -37,15 +36,53 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Loader2, AlertCircle } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-// Định nghĩa Schema (Luật chơi) cho form
+// Định nghĩa Brand
+interface Brand {
+  id: string;
+  name: string;
+}
+
+// === HÀM FORMAT TIỀN (CHO INPUT) ===
+const formatCurrencyForInput = (value: string | number): string => {
+  if (typeof value === "number") {
+    value = value.toString();
+  }
+  const numericValue = value.replace(/\D/g, "");
+  if (numericValue === "") return "";
+  return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
+};
+
+// === SỬA ZOD SCHEMA ===
 const productSchema = z.object({
   name: z.string().min(5, { message: "Tên phải ít nhất 5 ký tự." }),
   description: z.string().optional(),
-  price: z.coerce
-    .number()
-    .min(1000, { message: "Giá phải ít nhất 1,000 VND." }),
-  brand: z.string().optional(),
+  price: z
+    .string() // <-- Sửa: Nhận string (vi 100.000)
+    .min(1, { message: "Vui lòng nhập giá." })
+    .refine(
+      (value) => {
+        const numericValue = parseInt(value.replace(/\D/g, ""), 10);
+        return numericValue >= 1000;
+      },
+      { message: "Giá phải ít nhất 1,000 VND." }
+    ),
+  brand_id: z.string({ required_error: "Vui lòng chọn hãng xe." }), // <-- Sửa: 'brand' thành 'brand_id'
   condition: z.enum(["new", "used", "like_new", "custom"], {
     required_error: "Vui lòng chọn tình trạng.",
   }),
@@ -56,7 +93,7 @@ const productSchema = z.object({
     )
     .refine(
       (files) =>
-        Array.from(files ?? []).every((file) => file.size <= 5 * 1024 * 1024), // Check 5MB
+        Array.from(files ?? []).every((file) => file.size <= 5 * 1024 * 1024),
       `Mỗi ảnh phải nhỏ hơn 5MB.`
     ),
 });
@@ -64,26 +101,47 @@ type ProductFormValues = z.infer<typeof productSchema>;
 
 export default function SellPage() {
   const router = useRouter();
-  const { user } = useUser(); // Lấy user từ Context
+  const { user } = useUser();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // State cho Brand
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [loadingBrands, setLoadingBrands] = useState(true);
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: "",
       description: "",
-      price: 0,
-      brand: "",
+      price: "0",
       images: null,
     },
   });
+
+  // --- Load Brands từ API ---
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        setLoadingBrands(true);
+        const res = await fetch("/api/admin/brands"); // Dùng API có sẵn
+        if (!res.ok) throw new Error("Failed to fetch brands");
+        const data = await res.json();
+        setBrands(data.brands || []);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoadingBrands(false);
+      }
+    };
+    fetchBrands();
+  }, []);
 
   // Xử lý khi nhấn nút Đăng
   const onSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true);
     setServerError(null);
-    console.log("Form values:", values);
 
     if (!user) {
       setServerError("Bạn cần đăng nhập để đăng bán.");
@@ -92,40 +150,34 @@ export default function SellPage() {
     }
 
     try {
-      // --- 1. Upload ảnh lên Storage (dùng API /api/upload) ---
+      // 1. Upload ảnh
       const imageUrls: string[] = [];
       if (values.images) {
-        console.log(`Đang upload ${values.images.length} ảnh...`);
         for (const file of Array.from(values.images)) {
-          // Gọi hàm tiện ích, truyền bucket 'products'
           const url = await uploadFileViaApi("products", file);
           imageUrls.push(url);
         }
-        console.log("Tất cả ảnh đã upload:", imageUrls);
       }
 
-      // --- 2. Gọi API POST /api/products để lưu vào DB ---
+      // 2. Gọi API POST
       const response = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: values.name,
           description: values.description,
-          price: values.price,
-          brand: values.brand,
+          price: values.price.replace(/\D/g, ""), // <-- Sửa: Gửi số thô
+          brand_id: values.brand_id, // <-- Sửa: Gửi brand_id
           condition: values.condition,
-          imageUrls: imageUrls, // Gửi mảng link ảnh
+          imageUrls: imageUrls,
         }),
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Đăng bán thất bại.");
 
-      // --- 3. Thành công! ---
       alert("Đăng bán thành công!");
-      // Chuyển hướng đến trang sản phẩm vừa tạo (làm sau)
-      // router.push(`/products/${data.product.id}`);
-      router.push("/"); // Tạm thời về trang chủ
+      router.push("/");
     } catch (err: unknown) {
       console.error("Lỗi khi đăng bán:", err);
       setServerError(
@@ -136,7 +188,6 @@ export default function SellPage() {
     }
   };
 
-  // Cần để Shadcn Form bind đúng kiểu 'file'
   const fileRef = form.register("images");
 
   return (
@@ -169,7 +220,7 @@ export default function SellPage() {
                 )}
               />
 
-              {/* Giá bán */}
+              {/* Giá bán (ĐÃ SỬA) */}
               <FormField
                 control={form.control}
                 name="price"
@@ -178,9 +229,16 @@ export default function SellPage() {
                     <FormLabel>Giá bán (VND) *</FormLabel>
                     <FormControl>
                       <Input
-                        type="number"
-                        placeholder="Ví dụ: 250000"
+                        placeholder="Ví dụ: 250.000"
                         {...field}
+                        // Xử lý format khi gõ
+                        onChange={(e) => {
+                          field.onChange(
+                            formatCurrencyForInput(e.target.value)
+                          );
+                        }}
+                        // Xử lý giá trị khi load
+                        value={formatCurrencyForInput(field.value)}
                       />
                     </FormControl>
                     <FormMessage />
@@ -188,7 +246,7 @@ export default function SellPage() {
                 )}
               />
 
-              {/* Tình trạng */}
+              {/* Tình trạng (Giữ nguyên) */}
               <FormField
                 control={form.control}
                 name="condition"
@@ -218,25 +276,73 @@ export default function SellPage() {
                 )}
               />
 
-              {/* Hãng xe */}
+              {/* Hãng xe (ĐÃ SỬA THÀNH COMBOBOX) */}
               <FormField
                 control={form.control}
-                name="brand"
+                name="brand_id"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hãng xe</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Ví dụ: Tomica, MiniGT..."
-                        {...field}
-                      />
-                    </FormControl>
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Hãng xe *</FormLabel>
+                    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value
+                              ? brands.find((brand) => brand.id === field.value)
+                                  ?.name
+                              : "Chọn hãng xe..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Tìm hãng xe..." />
+                          <CommandList>
+                            <CommandEmpty>
+                              {loadingBrands
+                                ? "Đang tải..."
+                                : "Không tìm thấy."}
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {brands.map((brand) => (
+                                <CommandItem
+                                  value={brand.name}
+                                  key={brand.id}
+                                  onSelect={() => {
+                                    form.setValue("brand_id", brand.id);
+                                    setPopoverOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      brand.id === field.value
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                  {brand.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* Mô tả */}
+              {/* Mô tả (Giữ nguyên) */}
               <FormField
                 control={form.control}
                 name="description"
@@ -254,7 +360,7 @@ export default function SellPage() {
                 )}
               />
 
-              {/* Upload Ảnh */}
+              {/* Upload Ảnh (Giữ nguyên) */}
               <FormField
                 control={form.control}
                 name="images"
