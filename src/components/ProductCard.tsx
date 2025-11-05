@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle } from "lucide-react"; // Icon cho "Verified"
 
 // Định nghĩa kiểu dữ liệu (ĐÃ SỬA)
 interface Seller {
@@ -101,7 +101,12 @@ export function ProductCard({ product }: { product: Product }) {
           {formatCurrency(product.price)}
         </p>
 
-        {/* 4. Tên người bán (ở dưới cùng) */}
+        {/* 4. Brand (SỬA LẠI ĐỂ ĐỌC brand.name) */}
+        <p className="text-xs text-muted-foreground mb-3 truncate">
+          Hãng xe: {product.brand?.name || "Không rõ"}
+        </p>
+
+        {/* 5. Tên người bán (ở dưới cùng) */}
         <div className="mt-auto border-t pt-3">
           <Link
             href={sellerUrl}

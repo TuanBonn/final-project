@@ -1,36 +1,30 @@
 // src/components/FilterSidebar.tsx
 "use client";
 
-import { useState, useEffect } from "react"; // <-- Thêm
+import { useState, useEffect } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-// import { BRAND_OPTIONS } from "@/lib/brands"; // <-- Bỏ file hard-code
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CheckCircle, Loader2 } from "lucide-react"; // <-- Thêm Loader2
+import { CheckCircle, Loader2 } from "lucide-react";
 
-// Định nghĩa Brand
 interface Brand {
   id: string;
   name: string;
 }
 
-// Props nhận từ page.tsx
 interface FilterSidebarProps {
   sort: string;
   setSort: (value: string) => void;
-  // Sửa lỗi logic "verified"
   filterVerified: boolean;
   setFilterVerified: (value: boolean) => void;
-  // ---
   filterConditions: string[];
   setFilterConditions: (conditions: string[]) => void;
-  filterBrands: string[];
+  filterBrands: string[]; // array brand_id
   setFilterBrands: (brands: string[]) => void;
 }
 
-// Dữ liệu Tình trạng (giữ nguyên)
 const ALL_CONDITIONS = [
   { id: "new", label: "Mới (New)" },
   { id: "used", label: "Đã sử dụng (Used)" },
@@ -41,8 +35,8 @@ const ALL_CONDITIONS = [
 export function FilterSidebar({
   sort,
   setSort,
-  filterVerified, // <-- Nhận
-  setFilterVerified, // <-- Nhận
+  filterVerified,
+  setFilterVerified,
   filterConditions,
   setFilterConditions,
   filterBrands,
@@ -51,12 +45,11 @@ export function FilterSidebar({
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loadingBrands, setLoadingBrands] = useState(true);
 
-  // --- Load Brands từ API ---
   useEffect(() => {
     const fetchBrands = async () => {
       try {
         setLoadingBrands(true);
-        const res = await fetch("/api/admin/brands"); // Dùng API có sẵn
+        const res = await fetch("/api/admin/brands");
         if (!res.ok) throw new Error("Failed to fetch brands");
         const data = await res.json();
         setBrands(data.brands || []);
@@ -69,7 +62,6 @@ export function FilterSidebar({
     fetchBrands();
   }, []);
 
-  // Hàm xử lý check/uncheck (cho mảng)
   const handleCheckedChange = (
     checked: boolean,
     value: string,
@@ -82,22 +74,13 @@ export function FilterSidebar({
 
   return (
     <aside className="w-full lg:w-1/4 xl:w-1/5 space-y-6 p-4 border rounded-lg shadow-sm h-fit sticky top-24">
-      {/* Sắp xếp (Giữ nguyên) */}
+      {/* Sắp xếp */}
       <div>
         <h3 className="font-semibold mb-3 text-lg">Sắp xếp</h3>
         <RadioGroup value={sort} onValueChange={setSort}>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="created_at_desc" id="sort-newest" />
             <Label htmlFor="sort-newest">Mới nhất</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="verified_first" id="sort-verified" />
-            <Label
-              htmlFor="sort-verified"
-              className="flex items-center gap-1.5"
-            >
-              Ưu tiên Verified
-            </Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="price_asc" id="sort-price-asc" />
@@ -112,7 +95,7 @@ export function FilterSidebar({
 
       <Separator />
 
-      {/* Lọc chung (ĐÃ SỬA: Thêm Checkbox Verified) */}
+      {/* Lọc chung */}
       <div>
         <h3 className="font-semibold mb-3 text-lg">Lọc</h3>
         <div className="flex items-center space-x-2">
@@ -133,7 +116,7 @@ export function FilterSidebar({
 
       <Separator />
 
-      {/* Lọc theo Tình trạng (Giữ nguyên) */}
+      {/* Lọc theo tình trạng */}
       <div>
         <h3 className="font-semibold mb-3">Tình trạng</h3>
         <div className="space-y-2">
@@ -159,7 +142,7 @@ export function FilterSidebar({
 
       <Separator />
 
-      {/* Lọc theo Hãng (ĐÃ SỬA: Lấy từ DB) */}
+      {/* Lọc theo Hãng (brand_id) */}
       <div>
         <h3 className="font-semibold mb-3">Hãng xe</h3>
         <ScrollArea className="h-60 w-full rounded-md border p-4">
@@ -173,12 +156,11 @@ export function FilterSidebar({
                 <div key={brand.id} className="flex items-center space-x-2">
                   <Checkbox
                     id={`brand-${brand.id}`}
-                    // Lọc theo TÊN (value), không phải ID
-                    checked={filterBrands.includes(brand.name)}
+                    checked={filterBrands.includes(brand.id)}
                     onCheckedChange={(checked) =>
                       handleCheckedChange(
                         checked === true,
-                        brand.name, // Gửi TÊN
+                        brand.id, // gửi id
                         filterBrands,
                         setFilterBrands
                       )
