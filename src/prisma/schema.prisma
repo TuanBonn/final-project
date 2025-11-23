@@ -1,10 +1,12 @@
+// src/prisma/schema.prisma
+
 // This is your Prisma schema file.
 // Learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Cấu hình "nguồn" database
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL") // Prisma sẽ đọc cái này từ file .env
+  url      = env("DATABASE_URL")
 }
 
 // Cấu hình "đầu ra" (Prisma Client)
@@ -13,7 +15,6 @@ generator client {
 }
 
 // --- Enums (Kiểu dữ liệu tùy chỉnh) ---
-// (Giữ nguyên toàn bộ Enums của bạn)
 enum UserRole {
   user
   dealer
@@ -69,6 +70,8 @@ enum PaymentForType {
   auction_bid_fee
   transaction_commission
   dealer_subscription
+  deposit    // Mới thêm: Nạp tiền
+  withdrawal // Mới thêm: Rút tiền
   @@map("payment_for_type_enum")
 }
 enum PaymentStatus {
@@ -82,12 +85,19 @@ enum UserStatus {
   banned
   @@map("user_status")
 }
+// Mới thêm: Phương thức thanh toán
+enum PaymentMethod {
+  cod
+  banking_qr
+  wallet
+  @@map("payment_method_enum")
+}
 
 // --- Bảng Dữ liệu ---
 
-// Bảng User "nhà làm" (Giữ nguyên)
+// Bảng User
 model User {
-  id               String   @id @default(uuid()) @db.Uuid
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   username         String?  @unique
   avatar_url       String?
   full_name        String?
@@ -97,6 +107,10 @@ model User {
   is_verified      Boolean  @default(false)
   reputation_score Int      @default(0)
   status           UserStatus @default(active)
+  
+  // Mới thêm: Ví tiền
+  balance          Decimal  @default(0) @db.Decimal
+
   created_at       DateTime @default(now()) @db.Timestamptz
 
   products              Product[]                 @relation("SellerProducts")
@@ -123,30 +137,27 @@ model User {
   @@map("users")
 }
 
-// === BẢNG BRAND MỚI ===
+// Bảng Brand
 model Brand {
-  id         String    @id @default(uuid()) @db.Uuid
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name       String    @unique
   created_at DateTime  @default(now()) @db.Timestamptz
-  products   Product[] // Liên kết ngược lại Product
+  products   Product[]
 
   @@map("brands")
 }
 
-// === BẢNG PRODUCT (ĐÃ SỬA) ===
+// Bảng Product
 model Product {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   seller      User     @relation("SellerProducts", fields: [seller_id], references: [id])
   seller_id   String   @db.Uuid
   name        String
   description String?
-  price       Decimal  @db.Numeric
-  
-  // --- ĐÂY LÀ THAY ĐỔI ---
-  // brand       String? // <-- XÓA DÒNG NÀY
-  brand_id    String?  @db.Uuid // <-- THÊM DÒNG NÀY
-  brand       Brand?   @relation(fields: [brand_id], references: [id], onDelete: SetNull) // <-- THÊM DÒNG NÀY
-  // -----------------------
+  price       Decimal  @db.Decimal
+
+  brand_id    String?  @db.Uuid 
+  brand       Brand?   @relation(fields: [brand_id], references: [id], onDelete: SetNull)
 
   condition   ProductCondition?
   status      ProductStatus     @default(available)
@@ -159,10 +170,9 @@ model Product {
   @@map("products")
 }
 
-// (Tất cả các model còn lại (Post, Comment, Auction, Transaction, v.v...) giữ nguyên y hệt)
 // --- Forum ---
 model Post {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   author     User     @relation("AuthorPosts", fields: [author_id], references: [id])
   author_id  String   @db.Uuid
   title      String
@@ -172,6 +182,7 @@ model Post {
   comments   Comment[]
   @@map("posts")
 }
+
 model ForumPostLike {
   user_id    String   @db.Uuid
   post_id    String   @db.Uuid
@@ -181,8 +192,9 @@ model ForumPostLike {
   @@id([user_id, post_id])
   @@map("forum_post_likes")
 }
+
 model Comment {
-  id                String    @id @default(uuid()) @db.Uuid
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   post              Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
   post_id           String    @db.Uuid
   author            User      @relation("AuthorComments", fields: [author_id], references: [id])
@@ -194,9 +206,10 @@ model Comment {
   replies           Comment[] @relation("Replies")
   @@map("comments")
 }
+
 // --- User Wall ---
 model WallPost {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   author     User     @relation("AuthorWallPosts", fields: [user_id], references: [id])
   user_id    String   @db.Uuid
   caption    String?
@@ -206,6 +219,7 @@ model WallPost {
   comments   WallPostComment[]
   @@map("wall_posts")
 }
+
 model WallPostLike {
   user_id    String   @db.Uuid
   post_id    String   @db.Uuid
@@ -215,8 +229,9 @@ model WallPostLike {
   @@id([user_id, post_id])
   @@map("wall_post_likes")
 }
+
 model WallPostComment {
-  id                String             @id @default(uuid()) @db.Uuid
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   post              WallPost           @relation(fields: [post_id], references: [id], onDelete: Cascade)
   post_id           String             @db.Uuid
   author            User               @relation(fields: [author_id], references: [id])
@@ -228,33 +243,40 @@ model WallPostComment {
   replies           WallPostComment[]  @relation("WallReplies")
   @@map("wall_post_comments")
 }
+
 // --- Auction ---
 model Auction {
-  id                String                 @id @default(uuid()) @db.Uuid
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   product           Product                @relation(fields: [product_id], references: [id])
   product_id        String                 @db.Uuid
   seller            User                   @relation("AuctionSeller", fields: [seller_id], references: [id])
   seller_id         String                 @db.Uuid
   start_time        DateTime               @db.Timestamptz
   end_time          DateTime               @db.Timestamptz
-  starting_bid      Decimal                @db.Numeric
+  starting_bid      Decimal                @db.Decimal
   status            AuctionStatus          @default(draft)
   winning_bidder    User?                  @relation("AuctionWinner", fields: [winning_bidder_id], references: [id])
   winning_bidder_id String?                @db.Uuid
+  
+  // Mới thêm: Ngày tạo
+  created_at        DateTime               @default(now()) @db.Timestamptz
+
   bids              Bid[]
   participants      AuctionParticipant[]
   @@map("auctions")
 }
+
 model Bid {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   auction    Auction  @relation(fields: [auction_id], references: [id], onDelete: Cascade)
   auction_id String   @db.Uuid
   bidder     User     @relation(fields: [bidder_id], references: [id])
   bidder_id  String   @db.Uuid
-  bid_amount Decimal  @db.Numeric
+  bid_amount Decimal  @db.Decimal
   created_at DateTime @default(now()) @db.Timestamptz
   @@map("bids")
 }
+
 model AuctionParticipant {
   auction_id String   @db.Uuid
   user_id    String   @db.Uuid
@@ -264,26 +286,32 @@ model AuctionParticipant {
   @@id([auction_id, user_id])
   @@map("auction_participants")
 }
+
 // --- Transaction & Review ---
 model Transaction {
-  id                  String            @id @default(uuid()) @db.Uuid
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   product             Product           @relation(fields: [product_id], references: [id], onDelete: Restrict)
   product_id          String            @db.Uuid
   buyer               User              @relation("TransactionBuyer", fields: [buyer_id], references: [id], onDelete: Restrict)
   buyer_id            String            @db.Uuid
   seller              User              @relation("TransactionSeller", fields: [seller_id], references: [id], onDelete: Restrict)
   seller_id           String            @db.Uuid
-  amount              Decimal           @db.Numeric
-  midman_fee          Decimal           @default(0) @db.Numeric
-  platform_commission Decimal           @default(0) @db.Numeric
+  amount              Decimal           @db.Decimal
+  midman_fee          Decimal           @default(0) @db.Decimal
+  platform_commission Decimal           @default(0) @db.Decimal
   status              TransactionStatus @default(initiated)
+  
+  // Mới thêm: Phương thức thanh toán
+  payment_method      PaymentMethod     @default(cod)
+
   created_at          DateTime          @default(now()) @db.Timestamptz
   updated_at          DateTime          @default(now()) @db.Timestamptz
   review              Review?
   @@map("transactions")
 }
+
 model Review {
-  id             String      @id @default(uuid()) @db.Uuid
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   transaction    Transaction @relation(fields: [transaction_id], references: [id])
   transaction_id String      @unique @db.Uuid
   reviewer       User        @relation("Reviewer", fields: [reviewer_id], references: [id])
@@ -295,14 +323,16 @@ model Review {
   created_at     DateTime    @default(now()) @db.Timestamptz
   @@map("reviews")
 }
+
 // --- Chat ---
 model Conversation {
-  id           String                    @id @default(uuid()) @db.Uuid
+  id           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   created_at   DateTime                  @default(now()) @db.Timestamptz
   participants ConversationParticipant[]
   messages     Message[]
   @@map("conversations")
 }
+
 model ConversationParticipant {
   conversation_id String       @db.Uuid
   user_id         String       @db.Uuid
@@ -311,8 +341,9 @@ model ConversationParticipant {
   @@id([conversation_id, user_id])
   @@map("conversation_participants")
 }
+
 model Message {
-  id              String       @id @default(uuid()) @db.Uuid
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
   conversation_id String       @db.Uuid
   sender          User         @relation(fields: [sender_id], references: [id])
@@ -321,15 +352,16 @@ model Message {
   created_at      DateTime     @default(now()) @db.Timestamptz
   @@map("messages")
 }
+
 // --- Group Buy ---
 model GroupBuy {
-  id                  String                  @id @default(uuid()) @db.Uuid
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   host                User                    @relation(fields: [host_id], references: [id], onDelete: SetNull)
   host_id             String                  @db.Uuid
   product_name        String
   product_description String?
   product_images      Json?                   @db.JsonB
-  price_per_unit      Decimal                 @db.Numeric
+  price_per_unit      Decimal                 @db.Decimal
   target_quantity     Int
   max_quantity        Int?
   join_deadline       DateTime                @db.Timestamptz
@@ -338,8 +370,9 @@ model GroupBuy {
   participants        GroupBuyParticipant[]
   @@map("group_buys")
 }
+
 model GroupBuyParticipant {
-  id           String            @id @default(uuid()) @db.Uuid
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   group_buy    GroupBuy          @relation(fields: [group_buy_id], references: [id], onDelete: Cascade)
   group_buy_id String            @db.Uuid
   user         User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -350,12 +383,13 @@ model GroupBuyParticipant {
   @@unique([group_buy_id, user_id])
   @@map("group_buy_participants")
 }
+
 // --- Platform Payments ---
 model PlatformPayment {
-  id                     String         @id @default(uuid()) @db.Uuid
+  id                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user                   User?          @relation(fields: [user_id], references: [id], onDelete: SetNull)
   user_id                String?        @db.Uuid
-  amount                 Decimal        @db.Numeric
+  amount                 Decimal        @db.Decimal
   currency               String         @default("VND")
   payment_for_type       PaymentForType
   related_id             String?        @db.Uuid
@@ -365,6 +399,7 @@ model PlatformPayment {
   updated_at             DateTime       @default(now()) @db.Timestamptz
   @@map("platform_payments")
 }
+
 // --- App Settings ---
 model AppSetting {
   key         String    @id

@@ -10,7 +10,12 @@ import {
   Users,
   Package,
   Settings,
-  Library, // <-- Icon mới
+  Library,
+  Receipt,
+  Gavel,
+  CreditCard,
+  MessageSquare,
+  ShoppingBag,
 } from "lucide-react";
 
 // Danh sách các link trong sidebar
@@ -25,18 +30,33 @@ const navItems = [
     label: "Quản lý Users",
     icon: Users,
   },
+  { href: "/admin/posts", label: "Quản lý Bài viết", icon: MessageSquare },
+  {
+    href: "/admin/transactions",
+    label: "Quản lý Giao dịch",
+    icon: Receipt,
+  },
+  { href: "/admin/group-buys", label: "Quản lý Mua chung", icon: ShoppingBag },
+  {
+    href: "/admin/payments",
+    label: "Lịch sử Thanh toán",
+    icon: CreditCard,
+  },
+  {
+    href: "/admin/auctions",
+    label: "Quản lý Đấu giá",
+    icon: Gavel,
+  },
   {
     href: "/admin/products",
     label: "Quản lý Sản phẩm",
     icon: Package,
   },
-  // === LINK MỚI ===
   {
     href: "/admin/brands",
     label: "Quản lý Brands",
     icon: Library,
   },
-  // ================
   {
     href: "/admin/settings",
     label: "Cài đặt Chung",
