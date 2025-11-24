@@ -11,13 +11,14 @@ import {
   ShoppingCart,
   ShieldCheck,
   Loader2,
-  Gavel,
-} from "lucide-react"; // <-- THÊM GAVEL
+  MessageCircle, // <-- THÊM ICON CHAT
+} from "lucide-react";
 import UserAvatar from "./UserAvatar";
 import { useUser } from "@/contexts/UserContext";
 
 export default function Header() {
   const { user, loadingUser } = useUser();
+
   const logoSrc =
     "https://xiuswadifrrbocuiiygs.supabase.co/storage/v1/object/public/public-assets/logo1.png";
 
@@ -41,30 +42,28 @@ export default function Header() {
           </Link>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex-1 max-w-xl relative mx-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Tìm kiếm..."
-            className="w-full pl-10"
-          />
-        </div>
-
-        {/* Nav */}
-        <nav className="ml-auto flex items-center gap-1 md:gap-2">
-          {/* === MỚI: LINK ĐẤU GIÁ === */}
+        {/* Nav & Icons */}
+        <nav className="ml-auto flex items-center gap-2 md:gap-4">
           <Button variant="ghost" size="sm" asChild>
             <Link href="/auctions">Đấu giá</Link>
           </Button>
-          {/* ======================== */}
-
           <Button variant="ghost" size="sm" asChild>
             <Link href="/forum">Forum</Link>
           </Button>
 
-          <div className="h-6 w-px bg-border hidden md:block mx-2" />
+          <div className="h-6 w-px bg-border hidden md:block" />
 
+          {/* === NÚT TIN NHẮN (Chỉ hiện khi đã đăng nhập) === */}
+          {user && (
+            <Button variant="ghost" size="icon" asChild title="Tin nhắn">
+              <Link href="/messages">
+                <MessageCircle className="h-5 w-5" />
+              </Link>
+            </Button>
+          )}
+          {/* ============================================== */}
+
+          {/* Admin Panel (Chỉ Admin thấy) */}
           {user?.role === "admin" && (
             <Button variant="ghost" size="sm" asChild>
               <Link
@@ -77,6 +76,7 @@ export default function Header() {
             </Button>
           )}
 
+          {/* Avatar / Login */}
           {user ? (
             <UserAvatar
               avatarUrl={user.avatar_url}
@@ -91,6 +91,7 @@ export default function Header() {
             </Button>
           )}
 
+          {/* Giỏ hàng */}
           <Button variant="ghost" size="icon" asChild>
             <Link href="/cart">
               <ShoppingCart className="h-5 w-5" />

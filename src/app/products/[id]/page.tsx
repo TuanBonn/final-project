@@ -1,19 +1,19 @@
 // src/app/products/[id]/page.tsx
-import { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CheckCircle, ArrowLeft, ShieldCheck } from "lucide-react";
 import { BuyProductDialog } from "@/components/BuyProductDialog";
-import { ProductImageGallery } from "@/components/ProductImageGallery"; // <-- DÙNG COMPONENT MỚI
+import { ProductImageGallery } from "@/components/ProductImageGallery";
+import { ChatButton } from "@/components/ChatButton"; // <-- IMPORT NÚT CHAT
 
-// Dùng Service Key để bypass RLS
+// Dùng Service Key để bypass RLS (vì đây là Server Component lấy dữ liệu public)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -23,11 +23,15 @@ function getSupabaseAdmin() {
   });
 }
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
-    amount
-  );
+// Hàm format tiền
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(amount);
+};
 
+// Hàm lấy tên viết tắt
 const getInitials = (name: string | null) =>
   name
     ? name
@@ -38,15 +42,18 @@ const getInitials = (name: string | null) =>
         .slice(0, 2)
     : "??";
 
+// --- Main Component ---
 export default async function ProductDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // 1. Lấy ID từ params (cần await trong Next.js 15)
   const { id: productId } = await params;
 
   const supabase = getSupabaseAdmin();
 
+  // 2. Fetch thông tin sản phẩm + người bán
   const { data: product, error } = await supabase
     .from("products")
     .select(
@@ -69,7 +76,7 @@ export default async function ProductDetailPage({
   const isAvailable = product.status === "available";
 
   return (
-    <div className="container mx-auto py-6 max-w-6xl">
+    <div className="container mx-auto py-6 max-w-6xl px-4">
       <Button variant="ghost" asChild className="mb-6">
         <Link href="/">
           <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại trang chủ
@@ -84,9 +91,8 @@ export default async function ProductDetailPage({
             productName={product.name}
           />
         </div>
-        {/* ============================ */}
 
-        {/* CỘT PHẢI: THÔNG TIN */}
+        {/* === CỘT PHẢI: THÔNG TIN === */}
         <div className="flex flex-col space-y-6">
           <div>
             <div className="flex items-center justify-between">
@@ -127,7 +133,8 @@ export default async function ProductDetailPage({
 
           <Separator />
 
-          <div className="bg-muted/30 p-4 rounded-lg border">
+          {/* Thông tin người bán */}
+          <div className="bg-muted/30 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-4">
               <Avatar className="h-12 w-12 border-2 border-background">
                 <AvatarImage src={product.seller.avatar_url || ""} />
@@ -157,7 +164,7 @@ export default async function ProductDetailPage({
                 </p>
               </div>
               <div className="text-right">
-                <div className="flex items-center gap-1 text-sm font-medium">
+                <div className="flex items-center gap-1 text-sm font-medium justify-end">
                   <ShieldCheck className="h-4 w-4 text-blue-600" /> Uy tín:{" "}
                   {product.seller.reputation_score}
                 </div>
@@ -178,7 +185,9 @@ export default async function ProductDetailPage({
 
           <Separator />
 
-          <div className="pt-2">
+          {/* === KHU VỰC HÀNH ĐỘNG === */}
+          <div className="pt-2 flex flex-col gap-3">
+            {/* Nút Mua Ngay */}
             <BuyProductDialog
               product={{
                 id: product.id,
@@ -187,6 +196,9 @@ export default async function ProductDetailPage({
                 status: product.status,
               }}
             />
+
+            {/* Nút Chat Với Người Bán */}
+            <ChatButton sellerId={product.seller.id} />
           </div>
         </div>
       </div>
