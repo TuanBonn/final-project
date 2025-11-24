@@ -9,9 +9,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import Link from "next/link";
 import { uploadFileViaApi } from "@/lib/storageUtils";
-import { cn } from "@/lib/utils"; // <-- SỬA LỖI: THÊM DÒNG NÀY
+import { cn } from "@/lib/utils";
+import { ImageUploadPreview } from "@/components/ImageUploadPreview"; // <-- DÙNG COMPONENT MỚI
 
-import { Button, buttonVariants } from "@/components/ui/button"; // <-- SỬA LỖI: THÊM buttonVariants
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -38,10 +39,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label"; // <-- SỬA LỖI: THÊM DÒNG NÀY
-import { Loader2, AlertCircle, ArrowLeft, Trash2, Upload } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Loader2, AlertCircle, ArrowLeft, Trash2 } from "lucide-react";
 
-// === HÀM FORMAT TIỀN (Thêm dấu chấm) ===
+// === HÀM FORMAT TIỀN ===
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") {
     value = value.toString();
@@ -68,7 +69,7 @@ interface ProductData {
   image_urls: string[] | null;
 }
 
-// Zod Schema (Sửa 'price' từ number -> string để format)
+// Zod Schema
 const productSchema = z.object({
   name: z.string().min(5, { message: "Tên phải ít nhất 5 ký tự." }),
   description: z.string().optional(),
@@ -100,10 +101,9 @@ export default function AdminEditProductPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- STATE MỚI CHO ẢNH ---
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  // --- STATE QUẢN LÝ ẢNH ---
+  const [existingImages, setExistingImages] = useState<string[]>([]); // Ảnh cũ (URL)
+  const [newFiles, setNewFiles] = useState<File[]>([]); // Ảnh mới (File)
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -114,7 +114,7 @@ export default function AdminEditProductPage() {
     },
   });
 
-  // Load data (Product và Brands)
+  // Load data
   useEffect(() => {
     if (!productId) return;
     const fetchData = async () => {
@@ -134,7 +134,7 @@ export default function AdminEditProductPage() {
         const p: ProductData = productData.product;
         setProduct(p);
 
-        // 3. Set data vào form và state
+        // 3. Set data vào form
         form.reset({
           name: p.name,
           description: p.description || "",
@@ -142,8 +142,9 @@ export default function AdminEditProductPage() {
           condition: p.condition,
           brand_id: p.brand_id,
         });
-        // 4. Set state ảnh
-        setImageUrls(p.image_urls || []);
+
+        // 4. Set ảnh cũ
+        setExistingImages(p.image_urls || []);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Lỗi không xác định.");
       } finally {
@@ -153,43 +154,34 @@ export default function AdminEditProductPage() {
     fetchData();
   }, [productId, form]);
 
-  // --- HÀM MỚI: Xử lý upload file ---
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-
-    setIsUploading(true);
-    setError(null);
-    try {
-      const uploadPromises = files.map((file) =>
-        uploadFileViaApi("products", file)
-      );
-      const newUrls = await Promise.all(uploadPromises);
-      setImageUrls((prev) => [...prev, ...newUrls]); // Thêm ảnh mới vào danh sách
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi upload ảnh.");
-    } finally {
-      setIsUploading(false);
-      e.target.value = ""; // Reset input file
-    }
+  // --- Xóa ảnh CŨ khỏi danh sách (chỉ xóa state, chưa xóa DB ngay) ---
+  const handleRemoveExistingImage = (urlToRemove: string) => {
+    if (!confirm("Xóa ảnh này? (Sẽ áp dụng khi bấm Lưu)")) return;
+    setExistingImages((prev) => prev.filter((url) => url !== urlToRemove));
   };
 
-  // --- HÀM MỚI: Xóa ảnh khỏi danh sách (chỉ xóa state) ---
-  const handleRemoveImage = (urlToRemove: string) => {
-    setImageUrls((prev) => prev.filter((url) => url !== urlToRemove));
-  };
-
-  // --- SỬA LẠI: Xử lý khi nhấn nút Lưu ---
+  // --- XỬ LÝ LƯU ---
   const onSubmit = async (values: ProductFormValues) => {
     setIsSaving(true);
     setError(null);
     try {
-      // Chuẩn bị payload
+      let finalImageUrls = [...existingImages];
+
+      // 1. Upload ảnh MỚI (nếu có)
+      if (newFiles.length > 0) {
+        const uploadPromises = newFiles.map((file) =>
+          uploadFileViaApi("products", file)
+        );
+        const uploadedUrls = await Promise.all(uploadPromises);
+        // Gộp ảnh cũ + ảnh mới vừa upload
+        finalImageUrls = [...finalImageUrls, ...uploadedUrls];
+      }
+
+      // 2. Cập nhật DB
       const payload = {
         ...values,
         price: values.price.replace(/\D/g, ""), // Gửi số thô
-        image_urls: imageUrls, // <-- Gửi danh sách ảnh đã cập nhật
+        image_urls: finalImageUrls, // Gửi danh sách ảnh đã gộp
       };
 
       const response = await fetch(`/api/admin/products/${productId}`, {
@@ -202,7 +194,7 @@ export default function AdminEditProductPage() {
       if (!response.ok) throw new Error(data.error || "Cập nhật thất bại.");
 
       alert("Cập nhật thành công!");
-      router.push("/admin/products"); // Quay về trang danh sách
+      router.push("/admin/products"); // Quay về danh sách
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Lỗi không xác định.");
     } finally {
@@ -210,7 +202,7 @@ export default function AdminEditProductPage() {
     }
   };
 
-  // --- Render (Loading, Error) ---
+  // --- RENDER ---
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -220,7 +212,6 @@ export default function AdminEditProductPage() {
   }
 
   if (error && !product) {
-    // Chỉ hiển thị lỗi toàn trang nếu không load được product
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <AlertCircle className="h-8 w-8 text-destructive mb-3" />
@@ -235,7 +226,6 @@ export default function AdminEditProductPage() {
     );
   }
 
-  // --- RENDER FORM CHÍNH ---
   return (
     <div className="max-w-2xl mx-auto">
       <Button variant="outline" size="sm" asChild className="mb-4">
@@ -254,7 +244,6 @@ export default function AdminEditProductPage() {
               <CardDescription>ID: {product?.id}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Tên Sản phẩm */}
               <FormField
                 control={form.control}
                 name="name"
@@ -269,7 +258,6 @@ export default function AdminEditProductPage() {
                 )}
               />
 
-              {/* Giá bán (SỬA: Thêm format) */}
               <FormField
                 control={form.control}
                 name="price"
@@ -293,7 +281,6 @@ export default function AdminEditProductPage() {
                 )}
               />
 
-              {/* Hãng xe */}
               <FormField
                 control={form.control}
                 name="brand_id"
@@ -322,7 +309,6 @@ export default function AdminEditProductPage() {
                 )}
               />
 
-              {/* Tình trạng */}
               <FormField
                 control={form.control}
                 name="condition"
@@ -352,7 +338,6 @@ export default function AdminEditProductPage() {
                 )}
               />
 
-              {/* Mô tả */}
               <FormField
                 control={form.control}
                 name="description"
@@ -373,76 +358,62 @@ export default function AdminEditProductPage() {
             </CardContent>
           </Card>
 
-          {/* === CARD MỚI: QUẢN LÝ ẢNH === */}
+          {/* === CARD QUẢN LÝ ẢNH === */}
           <Card>
             <CardHeader>
               <CardTitle>Quản lý Hình ảnh</CardTitle>
               <CardDescription>
-                Xem, xóa ảnh cũ hoặc tải lên ảnh mới.
+                Sắp xếp hoặc xóa ảnh cũ, và tải thêm ảnh mới.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Khu vực hiển thị ảnh */}
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-                {imageUrls.map((url, index) => (
-                  <div key={url} className="relative aspect-square group">
-                    <Image
-                      src={url}
-                      alt={`Ảnh sản phẩm ${index + 1}`}
-                      fill
-                      sizes="(max-width: 640px) 33vw, 20vw"
-                      className="object-cover rounded-md border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon-sm"
-                      className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleRemoveImage(url)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                    {index === 0 && (
-                      <Badge className="absolute bottom-1 left-1">
-                        Ảnh bìa
-                      </Badge>
-                    )}
+            <CardContent className="space-y-6">
+              {/* 1. Ảnh HIỆN CÓ */}
+              {existingImages.length > 0 && (
+                <div>
+                  <Label className="mb-3 block">
+                    Ảnh hiện có ({existingImages.length})
+                  </Label>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {existingImages.map((url, index) => (
+                      <div key={url} className="relative aspect-square group">
+                        <Image
+                          src={url}
+                          alt={`Ảnh cũ ${index + 1}`}
+                          fill
+                          sizes="(max-width: 640px) 33vw, 20vw"
+                          className="object-cover rounded-md border"
+                        />
+                        {/* Nút xóa ảnh cũ */}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleRemoveExistingImage(url)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                        {index === 0 && (
+                          <Badge className="absolute bottom-1 left-1 bg-black/70 text-[10px] h-5">
+                            Ảnh bìa cũ
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {/* Khung loading khi upload */}
-                {isUploading && (
-                  <div className="relative aspect-square rounded-md border border-dashed flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Nút Upload (Chỗ này bị lỗi 'Label') */}
+              {/* 2. Chọn ảnh MỚI (Dùng Component) */}
               <div>
-                <Label
-                  htmlFor="file-upload"
-                  className={cn(
-                    buttonVariants({ variant: "outline" }),
-                    "cursor-pointer w-full"
-                  )}
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  Tải thêm ảnh mới
-                </Label>
-                <Input
-                  id="file-upload"
-                  type="file"
-                  accept="image/png, image/jpeg, image/webp"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileChange}
-                  disabled={isUploading}
-                />
+                <Label className="mb-3 block">Tải thêm ảnh mới</Label>
+                {/* Truyền state setter xuống để lấy file */}
+                <ImageUploadPreview onFilesChange={setNewFiles} />
               </div>
             </CardContent>
           </Card>
 
-          {/* Lỗi Server (nếu có) */}
+          {/* Lỗi Server */}
           {error && (
             <div className="flex items-center gap-2 text-sm text-destructive">
               <AlertCircle className="h-4 w-4" />
@@ -453,7 +424,7 @@ export default function AdminEditProductPage() {
           {/* Nút Lưu */}
           <Button
             type="submit"
-            disabled={isSaving || isUploading}
+            disabled={isSaving}
             className="w-full"
             size="lg"
           >

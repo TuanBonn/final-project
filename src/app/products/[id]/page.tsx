@@ -11,8 +11,9 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CheckCircle, ArrowLeft, ShieldCheck } from "lucide-react";
 import { BuyProductDialog } from "@/components/BuyProductDialog";
+import { ProductImageGallery } from "@/components/ProductImageGallery"; // <-- DÙNG COMPONENT MỚI
 
-// --- Setup Supabase Client ---
+// Dùng Service Key để bypass RLS
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -22,15 +23,11 @@ function getSupabaseAdmin() {
   });
 }
 
-// Hàm format tiền
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-  }).format(amount);
-};
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
+    amount
+  );
 
-// Hàm lấy tên viết tắt
 const getInitials = (name: string | null) =>
   name
     ? name
@@ -41,19 +38,15 @@ const getInitials = (name: string | null) =>
         .slice(0, 2)
     : "??";
 
-// --- Main Page Component ---
 export default async function ProductDetailPage({
   params,
 }: {
-  // === SỬA LỖI 1: params là một Promise ===
   params: Promise<{ id: string }>;
 }) {
-  // === SỬA LỖI 2: Phải await params trước khi dùng ===
   const { id: productId } = await params;
 
   const supabase = getSupabaseAdmin();
 
-  // Fetch Product + Seller + Brand
   const { data: product, error } = await supabase
     .from("products")
     .select(
@@ -70,7 +63,7 @@ export default async function ProductDetailPage({
 
   if (error || !product) {
     console.error("Error fetching product:", error);
-    notFound(); // Trả về trang 404
+    notFound();
   }
 
   const isAvailable = product.status === "available";
@@ -84,24 +77,14 @@ export default async function ProductDetailPage({
       </Button>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-        {/* CỘT TRÁI: ẢNH */}
-        <div className="space-y-4">
-          <div className="relative aspect-square w-full overflow-hidden rounded-lg border bg-muted">
-            {product.image_urls && product.image_urls.length > 0 ? (
-              <Image
-                src={product.image_urls[0]}
-                alt={product.name}
-                fill
-                className="object-cover"
-                priority
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                Không có ảnh
-              </div>
-            )}
-          </div>
+        {/* === CỘT TRÁI: GALLERY ẢNH === */}
+        <div>
+          <ProductImageGallery
+            images={product.image_urls as string[]}
+            productName={product.name}
+          />
         </div>
+        {/* ============================ */}
 
         {/* CỘT PHẢI: THÔNG TIN */}
         <div className="flex flex-col space-y-6">
@@ -144,7 +127,6 @@ export default async function ProductDetailPage({
 
           <Separator />
 
-          {/* Thông tin người bán */}
           <div className="bg-muted/30 p-4 rounded-lg border">
             <div className="flex items-center gap-4">
               <Avatar className="h-12 w-12 border-2 border-background">
@@ -196,7 +178,6 @@ export default async function ProductDetailPage({
 
           <Separator />
 
-          {/* Nút Mua Hàng */}
           <div className="pt-2">
             <BuyProductDialog
               product={{
