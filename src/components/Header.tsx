@@ -11,7 +11,7 @@ import {
   ShoppingCart,
   ShieldCheck,
   Loader2,
-  MessageCircle, // <-- THÊM ICON CHAT
+  MessageCircle,
 } from "lucide-react";
 import UserAvatar from "./UserAvatar";
 import { useUser } from "@/contexts/UserContext";
@@ -47,6 +47,11 @@ export default function Header() {
           <Button variant="ghost" size="sm" asChild>
             <Link href="/auctions">Đấu giá</Link>
           </Button>
+
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/group-buys"> Mua chung</Link>
+          </Button>
+
           <Button variant="ghost" size="sm" asChild>
             <Link href="/forum">Forum</Link>
           </Button>
