@@ -92,10 +92,6 @@ export default function HomePage() {
       />
 
       <main className="flex-1">
-        <h1 className="text-3xl font-bold tracking-tight mb-6">
-          Sản phẩm nổi bật
-        </h1>
-
         {loading ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
