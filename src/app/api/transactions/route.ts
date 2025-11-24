@@ -1,4 +1,3 @@
-// src/app/api/transactions/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -16,7 +15,6 @@ interface JwtPayload {
   [key: string]: unknown;
 }
 
-// Dùng Admin Client để có quyền ghi vào bảng Transaction và sửa Product
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -24,7 +22,6 @@ function getSupabaseAdmin(): SupabaseClient | null {
   });
 }
 
-// Xác thực người mua
 async function getUserId(request: NextRequest): Promise<string | null> {
   if (!JWT_SECRET) return null;
   try {
@@ -41,7 +38,6 @@ async function getUserId(request: NextRequest): Promise<string | null> {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Xác thực người mua
     const buyerId = await getUserId(request);
     if (!buyerId) {
       return NextResponse.json(
@@ -53,7 +49,8 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi cấu hình server.");
 
-    const { productId, paymentMethod } = await request.json();
+    const { productId, paymentMethod, quantity } = await request.json();
+    const buyQty = quantity ? parseInt(quantity) : 1;
 
     if (!productId || !paymentMethod) {
       return NextResponse.json(
@@ -61,11 +58,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (buyQty < 1) {
+      return NextResponse.json(
+        { error: "Số lượng không hợp lệ." },
+        { status: 400 }
+      );
+    }
 
-    // 2. Kiểm tra sản phẩm có còn "available" không
+    // 1. Lấy thông tin sản phẩm (bao gồm số lượng tồn kho)
     const { data: product, error: productError } = await supabaseAdmin
       .from("products")
-      .select("id, price, status, seller_id, name")
+      .select("id, price, status, seller_id, name, quantity")
       .eq("id", productId)
       .single();
 
@@ -78,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     if (product.status !== "available") {
       return NextResponse.json(
-        { error: "Sản phẩm này đã được bán hoặc đang giao dịch." },
+        { error: "Sản phẩm này đã ngừng bán." },
         { status: 409 }
       );
     }
@@ -90,18 +93,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Tạo Giao dịch & Cập nhật Sản phẩm (Nên dùng RPC hoặc transaction nếu Supabase hỗ trợ, ở đây ta làm tuần tự)
-    // Bước A: Tạo Transaction
+    // 2. Kiểm tra tồn kho
+    if (product.quantity < buyQty) {
+      return NextResponse.json(
+        { error: `Sản phẩm chỉ còn lại ${product.quantity} món.` },
+        { status: 409 }
+      );
+    }
+
+    // 3. Tính toán tồn kho mới
+    const newStock = product.quantity - buyQty;
+    let newStatus = "available";
+    if (newStock === 0) {
+      newStatus = "sold"; // Hết hàng -> Chuyển trạng thái sold (ẩn khỏi list available)
+    }
+
+    // 4. Tạo Giao dịch
     const { data: transaction, error: txError } = await supabaseAdmin
       .from("transactions")
       .insert({
         product_id: productId,
         buyer_id: buyerId,
         seller_id: product.seller_id,
-        amount: product.price,
-        status: "initiated", // Khởi tạo
+        amount: Number(product.price) * buyQty, // Tổng tiền = Giá * Số lượng
+        status: "initiated",
         payment_method: paymentMethod,
-        platform_commission: 0, // Sẽ tính sau khi hoàn thành
+        quantity: buyQty, // Lưu số lượng mua vào đơn hàng
+        platform_commission: 0,
       })
       .select()
       .single();
@@ -114,15 +132,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Bước B: Cập nhật trạng thái sản phẩm -> in_transaction
+    // 5. Trừ tồn kho (Cập nhật Product)
     const { error: updateError } = await supabaseAdmin
       .from("products")
-      .update({ status: "in_transaction" })
+      .update({
+        quantity: newStock,
+        status: newStatus,
+      })
       .eq("id", productId);
 
     if (updateError) {
-      // Nếu lỗi update product, lẽ ra nên rollback transaction (nhưng ở mức đơn giản này ta log lại để xử lý sau)
-      console.error("Lỗi cập nhật trạng thái sản phẩm:", updateError);
+      console.error("Lỗi cập nhật kho:", updateError);
+      // Lưu ý: Ở đây nếu lỗi update kho thì đơn hàng đã tạo rồi -> Có thể gây sai lệch
+      // Trong production nên dùng RPC function để wrap cả 2 lệnh này trong 1 transaction database.
     }
 
     return NextResponse.json(

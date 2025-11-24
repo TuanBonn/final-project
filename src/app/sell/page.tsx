@@ -1,4 +1,3 @@
-// src/app/sell/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useUser } from "@/contexts/UserContext";
 import { uploadFileViaApi } from "@/lib/storageUtils";
 import { Brand } from "@prisma/client";
-import { ImageUploadPreview } from "@/components/ImageUploadPreview"; // <-- DÙNG COMPONENT MỚI
+import { ImageUploadPreview } from "@/components/ImageUploadPreview";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -54,7 +53,6 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Hàm format tiền có dấu chấm
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
   const numericValue = value.replace(/\D/g, "");
@@ -70,6 +68,7 @@ const productSchema = z.object({
   condition: z.enum(["new", "used", "like_new", "custom"], {
     required_error: "Vui lòng chọn tình trạng.",
   }),
+  quantity: z.string().min(1, { message: "Nhập số lượng." }), // Thêm validate quantity
 });
 type ProductFormValues = z.infer<typeof productSchema>;
 
@@ -82,12 +81,11 @@ export default function SellPage() {
   const [loadingBrands, setLoadingBrands] = useState(true);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
-  // State file từ component
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
-    defaultValues: { name: "", description: "", price: "0" },
+    defaultValues: { name: "", description: "", price: "0", quantity: "1" }, // Default quantity = 1
   });
 
   useEffect(() => {
@@ -120,7 +118,6 @@ export default function SellPage() {
     try {
       if (selectedFiles.length === 0) throw new Error("Chọn ít nhất 1 ảnh.");
 
-      // Upload song song
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
@@ -131,7 +128,8 @@ export default function SellPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
-          price: values.price.replace(/\D/g, ""), // Xóa dấu chấm trước khi gửi
+          price: values.price.replace(/\D/g, ""),
+          quantity: values.quantity, // Gửi quantity lên API
           imageUrls: imageUrls,
         }),
       });
@@ -172,25 +170,44 @@ export default function SellPage() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Giá bán (VND) *</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(formatCurrencyForInput(e.target.value))
-                        }
-                        value={formatCurrencyForInput(field.value)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Giá bán (VND) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(
+                              formatCurrencyForInput(e.target.value)
+                            )
+                          }
+                          value={formatCurrencyForInput(field.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Ô nhập SỐ LƯỢNG */}
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Số lượng *</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}
@@ -293,7 +310,6 @@ export default function SellPage() {
                 )}
               />
 
-              {/* COMPONENT CHỌN ẢNH MỚI */}
               <FormItem>
                 <FormLabel>Hình ảnh *</FormLabel>
                 <FormControl>

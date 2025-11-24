@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
         id, status, amount, payment_method, created_at,
         product:products ( name, image_urls ),
         buyer:users!buyer_id ( username, full_name ),
-        seller:users!seller_id ( username, full_name )
+        seller:users!seller_id ( username, full_name ),
+        reviews!transaction_id ( id )  // <-- THÊM DÒNG NÀY
       `
       )
       .order("created_at", { ascending: false });

@@ -1,4 +1,3 @@
-// src/app/api/orders/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -37,27 +36,28 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === PATCH: Cập nhật trạng thái đơn hàng ===
 export async function PATCH(
   request: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const userId = await getUserId(request);
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id: orderId } = await ctx.params;
+  const { id: orderId } = await params;
   const supabase = getSupabaseAdmin();
   if (!supabase)
     return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
   try {
-    const { action } = await request.json(); // action: 'cancel', 'ship', 'confirm', 'dispute'
+    const { action } = await request.json();
 
-    // Lấy thông tin đơn hàng hiện tại
+    // Lấy thông tin đơn hàng (bao gồm số lượng mua)
     const { data: order, error: fetchError } = await supabase
       .from("transactions")
-      .select("id, status, buyer_id, seller_id, amount, platform_commission")
+      .select(
+        "id, status, buyer_id, seller_id, amount, platform_commission, product_id, quantity"
+      )
       .eq("id", orderId)
       .single();
 
@@ -73,7 +73,7 @@ export async function PATCH(
 
     // --- LOGIC XỬ LÝ ---
 
-    // 1. Người mua HỦY đơn (chỉ khi mới đặt)
+    // 1. HỦY ĐƠN -> HOÀN LẠI KHO
     if (action === "cancel") {
       if (order.buyer_id !== userId)
         return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
@@ -82,11 +82,32 @@ export async function PATCH(
           { error: "Không thể hủy đơn này" },
           { status: 400 }
         );
+
       newStatus = "cancelled";
       successMessage = "Đã hủy đơn hàng";
+
+      // === HOÀN LẠI SỐ LƯỢNG VÀO KHO ===
+      const orderQty = order.quantity || 1;
+      // Lấy thông tin sản phẩm hiện tại
+      const { data: prod } = await supabase
+        .from("products")
+        .select("quantity")
+        .eq("id", order.product_id)
+        .single();
+
+      if (prod) {
+        await supabase
+          .from("products")
+          .update({
+            quantity: prod.quantity + orderQty,
+            status: "available", // Nếu đang sold (hết hàng) thì mở lại thành available
+          })
+          .eq("id", order.product_id);
+      }
+      // ================================
     }
 
-    // 2. Người bán GỬI HÀNG (chỉ khi đã thanh toán hoặc COD mới đặt)
+    // 2. GỬI HÀNG
     else if (action === "ship") {
       if (order.seller_id !== userId)
         return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
@@ -99,7 +120,7 @@ export async function PATCH(
       successMessage = "Đã xác nhận gửi hàng";
     }
 
-    // 3. Người mua ĐÃ NHẬN HÀNG (Kết thúc đơn)
+    // 3. NHẬN HÀNG -> CỘNG TIỀN
     else if (action === "confirm") {
       if (order.buyer_id !== userId)
         return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
@@ -112,42 +133,29 @@ export async function PATCH(
       newStatus = "completed";
       successMessage = "Giao dịch hoàn tất!";
 
-      // *** QUAN TRỌNG: CỘNG TIỀN VÀO VÍ NGƯỜI BÁN ***
-      // Tính thực nhận: Giá - Hoa hồng
-      // (Ở đây giả sử platform_commission đã được tính hoặc tính lại)
-      // Để đơn giản, ta lấy: commission = amount * 5% (0.05)
       const commission = Number(order.amount) * 0.05;
       const netAmount = Number(order.amount) - commission;
 
-      // 1. Cộng tiền ví Seller
-      const { error: walletError } = await supabase.rpc("increment_balance", {
-        user_id: order.seller_id,
-        amount: netAmount,
-      });
-      // Lưu ý: Nếu chưa có hàm RPC, ta dùng update thường (không an toàn bằng nhưng tạm được)
-      if (walletError) {
-        // Fallback update thường
-        const { data: seller } = await supabase
+      // Cộng tiền ví Seller
+      const { data: seller } = await supabase
+        .from("users")
+        .select("balance")
+        .eq("id", order.seller_id)
+        .single();
+      if (seller) {
+        await supabase
           .from("users")
-          .select("balance")
-          .eq("id", order.seller_id)
-          .single();
-        if (seller) {
-          await supabase
-            .from("users")
-            .update({ balance: Number(seller.balance) + netAmount })
-            .eq("id", order.seller_id);
-        }
+          .update({ balance: Number(seller.balance) + netAmount })
+          .eq("id", order.seller_id);
       }
-
-      // 2. Update commission vào transaction
+      // Lưu hoa hồng
       await supabase
         .from("transactions")
         .update({ platform_commission: commission })
         .eq("id", orderId);
     }
 
-    // 4. Người mua KHIẾU NẠI
+    // 4. KHIẾU NẠI
     else if (action === "dispute") {
       if (order.buyer_id !== userId)
         return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
@@ -157,7 +165,7 @@ export async function PATCH(
           { status: 400 }
         );
       newStatus = "disputed";
-      successMessage = "Đã gửi khiếu nại. Admin sẽ xem xét.";
+      successMessage = "Đã gửi khiếu nại.";
     } else {
       return NextResponse.json(
         { error: "Hành động không xác định" },

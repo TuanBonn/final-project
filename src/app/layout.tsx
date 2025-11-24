@@ -1,10 +1,10 @@
 // src/app/layout.tsx
-
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
-import { UserProvider } from "@/contexts/UserContext"; // <-- IMPORT PROVIDER
+import { UserProvider } from "@/contexts/UserContext";
+import { CartProvider } from "@/contexts/CartContext"; // <-- IMPORT MỚI
 
 const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
@@ -19,8 +19,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <UserProvider>
-          <Header />
-          <main className="container mx-auto py-8">{children}</main>
+          <CartProvider>
+            {" "}
+            {/* <-- BỌC CART PROVIDER */}
+            <Header />
+            <main className="container mx-auto py-8">{children}</main>
+          </CartProvider>
         </UserProvider>
       </body>
     </html>

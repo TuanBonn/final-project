@@ -1,5 +1,3 @@
-// src/app/api/products/route.ts
-
 import { NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -7,9 +5,7 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-// --- Cấu hình ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// QUAN TRỌNG: Dùng Service Key cho cả GET và POST để bypass RLS
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
 const COOKIE_NAME = "auth-token";
@@ -19,7 +15,6 @@ interface JwtPayload {
   [key: string]: unknown;
 }
 
-// Hàm khởi tạo Admin Client (Quyền tối cao)
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -27,23 +22,23 @@ function getSupabaseAdmin(): SupabaseClient | null {
   });
 }
 
+// ================== GET ==================
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const params = url.searchParams;
-
-    // --- LOGIC PHÂN TRANG ---
-    const page = parseInt(params.get("page") || "1");
-    const limit = parseInt(params.get("limit") || "15");
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    // ------------------------
 
     const sort = params.get("sort") || "created_at_desc";
     const filterVerified = params.get("verified") === "true";
     const filterConditions = params.getAll("condition");
     const filterBrandIds = params.getAll("brand_id");
     const filterSellerId = params.get("seller_id");
+
+    // --- LOGIC PHÂN TRANG ---
+    const page = parseInt(params.get("page") || "1");
+    const limit = parseInt(params.get("limit") || "15");
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) {
@@ -53,12 +48,11 @@ export async function GET(request: Request) {
       );
     }
 
-    // Thêm { count: 'exact' } để lấy tổng số lượng
     let query = supabaseAdmin
       .from("products")
       .select(
         `
-        id, name, price, condition, image_urls, created_at, brand_id, seller_id,
+        id, name, price, condition, image_urls, created_at, brand_id, seller_id, quantity,
         seller:users!seller_id!inner ( username, avatar_url, is_verified ),
         brand:brands ( id, name )
       `,
@@ -66,20 +60,17 @@ export async function GET(request: Request) {
       )
       .eq("status", "available");
 
-    // --- ÁP DỤNG BỘ LỌC ---
     if (filterConditions.length > 0)
       query = query.in("condition", filterConditions);
     if (filterBrandIds.length > 0) query = query.in("brand_id", filterBrandIds);
     if (filterVerified) query = query.eq("seller.is_verified", true);
     if (filterSellerId) query = query.eq("seller_id", filterSellerId);
 
-    // --- SẮP XẾP ---
     if (sort === "price_asc") query = query.order("price", { ascending: true });
     else if (sort === "price_desc")
       query = query.order("price", { ascending: false });
     else query = query.order("created_at", { ascending: false });
 
-    // --- ÁP DỤNG PHÂN TRANG ---
     query = query.range(from, to);
 
     const { data: products, error, count } = await query;
@@ -88,18 +79,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Tính tổng số trang
     const totalPages = count ? Math.ceil(count / limit) : 1;
 
     return NextResponse.json(
       {
         products: products ?? [],
-        pagination: {
-          page,
-          limit,
-          total: count,
-          totalPages,
-        },
+        pagination: { page, limit, total: count, totalPages },
       },
       { status: 200 }
     );
@@ -108,10 +93,8 @@ export async function GET(request: Request) {
   }
 }
 
-// ================== HÀM POST (ĐĂNG SẢN PHẨM) ==================
+// ================== POST (ĐĂNG SẢN PHẨM) ==================
 export async function POST(request: Request) {
-  // console.log("API POST /products: Bắt đầu xử lý...");
-
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
       { error: "Lỗi cấu hình server." },
@@ -119,7 +102,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // 1. Xác thực User qua Cookie
   let userId: string | null = null;
   try {
     const cookieHeader = request.headers.get("cookie");
@@ -145,15 +127,21 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2. Xử lý dữ liệu và Insert
   try {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");
 
     const body = await request.json();
-    const { name, description, price, brand_id, condition, imageUrls } = body;
+    const {
+      name,
+      description,
+      price,
+      brand_id,
+      condition,
+      imageUrls,
+      quantity,
+    } = body;
 
-    // Validate cơ bản
     if (
       !name ||
       !price ||
@@ -163,26 +151,23 @@ export async function POST(request: Request) {
       !brand_id
     ) {
       return NextResponse.json(
-        {
-          error: "Thiếu thông tin bắt buộc (Tên, Giá, Brand, Tình trạng, Ảnh).",
-        },
+        { error: "Thiếu thông tin bắt buộc." },
         { status: 400 }
       );
     }
 
-    // Insert vào DB
     const { data, error: insertError } = await supabaseAdmin
       .from("products")
       .insert({
         seller_id: userId,
         name,
         description,
-        price: price.toString().replace(/\D/g, ""), // Xóa ký tự không phải số
+        price: price.toString().replace(/\D/g, ""),
         brand_id,
         condition,
         image_urls: imageUrls,
         status: "available",
-        // id và created_at sẽ được DB tự sinh
+        quantity: quantity ? parseInt(quantity) : 1, // Lưu số lượng (mặc định 1)
       })
       .select()
       .single();

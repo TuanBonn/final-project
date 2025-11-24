@@ -1,4 +1,4 @@
-// src/app/products/[id]/page.tsx
+import { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,9 +11,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CheckCircle, ArrowLeft, ShieldCheck } from "lucide-react";
 import { BuyProductDialog } from "@/components/BuyProductDialog";
 import { ProductImageGallery } from "@/components/ProductImageGallery";
-import { ChatButton } from "@/components/ChatButton"; // <-- IMPORT NÚT CHAT
+import { ChatButton } from "@/components/ChatButton";
+import { AddToCartButton } from "@/components/AddToCartButton";
 
-// Dùng Service Key để bypass RLS (vì đây là Server Component lấy dữ liệu public)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -23,7 +23,6 @@ function getSupabaseAdmin() {
   });
 }
 
-// Hàm format tiền
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -31,7 +30,6 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// Hàm lấy tên viết tắt
 const getInitials = (name: string | null) =>
   name
     ? name
@@ -42,23 +40,21 @@ const getInitials = (name: string | null) =>
         .slice(0, 2)
     : "??";
 
-// --- Main Component ---
 export default async function ProductDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  // 1. Lấy ID từ params (cần await trong Next.js 15)
   const { id: productId } = await params;
 
   const supabase = getSupabaseAdmin();
 
-  // 2. Fetch thông tin sản phẩm + người bán
+  // Lấy thêm trường 'quantity'
   const { data: product, error } = await supabase
     .from("products")
     .select(
       `
-      id, name, description, price, condition, status, image_urls, created_at,
+      id, name, description, price, condition, status, image_urls, created_at, quantity,
       seller:users!seller_id (
         id, username, full_name, avatar_url, is_verified, reputation_score, created_at
       ),
@@ -73,7 +69,7 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  const isAvailable = product.status === "available";
+  const isAvailable = product.status === "available" && product.quantity > 0;
 
   return (
     <div className="container mx-auto py-6 max-w-6xl px-4">
@@ -101,7 +97,7 @@ export default async function ProductDetailPage({
               </h1>
               {!isAvailable && (
                 <Badge variant="destructive" className="text-sm px-3 py-1">
-                  Đã bán / Giao dịch
+                  Hết hàng / Ngừng bán
                 </Badge>
               )}
             </div>
@@ -127,6 +123,10 @@ export default async function ProductDetailPage({
               <p>
                 Đăng ngày:{" "}
                 {new Date(product.created_at).toLocaleDateString("vi-VN")}
+              </p>
+              {/* Hiển thị tồn kho */}
+              <p className="text-orange-600 font-medium">
+                Kho: Còn {product.quantity} sản phẩm
               </p>
             </div>
           </div>
@@ -187,17 +187,32 @@ export default async function ProductDetailPage({
 
           {/* === KHU VỰC HÀNH ĐỘNG === */}
           <div className="pt-2 flex flex-col gap-3">
-            {/* Nút Mua Ngay */}
-            <BuyProductDialog
-              product={{
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                status: product.status,
-              }}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              {/* Truyền quantity vào BuyProductDialog */}
+              <BuyProductDialog
+                product={{
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  status: product.status,
+                  quantity: product.quantity, // <-- Quan trọng
+                }}
+              />
 
-            {/* Nút Chat Với Người Bán */}
+              {/* Nút Thêm Giỏ Hàng (Logic giỏ hàng cần cập nhật thêm để hỗ trợ số lượng nếu muốn) */}
+              <AddToCartButton
+                product={{
+                  id: product.id,
+                  name: product.name,
+                  price: Number(product.price),
+                  image_urls: product.image_urls as string[],
+                  seller: { username: product.seller.username },
+                }}
+                disabled={!isAvailable}
+              />
+            </div>
+
+            {/* Nút Chat */}
             <ChatButton sellerId={product.seller.id} />
           </div>
         </div>
