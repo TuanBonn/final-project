@@ -6,19 +6,25 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "xiuswadifrrbocuiiygs.supabase.co", // Hostname Supabase
+        hostname: "xiuswadifrrbocuiiygs.supabase.co",
         port: "",
         pathname: "/storage/v1/object/public/**",
       },
       {
-        protocol: "https", // <-- SỬA LỖI Ở ĐÂY (bỏ bớt chữ 's')
-        hostname: "i.imgur.com", // 1. Hostname ảnh mặc định
+        protocol: "https",
+        hostname: "i.imgur.com",
         port: "",
         pathname: "/**",
       },
       {
         protocol: "https",
-        hostname: "lh3.googleusercontent.com", // 2. Hostname Google Avatar
+        hostname: "lh3.googleusercontent.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "img.vietqr.io",
         port: "",
         pathname: "/**",
       },

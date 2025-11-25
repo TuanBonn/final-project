@@ -36,7 +36,7 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET (Giữ nguyên để lấy danh sách) ===
+// === GET: Lấy danh sách đấu giá ===
 export async function GET() {
   try {
     const supabase = getSupabaseAdmin();
@@ -54,6 +54,7 @@ export async function GET() {
         bids:bids ( bid_amount )
       `
       )
+      // === CHỈ LẤY PHIÊN ĐANG HOẠT ĐỘNG HOẶC SẮP DIỄN RA ===
       .in("status", ["active", "scheduled"])
       .order("end_time", { ascending: true });
 
@@ -90,7 +91,7 @@ export async function GET() {
   }
 }
 
-// === POST (MỚI: TẠO SẢN PHẨM + ĐẤU GIÁ CÙNG LÚC) ===
+// === POST: Tạo đấu giá mới ===
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -100,19 +101,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    // Nhận cả thông tin Product VÀ Auction
     const {
       name,
       description,
       brand_id,
       condition,
-      imageUrls, // Product info
+      imageUrls,
       startingBid,
       startTime,
-      endTime, // Auction info
+      endTime,
     } = body;
 
-    // 1. Validate cơ bản
     if (
       !name ||
       !startingBid ||
@@ -142,20 +141,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
 
-    // 2. Tạo Sản phẩm trước (Product)
-    // Lưu ý: Set status là 'in_transaction' hoặc 'available' tùy bạn.
-    // Ở đây tôi set 'in_transaction' để nó KHÔNG hiện lên trang Shop bình thường (vì là hàng độc để đấu giá).
+    // Tạo sản phẩm mới với trạng thái 'in_transaction'
     const { data: newProduct, error: prodError } = await supabase
       .from("products")
       .insert({
         seller_id: userId,
         name: name,
         description: description,
-        price: startingBid.toString().replace(/\D/g, ""), // Giá sản phẩm = Giá khởi điểm
+        price: startingBid.toString().replace(/\D/g, ""),
         brand_id: brand_id,
         condition: condition,
         image_urls: imageUrls || [],
-        status: "in_transaction", // Khóa lại, chỉ dùng cho đấu giá
+        status: "in_transaction",
       })
       .select()
       .single();
@@ -165,7 +162,6 @@ export async function POST(request: NextRequest) {
       throw new Error("Không thể tạo sản phẩm cho phiên đấu giá.");
     }
 
-    // 3. Xác định trạng thái đấu giá
     let initialStatus = "draft";
     if (start <= now) {
       initialStatus = "active";
@@ -173,11 +169,10 @@ export async function POST(request: NextRequest) {
       initialStatus = "scheduled";
     }
 
-    // 4. Tạo Phiên đấu giá (Auction) gắn với Product vừa tạo
     const { data: newAuction, error: auctionError } = await supabase
       .from("auctions")
       .insert({
-        product_id: newProduct.id, // Link với sản phẩm vừa tạo
+        product_id: newProduct.id,
         seller_id: userId,
         starting_bid: startingBid.replace(/\D/g, ""),
         start_time: start.toISOString(),
@@ -188,7 +183,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (auctionError) {
-      // Nếu tạo đấu giá lỗi, nên xóa sản phẩm vừa tạo để tránh rác (Rollback thủ công)
       await supabase.from("products").delete().eq("id", newProduct.id);
       throw auctionError;
     }

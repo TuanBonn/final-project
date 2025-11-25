@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label"; // <-- SỬA LỖI: THÊM DÒNG NÀY
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -28,7 +29,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Loader2,
@@ -36,8 +36,20 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   RefreshCcw,
+  QrCode,
 } from "lucide-react";
 import { PaymentStatus, PaymentForType } from "@prisma/client";
+
+// === CẤU HÌNH TÀI KHOẢN NHẬN TIỀN (ADMIN) ===
+// Bạn có thể thay bằng thông tin thật hoặc để hệ thống lấy từ API settings như trước
+// Ở đây tôi dùng biến global để demo, bạn có thể kết hợp với API get settings nếu muốn
+interface SystemBankInfo {
+  bankId: string;
+  accountNo: string;
+  accountName: string;
+  template: string;
+}
+// =============================================
 
 interface PaymentHistory {
   id: string;
@@ -57,13 +69,27 @@ export default function WalletPage() {
   const [history, setHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // State cho Dialog Nạp/Rút
+  // State lưu thông tin ngân hàng từ API (Settings)
+  const [systemBankInfo, setSystemBankInfo] = useState<SystemBankInfo | null>(
+    null
+  );
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<"deposit" | "withdrawal">(
     "deposit"
   );
   const [amountInput, setAmountInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // QR Code state
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+
+  // Bank Info State (cho Rút tiền)
+  const [bankName, setBankName] = useState("");
+  const [accountNo, setAccountNo] = useState("");
+  const [accountName, setAccountName] = useState("");
+
+  const [savedBankInfo, setSavedBankInfo] = useState<any>(null);
 
   const fetchWalletData = useCallback(async () => {
     setLoading(true);
@@ -73,6 +99,10 @@ export default function WalletPage() {
       const data = await res.json();
       setBalance(data.balance);
       setHistory(data.history);
+      setSavedBankInfo(data.bankInfo);
+      if (data.systemBankInfo) {
+        setSystemBankInfo(data.systemBankInfo);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -84,6 +114,41 @@ export default function WalletPage() {
     fetchWalletData();
   }, [fetchWalletData]);
 
+  // Hàm tạo mã VietQR (Chỉ chạy khi bấm nút)
+  const generateQR = () => {
+    const amount = parseInt(amountInput.replace(/\D/g, ""), 10);
+
+    if (!amount || amount < 10000) {
+      alert("Số tiền tối thiểu là 10.000đ");
+      setQrCodeUrl(null);
+      return;
+    }
+
+    if (!systemBankInfo) {
+      alert("Chưa có thông tin tài khoản hệ thống. Vui lòng liên hệ Admin.");
+      return;
+    }
+
+    const { bankId, accountNo, accountName, template } = systemBankInfo;
+    // Tạo nội dung chuyển khoản
+    const addInfo = `NAPTIEN W${Math.floor(Math.random() * 10000)}`;
+
+    const url = `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${amount}&addInfo=${addInfo}&accountName=${encodeURIComponent(
+      accountName
+    )}`;
+    setQrCodeUrl(url);
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, "");
+    const numVal = parseInt(val || "0");
+    setAmountInput(new Intl.NumberFormat("vi-VN").format(numVal));
+
+    // === SỬA: KHÔNG GỌI generateQR() Ở ĐÂY NỮA ===
+    // Nếu người dùng sửa số tiền, ta ẩn QR cũ đi để tránh nhầm lẫn
+    if (qrCodeUrl) setQrCodeUrl(null);
+  };
+
   const handleTransaction = async () => {
     const amount = parseInt(amountInput.replace(/\D/g, ""), 10);
     if (!amount || amount < 10000) {
@@ -91,21 +156,46 @@ export default function WalletPage() {
       return;
     }
 
+    if (actionType === "withdrawal") {
+      if (!bankName || !accountNo || !accountName) {
+        alert("Vui lòng nhập đầy đủ thông tin ngân hàng.");
+        return;
+      }
+    } else if (actionType === "deposit") {
+      // Bắt buộc phải tạo QR trước khi xác nhận (để đảm bảo người dùng đã thấy thông tin)
+      if (!qrCodeUrl) {
+        alert("Vui lòng bấm 'Tạo mã QR' và thực hiện chuyển khoản trước.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: actionType, amount }),
+        body: JSON.stringify({
+          type: actionType,
+          amount,
+          bankInfo:
+            actionType === "withdrawal"
+              ? { bankName, accountNo, accountName }
+              : null,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Giao dịch thất bại");
 
-      alert(data.message);
+      alert(
+        actionType === "deposit"
+          ? "Đã tạo lệnh nạp tiền! Vui lòng chờ Admin duyệt."
+          : "Đã gửi yêu cầu rút tiền."
+      );
       setDialogOpen(false);
       setAmountInput("");
-      fetchWalletData(); // Refresh data
+      setQrCodeUrl(null);
+      fetchWalletData();
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -116,13 +206,24 @@ export default function WalletPage() {
   const openDialog = (type: "deposit" | "withdrawal") => {
     setActionType(type);
     setAmountInput("");
+    setQrCodeUrl(null);
+
+    if (type === "withdrawal" && savedBankInfo) {
+      setBankName(savedBankInfo.bankName || "");
+      setAccountNo(savedBankInfo.accountNo || "");
+      setAccountName(savedBankInfo.accountName || "");
+    } else {
+      setBankName("");
+      setAccountNo("");
+      setAccountName("");
+    }
     setDialogOpen(true);
   };
 
   return (
     <div className="container mx-auto py-8 max-w-4xl space-y-8">
       {/* Card Số dư */}
-      <Card className="bg-gradient-to-r from-slate-900 to-slate-800 text-white border-none">
+      <Card className="bg-gradient-to-r from-slate-900 to-slate-800 text-white border-none shadow-xl">
         <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div>
             <p className="text-slate-300 font-medium mb-1 flex items-center gap-2">
@@ -131,19 +232,24 @@ export default function WalletPage() {
             {loading ? (
               <Loader2 className="h-8 w-8 animate-spin" />
             ) : (
-              <h1 className="text-4xl font-bold">{formatCurrency(balance)}</h1>
+              <h1 className="text-4xl font-bold tracking-tight">
+                {formatCurrency(balance)}
+              </h1>
             )}
           </div>
           <div className="flex gap-3">
             <Button
               onClick={() => openDialog("deposit")}
-              className="bg-green-600 hover:bg-green-700 text-white border-none"
+              className="bg-green-600 hover:bg-green-700 text-white border-none font-semibold shadow-md"
+              size="lg"
             >
               <ArrowDownCircle className="mr-2 h-5 w-5" /> Nạp tiền
             </Button>
             <Button
               onClick={() => openDialog("withdrawal")}
               variant="secondary"
+              size="lg"
+              className="font-semibold shadow-md"
             >
               <ArrowUpCircle className="mr-2 h-5 w-5" /> Rút tiền
             </Button>
@@ -156,9 +262,7 @@ export default function WalletPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Lịch sử giao dịch</CardTitle>
-            <CardDescription>
-              Các giao dịch nạp, rút và thanh toán phí.
-            </CardDescription>
+            <CardDescription>Theo dõi biến động số dư của bạn.</CardDescription>
           </div>
           <Button variant="ghost" size="icon" onClick={fetchWalletData}>
             <RefreshCcw
@@ -181,7 +285,7 @@ export default function WalletPage() {
                 <TableRow>
                   <TableCell
                     colSpan={4}
-                    className="text-center py-8 text-muted-foreground"
+                    className="text-center py-12 text-muted-foreground"
                   >
                     Chưa có giao dịch nào.
                   </TableCell>
@@ -193,11 +297,11 @@ export default function WalletPage() {
                       {item.payment_for_type === "deposit"
                         ? "Nạp tiền"
                         : item.payment_for_type === "withdrawal"
-                        ? "Rút tiền"
+                        ? "Rút tiền / Thanh toán"
                         : item.payment_for_type.replace(/_/g, " ")}
                     </TableCell>
                     <TableCell
-                      className={`font-mono ${
+                      className={`font-mono font-bold ${
                         item.payment_for_type === "withdrawal" ||
                         item.payment_for_type.includes("fee")
                           ? "text-red-600"
@@ -219,12 +323,27 @@ export default function WalletPage() {
                             ? "destructive"
                             : "secondary"
                         }
+                        className={
+                          item.status === "succeeded"
+                            ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
+                            : ""
+                        }
                       >
-                        {item.status}
+                        {item.status === "succeeded"
+                          ? "Thành công"
+                          : item.status === "pending"
+                          ? "Đang xử lý"
+                          : "Thất bại"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground">
-                      {new Date(item.created_at).toLocaleDateString("vi-VN")}
+                      {new Date(item.created_at).toLocaleDateString("vi-VN", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </TableCell>
                   </TableRow>
                 ))
@@ -236,7 +355,13 @@ export default function WalletPage() {
 
       {/* Dialog Nạp/Rút */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent
+          className={
+            actionType === "deposit" && qrCodeUrl
+              ? "sm:max-w-lg"
+              : "sm:max-w-md"
+          }
+        >
           <DialogHeader>
             <DialogTitle>
               {actionType === "deposit"
@@ -245,45 +370,138 @@ export default function WalletPage() {
             </DialogTitle>
             <DialogDescription>
               {actionType === "deposit"
-                ? "Vui lòng nhập số tiền muốn nạp. Sau đó bạn sẽ nhận được thông tin chuyển khoản."
-                : "Nhập số tiền muốn rút. Admin sẽ duyệt và chuyển khoản cho bạn."}
+                ? "Nhập số tiền, sau đó bấm tạo mã QR."
+                : "Nhập số tiền và thông tin nhận tiền."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4">
-            <div className="space-y-2">
-              <Label>Số tiền (VND)</Label>
-              <Input
-                placeholder="Ví dụ: 500.000"
-                value={amountInput}
-                onChange={(e) =>
-                  setAmountInput(
-                    new Intl.NumberFormat("vi-VN").format(
-                      parseInt(e.target.value.replace(/\D/g, "") || "0")
-                    )
-                  )
-                }
-              />
+          <div className="py-4 space-y-4">
+            {/* INPUT SỐ TIỀN + NÚT TẠO QR (Cho Deposit) */}
+            <div className="flex gap-2 items-end">
+              <div className="space-y-2 flex-1">
+                <Label>Số tiền (VND)</Label>
+                <Input
+                  placeholder="Ví dụ: 500.000"
+                  value={amountInput}
+                  onChange={handleAmountChange}
+                  className="font-bold text-lg"
+                  autoFocus
+                />
+              </div>
+              {/* Nút tạo QR nằm cạnh ô nhập tiền */}
+              {actionType === "deposit" && (
+                <Button
+                  onClick={generateQR}
+                  type="button"
+                  variant={qrCodeUrl ? "outline" : "default"}
+                  className="mb-[2px]"
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  {qrCodeUrl ? "Tạo lại QR" : "Tạo mã QR"}
+                </Button>
+              )}
             </div>
-            {actionType === "deposit" && (
-              <div className="mt-4 bg-blue-50 p-3 rounded-md text-sm text-blue-800">
-                <p>
-                  💡 Lưu ý: Đây là tạo lệnh nạp. Sau khi bấm xác nhận, vui lòng
-                  chuyển khoản đúng nội dung để Admin duyệt.
+
+            {/* KHU VỰC HIỂN THỊ QR (Nạp tiền) - Chỉ hiện khi đã bấm nút Tạo */}
+            {actionType === "deposit" && qrCodeUrl && systemBankInfo && (
+              <div className="mt-4 border rounded-lg p-4 bg-muted/20 flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                <p className="text-sm font-medium mb-3 flex items-center gap-2 text-blue-600">
+                  Quét mã để chuyển khoản
                 </p>
+                <div className="relative w-full aspect-square max-w-[280px] bg-white p-2 rounded-md shadow-sm">
+                  <Image
+                    src={qrCodeUrl}
+                    alt="VietQR"
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
+                <div className="mt-4 w-full space-y-2 bg-white p-3 rounded border text-sm">
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="text-muted-foreground">Ngân hàng:</span>
+                    <span className="font-semibold">
+                      {systemBankInfo.bankId}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="text-muted-foreground">Số tài khoản:</span>
+                    <span className="font-semibold">
+                      {systemBankInfo.accountNo}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Chủ tài khoản:
+                    </span>
+                    <span className="font-semibold">
+                      {systemBankInfo.accountName}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3 text-center bg-yellow-50 p-2 rounded border border-yellow-100 text-yellow-800">
+                  ⚠️ Lưu ý: Vui lòng{" "}
+                  <strong>giữ nguyên nội dung chuyển khoản</strong> để được
+                  duyệt nhanh nhất.
+                </p>
+              </div>
+            )}
+
+            {/* Form Rút tiền */}
+            {actionType === "withdrawal" && (
+              <div className="space-y-4 border-t pt-4 mt-2">
+                <div className="space-y-2">
+                  <Label>Ngân hàng thụ hưởng</Label>
+                  <Input
+                    placeholder="Ví dụ: MB Bank, Vietcombank..."
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Số tài khoản</Label>
+                  <Input
+                    placeholder="Nhập số tài khoản..."
+                    value={accountNo}
+                    onChange={(e) => setAccountNo(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tên chủ tài khoản (Viết hoa)</Label>
+                  <Input
+                    placeholder="NGUYEN VAN A"
+                    value={accountName}
+                    onChange={(e) =>
+                      setAccountName(e.target.value.toUpperCase())
+                    }
+                  />
+                </div>
+
+                <div className="bg-yellow-50 p-3 rounded-md text-sm text-yellow-800 border border-yellow-200 flex items-start gap-2">
+                  <span className="text-lg">ℹ️</span>
+                  <span>
+                    Lưu ý: Phí rút tiền là 0%. Thời gian xử lý từ 2-24h làm
+                    việc.
+                  </span>
+                </div>
               </div>
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={handleTransaction} disabled={isSubmitting}>
+            <Button
+              onClick={handleTransaction}
+              disabled={
+                isSubmitting || (actionType === "deposit" && !qrCodeUrl)
+              }
+            >
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Xác nhận
+              {actionType === "deposit" ? "Đã chuyển khoản" : "Gửi yêu cầu"}
             </Button>
           </DialogFooter>
         </DialogContent>

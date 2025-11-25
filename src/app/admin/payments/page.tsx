@@ -17,13 +17,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle } from "lucide-react";
-// Import Enum từ Prisma
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Loader2,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Copy,
+  QrCode,
+  ArrowDownCircle,
+  ArrowUpCircle,
+} from "lucide-react";
 import { PaymentStatus, PaymentForType } from "@prisma/client";
+import Image from "next/image";
 
-// Định nghĩa kiểu dữ liệu hiển thị
 interface PaymentRow {
   id: string;
   amount: number;
@@ -35,6 +52,11 @@ interface PaymentRow {
     username: string | null;
     email: string;
   } | null;
+  withdrawal_info?: {
+    bankName: string;
+    accountNo: string;
+    accountName: string;
+  };
 }
 
 const formatCurrency = (val: number) =>
@@ -42,29 +64,15 @@ const formatCurrency = (val: number) =>
     val
   );
 
-const formatPaymentType = (type: PaymentForType) => {
-  switch (type) {
-    case "deposit":
-      return "Nạp tiền (Vào ví)";
-    case "withdrawal":
-      return "Rút tiền (Khỏi ví)";
-    case "transaction_commission":
-      return "Phí hoa hồng";
-    case "dealer_subscription":
-      return "Phí đăng ký Dealer";
-    case "auction_creation_fee":
-      return "Phí tạo đấu giá";
-    case "auction_bid_fee":
-      return "Phí tham gia đấu giá";
-    default:
-      return type;
-  }
-};
-
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState("all");
+
+  const [selectedPayment, setSelectedPayment] = useState<PaymentRow | null>(
+    null
+  );
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -86,21 +94,77 @@ export default function AdminPaymentsPage() {
     fetchData();
   }, [fetchData]);
 
+  const handleUpdateStatus = async (status: "succeeded" | "failed") => {
+    if (!selectedPayment) return;
+
+    let confirmMsg = "";
+    if (selectedPayment.payment_for_type === "deposit") {
+      confirmMsg =
+        status === "succeeded"
+          ? "Xác nhận ĐÃ NHẬN ĐƯỢC TIỀN từ khách? (Tiền sẽ cộng vào ví khách)"
+          : "Xác nhận KHÔNG NHẬN ĐƯỢC TIỀN? (Hủy lệnh nạp)";
+    } else {
+      confirmMsg =
+        status === "succeeded"
+          ? "Xác nhận ĐÃ CHUYỂN KHOẢN cho khách?"
+          : "Xác nhận TỪ CHỐI RÚT? (Tiền sẽ hoàn về ví khách)";
+    }
+
+    if (!confirm(confirmMsg)) return;
+
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`/api/admin/payments/${selectedPayment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!res.ok) throw new Error("Lỗi cập nhật");
+
+      alert("Thao tác thành công!");
+      setSelectedPayment(null);
+      fetchData();
+    } catch (error) {
+      alert("Có lỗi xảy ra");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert("Đã copy: " + text);
+  };
+
+  const getVietQRUrl = (payment: PaymentRow) => {
+    if (!payment.withdrawal_info) return "";
+    const bankId = payment.withdrawal_info.bankName;
+    const accountNo = payment.withdrawal_info.accountNo;
+    const accountName = payment.withdrawal_info.accountName;
+    const amount = payment.amount;
+    const addInfo = `RUT TIEN ${payment.user?.username || "USER"}`;
+    const template = "compact2";
+    return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${amount}&addInfo=${encodeURIComponent(
+      addInfo
+    )}&accountName=${encodeURIComponent(accountName)}`;
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Lịch sử Thanh toán</CardTitle>
-        <CardDescription>Theo dõi dòng tiền (Nạp/Rút/Phí).</CardDescription>
+        <CardTitle>Quản lý Thanh toán</CardTitle>
+        <CardDescription>Duyệt lệnh nạp/rút tiền.</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="all" onValueChange={setCurrentTab} className="mb-4">
           <TabsList>
             <TabsTrigger value="all">Tất cả</TabsTrigger>
+            <TabsTrigger value="pending" className="text-yellow-600">
+              Chờ xử lý
+            </TabsTrigger>
             <TabsTrigger value="succeeded" className="text-green-600">
               Thành công
-            </TabsTrigger>
-            <TabsTrigger value="pending" className="text-yellow-600">
-              Đang xử lý
             </TabsTrigger>
             <TabsTrigger value="failed" className="text-red-600">
               Thất bại
@@ -116,27 +180,33 @@ export default function AdminPaymentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Người dùng</TableHead>
-                <TableHead>Loại giao dịch</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Loại</TableHead>
                 <TableHead>Số tiền</TableHead>
                 <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Thời gian</TableHead>
+                <TableHead className="text-right">Hành động</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {payments.map((pay) => (
                 <TableRow key={pay.id}>
                   <TableCell>
-                    <div className="font-medium">
-                      {pay.user?.username || "---"}
-                    </div>
+                    <div className="font-medium">{pay.user?.username}</div>
                     <div className="text-xs text-muted-foreground">
                       {pay.user?.email}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">
-                      {formatPaymentType(pay.payment_for_type)}
+                    <Badge
+                      variant="outline"
+                      className="capitalize flex w-fit gap-1"
+                    >
+                      {pay.payment_for_type === "deposit" ? (
+                        <ArrowDownCircle className="h-3 w-3 text-green-600" />
+                      ) : pay.payment_for_type === "withdrawal" ? (
+                        <ArrowUpCircle className="h-3 w-3 text-red-600" />
+                      ) : null}
+                      {pay.payment_for_type.replace("_", " ")}
                     </Badge>
                   </TableCell>
                   <TableCell
@@ -162,24 +232,138 @@ export default function AdminPaymentsPage() {
                       {pay.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground text-sm">
-                    {new Date(pay.created_at).toLocaleDateString("vi-VN")}
+                  <TableCell className="text-right">
+                    {pay.status === "pending" &&
+                      (pay.payment_for_type === "withdrawal" ||
+                        pay.payment_for_type === "deposit") && (
+                        <Button
+                          size="sm"
+                          onClick={() => setSelectedPayment(pay)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" /> Duyệt
+                        </Button>
+                      )}
                   </TableCell>
                 </TableRow>
               ))}
-              {payments.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-center py-10 text-muted-foreground"
-                  >
-                    Chưa có dữ liệu.
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         )}
+
+        {/* DIALOG XỬ LÝ */}
+        <Dialog
+          open={!!selectedPayment}
+          onOpenChange={(open) => !open && setSelectedPayment(null)}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedPayment?.payment_for_type === "deposit"
+                  ? "Duyệt Nạp Tiền"
+                  : "Duyệt Rút Tiền"}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedPayment?.payment_for_type === "deposit"
+                  ? 'Kiểm tra tài khoản ngân hàng của bạn. Nếu đã nhận được tiền, hãy bấm "Đã nhận tiền".'
+                  : "Quét mã bên dưới để chuyển khoản cho User."}
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* === CASE 1: RÚT TIỀN (HIỆN QR ĐỂ ADMIN CHUYỂN ĐI) === */}
+            {selectedPayment?.payment_for_type === "withdrawal" &&
+              (selectedPayment?.withdrawal_info ? (
+                <div className="space-y-4">
+                  <div className="flex justify-center bg-white p-4 rounded-lg border shadow-sm">
+                    <div className="relative w-[250px] aspect-square">
+                      <Image
+                        src={getVietQRUrl(selectedPayment)}
+                        alt="VietQR User"
+                        fill
+                        className="object-contain"
+                        unoptimized
+                      />
+                    </div>
+                  </div>
+                  <div className="bg-muted/30 p-4 rounded-lg border space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Ngân hàng:</span>{" "}
+                      <span className="font-semibold">
+                        {selectedPayment.withdrawal_info.bankName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Số TK:</span>{" "}
+                      <span className="font-mono font-bold">
+                        {selectedPayment.withdrawal_info.accountNo}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Chủ TK:</span>{" "}
+                      <span className="font-semibold text-blue-600">
+                        {selectedPayment.withdrawal_info.accountName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-muted-foreground">Số tiền:</span>{" "}
+                      <span className="font-bold text-red-600">
+                        {formatCurrency(selectedPayment.amount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-red-500">Thiếu thông tin ngân hàng user!</p>
+              ))}
+
+            {/* === CASE 2: NẠP TIỀN (CHỈ HIỆN THÔNG TIN ĐỂ CHECK) === */}
+            {selectedPayment?.payment_for_type === "deposit" && (
+              <div className="bg-green-50 p-6 rounded-lg border border-green-200 text-center space-y-4">
+                <p className="text-green-800 font-medium">
+                  Yêu cầu nạp vào ví:
+                </p>
+                <p className="text-4xl font-bold text-green-700">
+                  {formatCurrency(selectedPayment.amount)}
+                </p>
+                <div className="text-sm text-muted-foreground">
+                  User: <strong>{selectedPayment.user?.username}</strong> (
+                  {selectedPayment.user?.email})
+                </div>
+                <p className="text-xs text-gray-500 bg-white p-2 rounded">
+                  Hãy mở App ngân hàng của bạn và kiểm tra xem có khoản tiền này
+                  (với nội dung tương ứng) không.
+                </p>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={() => handleUpdateStatus("failed")}
+                disabled={isProcessing}
+              >
+                <XCircle className="h-4 w-4 mr-2" />{" "}
+                {selectedPayment?.payment_for_type === "deposit"
+                  ? "Chưa nhận được"
+                  : "Từ chối"}
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => handleUpdateStatus("succeeded")}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <Loader2 className="animate-spin mr-2" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                )}
+                {selectedPayment?.payment_for_type === "deposit"
+                  ? "Đã nhận tiền (Cộng ví)"
+                  : "Đã chuyển khoản"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

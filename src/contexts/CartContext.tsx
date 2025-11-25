@@ -1,3 +1,4 @@
+// src/contexts/CartContext.tsx
 "use client";
 
 import React, {
@@ -14,15 +15,15 @@ interface CartItem {
   price: number;
   image: string | null;
   sellerName: string;
-  quantity: number; // Mới
-  maxQuantity: number; // Mới (để giới hạn không mua quá kho)
+  quantity: number;
+  maxQuantity: number;
 }
 
 interface CartContextType {
   items: CartItem[];
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
-  updateQuantity: (id: string, newQuantity: number) => void; // Mới
+  updateQuantity: (id: string, newQuantity: number) => void;
   clearCart: () => void;
   cartCount: number;
 }
@@ -53,15 +54,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const existingItem = prev.find((item) => item.id === newItem.id);
       if (existingItem) {
-        // Nếu đã có -> Cộng dồn số lượng (nhưng không vượt quá max)
+        // Fallback an toàn nếu maxQuantity undefined
+        const safeMax = existingItem.maxQuantity ?? 999;
+
         const newQty = Math.min(
           existingItem.quantity + newItem.quantity,
-          existingItem.maxQuantity
+          safeMax
         );
-        if (newQty === existingItem.maxQuantity && newItem.quantity > 0) {
-          alert(
-            `Đã đạt giới hạn tồn kho (${existingItem.maxQuantity}) cho sản phẩm này.`
-          );
+
+        if (newQty === safeMax && newItem.quantity > 0) {
+          alert(`Đã đạt giới hạn tồn kho (${safeMax}) cho sản phẩm này.`);
         } else {
           alert("Đã cập nhật số lượng trong giỏ!");
         }
@@ -78,8 +80,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          // Validate max quantity
-          const validQty = Math.max(1, Math.min(newQuantity, item.maxQuantity));
+          // Fallback an toàn
+          const safeMax = item.maxQuantity ?? 999;
+          const validQty = Math.max(1, Math.min(newQuantity, safeMax));
           return { ...item, quantity: validQty };
         }
         return item;
@@ -95,8 +98,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
   };
 
-  // Tổng số lượng item (không phải số dòng)
-  const cartCount = items.reduce((total, item) => total + item.quantity, 0);
+  const cartCount = items.reduce(
+    (total, item) => total + (item.quantity || 0),
+    0
+  );
 
   return (
     <CartContext.Provider

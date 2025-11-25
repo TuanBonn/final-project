@@ -1,81 +1,57 @@
 // src/app/admin/settings/page.tsx
 "use client";
 
-// Đã sửa 'in' thành 'from'
 import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, AlertCircle, Save } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Loader2,
+  Save,
+  RefreshCcw,
+  CreditCard,
+  Percent,
+  Settings2,
+} from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
-// Định nghĩa kiểu Setting (khớp với DB)
+// Định nghĩa kiểu dữ liệu Setting
 interface AppSetting {
   key: string;
   value: string | null;
   description: string | null;
-  updated_at: string | null;
 }
 
-// === CÁC HÀM TIỆN ÍCH ===
-
-// 1. Phân loại key
-const isPercentKey = (key: string) => key === "TRANSACTION_COMMISSION_PERCENT";
-
-// (Khớp với tên key bạn đã xác nhận)
-const isCurrencyKey = (key: string) =>
-  key === "verification_fee" || key === "AUCTION_PARTICIPATION_FEE";
-
-// 2. Format tiền (10000000 -> "10.000.000")
-const formatCurrency = (value: string | null | undefined): string => {
-  if (!value) return "";
-  const numericValue = parseInt(value.replace(/\D/g, ""), 10);
-  if (isNaN(numericValue)) return "";
-  return new Intl.NumberFormat("vi-VN").format(numericValue);
-};
-
-// 3. Chuyển đổi giá trị TỪ DB ra UI
-const formatValueForDisplay = (key: string, value: string | null): string => {
-  if (value === null) return "";
-  if (isPercentKey(key)) {
-    const numericValue = parseFloat(value);
-    if (isNaN(numericValue)) return "";
-    return (numericValue * 100).toString(); // 0.05 -> "5"
-  }
-  if (isCurrencyKey(key)) {
-    return formatCurrency(value);
-  }
-  return value;
-};
+// === CẤU HÌNH NHÓM (KEY MAPPING) ===
+const BANK_KEYS = ["BANK_ID", "ACCOUNT_NO", "ACCOUNT_NAME", "QR_TEMPLATE"];
+const FEE_KEYS = [
+  "TRANSACTION_COMMISSION_PERCENT",
+  "AUCTION_PARTICIPATION_FEE",
+  "verification_fee",
+];
+// ===================================
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
-  // --- Hàm fetch Cài đặt ---
+  // Fetch dữ liệu
   const fetchSettings = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const response = await fetch("/api/admin/settings");
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Lỗi HTTP: ${response.status}`);
-      }
-      const data = await response.json();
+      const res = await fetch("/api/admin/settings");
+      const data = await res.json();
       setSettings(data.settings || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+    } catch (error) {
+      console.error("Lỗi tải settings:", error);
     } finally {
       setLoading(false);
     }
@@ -85,152 +61,155 @@ export default function AdminSettingsPage() {
     fetchSettings();
   }, [fetchSettings]);
 
-  // --- Hàm xử lý khi thay đổi input ---
-  const handleInputChange = (key: string, newValueFromInput: string) => {
-    setSuccess(null);
-    setError(null);
-
-    let processedValue = newValueFromInput;
-
-    if (isCurrencyKey(key)) {
-      processedValue = newValueFromInput.replace(/\D/g, ""); // "10.000.000" -> "10000000"
-    } else if (isPercentKey(key)) {
-      processedValue = newValueFromInput
-        .replace(/[^0-9.,]/g, "")
-        .replace(",", ".");
-    }
-
-    setSettings((currentSettings) =>
-      currentSettings.map((setting) =>
-        setting.key === key ? { ...setting, value: processedValue } : setting
-      )
+  // Xử lý thay đổi giá trị input
+  const handleChange = (key: string, newValue: string) => {
+    setSettings((prev) =>
+      prev.map((s) => (s.key === key ? { ...s, value: newValue } : s))
     );
   };
 
-  // --- Hàm xử lý khi Lưu ---
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    setError(null);
-    setSuccess(null);
+  // Xử lý lưu từng setting
+  const handleSave = async (key: string, value: string | null) => {
+    setSavingKey(key);
     try {
-      const payload = settings.map((s) => {
-        let valueToSend = s.value || "";
-        if (isCurrencyKey(s.key)) {
-          valueToSend = valueToSend.replace(/\D/g, "");
-        }
-        return { key: s.key, value: valueToSend };
-      });
-
-      const response = await fetch("/api/admin/settings", {
-        method: "PATCH",
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT", // Hoặc POST tùy API của bạn
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ key, value }),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Lưu thất bại.");
+      if (!res.ok) throw new Error("Lỗi lưu setting");
 
-      setSuccess(data.message);
-      fetchSettings(); // Tải lại data mới từ DB
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+      // Tùy chọn: alert("Đã lưu!");
+    } catch (error) {
+      alert("Lưu thất bại!");
     } finally {
-      setIsSaving(false);
+      setSavingKey(null);
     }
   };
 
-  // --- Render UI ---
+  // === LOGIC PHÂN NHÓM SETTINGS ===
+  const bankSettings = settings.filter((s) => BANK_KEYS.includes(s.key));
+  const feeSettings = settings.filter((s) => FEE_KEYS.includes(s.key));
+  const otherSettings = settings.filter(
+    (s) => !BANK_KEYS.includes(s.key) && !FEE_KEYS.includes(s.key)
+  );
+
+  // Component con để render từng dòng Setting
+  const SettingRow = ({ item }: { item: AppSetting }) => (
+    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end md:items-center p-4 border rounded-lg bg-card hover:bg-accent/5 transition-colors">
+      <div className="md:col-span-4 space-y-1">
+        <Label className="font-bold text-base">{item.key}</Label>
+        <p className="text-xs text-muted-foreground">{item.description}</p>
+      </div>
+      <div className="md:col-span-6">
+        <Input
+          value={item.value || ""}
+          onChange={(e) => handleChange(item.key, e.target.value)}
+          className="font-medium"
+        />
+      </div>
+      <div className="md:col-span-2 flex justify-end">
+        <Button
+          onClick={() => handleSave(item.key, item.value)}
+          disabled={savingKey === item.key}
+          size="sm"
+          className="w-full md:w-auto"
+        >
+          {savingKey === item.key ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" /> Lưu
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-20">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error && settings.length === 0) {
-    return (
-      <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4">
-        <AlertCircle className="h-8 w-8 text-destructive mr-3" />
-        <p className="text-destructive font-medium">Lỗi: {error}</p>
+      <div className="flex justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSave}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Cài đặt Chung</CardTitle>
-          <CardDescription>
-            Chỉnh sửa các tham số chung của toàn bộ website.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {settings.length === 0 && !error ? (
-            <p className="text-muted-foreground">Không tìm thấy cài đặt nào.</p>
-          ) : (
-            settings.map((setting) => (
-              <div key={setting.key} className="space-y-2">
-                <Label htmlFor={setting.key} className="text-base">
-                  {setting.key}
-                </Label>
+    <div className="space-y-8 max-w-5xl mx-auto pb-10">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Cài đặt Hệ thống
+          </h2>
+          <p className="text-muted-foreground">
+            Quản lý các tham số vận hành của sàn giao dịch.
+          </p>
+        </div>
+        <Button variant="outline" onClick={fetchSettings}>
+          <RefreshCcw className="h-4 w-4 mr-2" /> Tải lại
+        </Button>
+      </div>
 
-                <div className="relative">
-                  <Input
-                    id={setting.key}
-                    value={formatValueForDisplay(setting.key, setting.value)}
-                    onChange={(e) =>
-                      handleInputChange(setting.key, e.target.value)
-                    }
-                    placeholder={setting.description || "Nhập giá trị..."}
-                    className={
-                      isPercentKey(setting.key) || isCurrencyKey(setting.key)
-                        ? "pr-12"
-                        : ""
-                    }
-                  />
-                  {isPercentKey(setting.key) && (
-                    <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground">
-                      %
-                    </span>
-                  )}
-                  {isCurrencyKey(setting.key) && (
-                    <span className="absolute inset-y-0 right-3 flex items-center text-muted-foreground">
-                      VND
-                    </span>
-                  )}
-                </div>
+      {/* === NHÓM 1: NGÂN HÀNG === */}
+      {bankSettings.length > 0 && (
+        <Card className="border-blue-100 shadow-sm">
+          <CardHeader className="bg-blue-50/50 pb-4">
+            <div className="flex items-center gap-2 text-blue-700">
+              <CreditCard className="h-5 w-5" />
+              <CardTitle>Thông tin Ngân hàng & QR</CardTitle>
+            </div>
+            <CardDescription>
+              Cấu hình tài khoản nhận tiền mặc định của Admin (hiển thị khi user
+              nạp tiền).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
+            {bankSettings.map((item) => (
+              <SettingRow key={item.key} item={item} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
-                <p className="text-sm text-muted-foreground">
-                  {setting.description}
-                </p>
-                {/* === SỬA LỖI </LDH> THÀNH </p> === */}
-              </div>
-            ))
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between items-center border-t pt-6">
-          <div className="text-sm">
-            {isSaving && (
-              <span className="text-muted-foreground flex items-center">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Đang lưu...
-              </span>
-            )}
-            {error && (
-              <span className="text-destructive font-medium">{error}</span>
-            )}
-            {success && (
-              <span className="text-green-600 font-medium">{success}</span>
-            )}
-          </div>
-          <Button type="submit" disabled={isSaving || settings.length === 0}>
-            <Save className="h-4 w-4 mr-2" />
-            Lưu thay đổi
-          </Button>
-        </CardFooter>
-      </Card>
-    </form>
+      {/* === NHÓM 2: PHÍ & HOA HỒNG === */}
+      {feeSettings.length > 0 && (
+        <Card className="border-green-100 shadow-sm">
+          <CardHeader className="bg-green-50/50 pb-4">
+            <div className="flex items-center gap-2 text-green-700">
+              <Percent className="h-5 w-5" />
+              <CardTitle>Cấu hình Phí & Hoa hồng</CardTitle>
+            </div>
+            <CardDescription>
+              Điều chỉnh các mức phí giao dịch, phí cọc và phí xác thực.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
+            {feeSettings.map((item) => (
+              <SettingRow key={item.key} item={item} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* === NHÓM 3: KHÁC === */}
+      {otherSettings.length > 0 && (
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2 text-gray-700">
+              <Settings2 className="h-5 w-5" />
+              <CardTitle>Cài đặt Khác</CardTitle>
+            </div>
+            <CardDescription>Các tham số cấu hình chung khác.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
+            {otherSettings.map((item) => (
+              <SettingRow key={item.key} item={item} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

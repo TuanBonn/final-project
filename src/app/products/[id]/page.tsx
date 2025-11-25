@@ -1,3 +1,4 @@
+// src/app/products/[id]/page.tsx
 import { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -195,11 +196,11 @@ export default async function ProductDetailPage({
                   name: product.name,
                   price: product.price,
                   status: product.status,
-                  quantity: product.quantity, // <-- Quan trọng
+                  quantity: product.quantity,
                 }}
               />
 
-              {/* Nút Thêm Giỏ Hàng (Logic giỏ hàng cần cập nhật thêm để hỗ trợ số lượng nếu muốn) */}
+              {/* === ĐÃ SỬA: Thêm quantity vào đây === */}
               <AddToCartButton
                 product={{
                   id: product.id,
@@ -207,6 +208,7 @@ export default async function ProductDetailPage({
                   price: Number(product.price),
                   image_urls: product.image_urls as string[],
                   seller: { username: product.seller.username },
+                  quantity: product.quantity, // <-- DÒNG QUAN TRỌNG ĐÃ THÊM
                 }}
                 disabled={!isAvailable}
               />

@@ -21,6 +21,7 @@ enum UserRole {
   admin
   @@map("user_role")
 }
+
 enum ProductCondition {
   new
   used
@@ -28,12 +29,14 @@ enum ProductCondition {
   custom
   @@map("product_condition_enum")
 }
+
 enum ProductStatus {
   available
   in_transaction
   sold
   @@map("product_status")
 }
+
 enum AuctionStatus {
   draft
   scheduled
@@ -42,6 +45,7 @@ enum AuctionStatus {
   cancelled
   @@map("auction_status")
 }
+
 enum TransactionStatus {
   initiated
   buyer_paid
@@ -52,6 +56,7 @@ enum TransactionStatus {
   cancelled
   @@map("transaction_status")
 }
+
 enum GroupBuyStatus {
   open
   successful
@@ -59,33 +64,38 @@ enum GroupBuyStatus {
   completed
   @@map("group_buy_status")
 }
+
 enum ParticipantStatus {
   pending_payment
   paid
   shipped
   @@map("participant_status")
 }
+
 enum PaymentForType {
   auction_creation_fee
   auction_bid_fee
   transaction_commission
   dealer_subscription
-  deposit    // Mới thêm: Nạp tiền
-  withdrawal // Mới thêm: Rút tiền
+  deposit    // Nạp tiền
+  withdrawal // Rút tiền
   @@map("payment_for_type_enum")
 }
+
 enum PaymentStatus {
   pending
   succeeded
   failed
   @@map("payment_status_enum")
 }
+
 enum UserStatus {
   active
   banned
   @@map("user_status")
 }
-// Mới thêm: Phương thức thanh toán
+
+// Phương thức thanh toán
 enum PaymentMethod {
   cod
   banking_qr
@@ -108,11 +118,15 @@ model User {
   reputation_score Int      @default(0)
   status           UserStatus @default(active)
   
-  // Mới thêm: Ví tiền
+  // Ví tiền
   balance          Decimal  @default(0) @db.Decimal
+
+  // Thông tin ngân hàng (để auto-fill khi rút tiền)
+  bank_info        Json?    @db.JsonB // Lưu: { bankName, accountNo, accountName }
 
   created_at       DateTime @default(now()) @db.Timestamptz
 
+  // Quan hệ
   products              Product[]                 @relation("SellerProducts")
   posts                 Post[]                    @relation("AuthorPosts")
   comments              Comment[]                 @relation("AuthorComments")
@@ -133,6 +147,10 @@ model User {
   groupBuyParts         GroupBuyParticipant[]
   platformPayments      PlatformPayment[]
   auctionParticipations AuctionParticipant[]
+  
+  // === QUAN TRỌNG: Quan hệ ngược với Notification ===
+  notifications         Notification[]
+  // ================================================
 
   @@map("users")
 }
@@ -259,7 +277,6 @@ model Auction {
   winning_bidder    User?                  @relation("AuctionWinner", fields: [winning_bidder_id], references: [id])
   winning_bidder_id String?                @db.Uuid
   
-  // Mới thêm: Ngày tạo
   created_at        DateTime               @default(now()) @db.Timestamptz
 
   bids              Bid[]
@@ -303,7 +320,6 @@ model Transaction {
   status              TransactionStatus @default(initiated)
   quantity            Int               @default(1)
   
-  // Mới thêm: Phương thức thanh toán
   payment_method      PaymentMethod     @default(cod)
 
   created_at          DateTime          @default(now()) @db.Timestamptz
@@ -397,6 +413,10 @@ model PlatformPayment {
   related_id             String?        @db.Uuid
   status                 PaymentStatus  @default(pending)
   gateway_transaction_id String?
+  
+  // Thông tin rút tiền (Snapshot lịch sử)
+  withdrawal_info        Json?          @db.JsonB // { bankName, accountNo, accountName }
+
   created_at             DateTime       @default(now()) @db.Timestamptz
   updated_at             DateTime       @default(now()) @db.Timestamptz
   @@map("platform_payments")
@@ -409,4 +429,19 @@ model AppSetting {
   description String?
   updated_at  DateTime? @default(now()) @db.Timestamptz
   @@map("app_settings")
+}
+
+// === THÊM BẢNG NOTIFICATION ===
+model Notification {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  title      String
+  message    String
+  type       String   // order, wallet, auction, system, chat
+  link       String?  // Link để click vào (vd: /orders, /wallet)
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("notifications")
 }

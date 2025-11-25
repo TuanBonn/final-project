@@ -129,7 +129,7 @@ export default function SellPage() {
         body: JSON.stringify({
           ...values,
           price: values.price.replace(/\D/g, ""),
-          quantity: values.quantity, // Gửi quantity lên API
+          quantity: values.quantity,
           imageUrls: imageUrls,
         }),
       });

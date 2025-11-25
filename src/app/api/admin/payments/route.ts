@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
         payment_for_type,
         status,
         created_at,
+        withdrawal_info,
         user:users ( username, email )
       `
       )

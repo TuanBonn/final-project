@@ -5,7 +5,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Loader2, Upload, KeyRound, ShieldCheck } from "lucide-react"; // Thêm icon
+import { Edit, Loader2, KeyRound, ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,15 +14,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { uploadFileViaApi } from "@/lib/storageUtils";
-import { useUser } from "@/contexts/UserContext"; // Dùng Context Hook
+import { useUser } from "@/contexts/UserContext";
 
-// Kiểu dữ liệu Profile
 interface UserProfile {
   id: string;
   email: string;
@@ -33,9 +31,13 @@ interface UserProfile {
   is_verified: boolean;
   reputation_score: number;
   created_at: string;
+  bank_info: {
+    bankName: string;
+    accountNo: string;
+    accountName: string;
+  } | null;
 }
 
-// --- Hàm lấy tên viết tắt ---
 const getInitials = (name: string | null): string => {
   if (!name) return "??";
   return name
@@ -47,29 +49,29 @@ const getInitials = (name: string | null): string => {
 };
 
 export default function ProfilePage() {
-  // console.log("--- ProfilePage Render START ---");
-
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-
-  // Lấy hàm "phát loa" từ Context
   const { fetchUserData: refetchUserContext } = useUser();
 
-  // State cho dialog SỬA PROFILE
   const [isSaving, setIsSaving] = useState(false);
   const [editFullName, setEditFullName] = useState("");
   const [editUsername, setEditUsername] = useState("");
+
+  // State Bank Info
+  const [editBankName, setEditBankName] = useState("");
+  const [editAccountNo, setEditAccountNo] = useState("");
+  const [editAccountName, setEditAccountName] = useState("");
+
   const [editError, setEditError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // State và Ref cho UPLOAD AVATAR
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // State cho dialog ĐỔI MẬT KHẨU
+  // Change password states
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
   const [changePassError, setChangePassError] = useState<string | null>(null);
@@ -77,31 +79,22 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // --- Hàm fetch profile ban đầu ---
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
-    // console.log("ProfilePage: Fetching /api/profile/me...");
     try {
       const response = await fetch("/api/profile/me", {
         cache: "no-store",
         credentials: "include",
       });
-      // console.log(`ProfilePage: Fetch status: ${response.status}`);
       const responseText = await response.text();
-      // console.log("ProfilePage: Fetch response text:", responseText.slice(0, 200) + '...');
 
       if (!response.ok) {
         if (response.status === 401) {
           setError("Yêu cầu đăng nhập.");
           router.push("/login?message=Session expired");
         } else {
-          let errorMsg = `Lỗi ${response.status}.`;
-          try {
-            const errorData = JSON.parse(responseText);
-            errorMsg = errorData.error || errorMsg;
-          } catch (e) {}
-          setError(errorMsg);
+          setError("Lỗi tải profile.");
         }
         setProfile(null);
         return;
@@ -110,19 +103,22 @@ export default function ProfilePage() {
       const data = JSON.parse(responseText);
       if (data.profile) {
         setProfile(data.profile);
-        // Set state ban đầu cho form edit
         setEditFullName(data.profile.full_name || "");
         setEditUsername(data.profile.username || "");
+
+        if (data.profile.bank_info) {
+          setEditBankName(data.profile.bank_info.bankName || "");
+          setEditAccountNo(data.profile.bank_info.accountNo || "");
+          setEditAccountName(data.profile.bank_info.accountName || "");
+        }
       } else {
         setError("Không tìm thấy dữ liệu profile.");
         setProfile(null);
       }
     } catch (err: unknown) {
-      console.error("ProfilePage: Exception during fetchProfile:", err);
       setError(err instanceof Error ? err.message : "Lỗi không xác định.");
       setProfile(null);
     } finally {
-      // console.log("ProfilePage: Fetch finished.");
       setLoading(false);
     }
   }, [router]);
@@ -131,12 +127,10 @@ export default function ProfilePage() {
     fetchProfile();
   }, [fetchProfile]);
 
-  // --- Xử lý chọn file ---
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        /* Check size 5MB */
         setEditError("Ảnh quá bự (tối đa 5MB thôi).");
         setSelectedFile(null);
         setPreviewUrl(null);
@@ -154,7 +148,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Xử lý submit edit form ---
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
@@ -163,26 +156,29 @@ export default function ProfilePage() {
     let uploadedAvatarUrl: string | null = null;
 
     try {
-      // 1. Upload avatar QUA API nếu có
       if (selectedFile) {
         uploadedAvatarUrl = await uploadFileViaApi("avatars", selectedFile);
       }
 
-      // 2. Chuẩn bị payload
-      const updatePayload: {
-        fullName?: string;
-        username?: string;
-        avatarUrl?: string;
-      } = {};
+      const updatePayload: any = {};
       const currentFullName = profile?.full_name || "";
       const currentUsername = profile?.username || "";
+
       if (editFullName.trim() !== "" && editFullName.trim() !== currentFullName)
         updatePayload.fullName = editFullName.trim();
       if (editUsername.trim() !== currentUsername)
         updatePayload.username = editUsername.trim();
       if (uploadedAvatarUrl) updatePayload.avatarUrl = uploadedAvatarUrl;
 
-      // 3. Gọi API PATCH (chỉ khi có gì đó thay đổi)
+      // Bank Info
+      if (editBankName && editAccountNo && editAccountName) {
+        updatePayload.bankInfo = {
+          bankName: editBankName,
+          accountNo: editAccountNo,
+          accountName: editAccountName.toUpperCase(),
+        };
+      }
+
       if (Object.keys(updatePayload).length > 0) {
         const response = await fetch("/api/profile/me", {
           method: "PATCH",
@@ -191,17 +187,11 @@ export default function ProfilePage() {
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Update failed.");
-        setProfile(data.profile); // Cập nhật state local
-        console.log(
-          "ProfilePage: Update successful, triggering context refetch..."
-        );
-        await refetchUserContext(); // <-- BÁO CÁO TỔNG ĐÀI
-      } else {
-        // console.log("ProfilePage: Không có gì thay đổi.");
+        setProfile(data.profile);
+        await refetchUserContext();
       }
 
-      // 4. Xử lý thành công
-      setIsDialogOpen(false); // Đóng Dialog
+      setIsDialogOpen(false);
       setSelectedFile(null);
       setPreviewUrl(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -212,13 +202,16 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Reset form SỬA PROFILE khi đóng Dialog ---
   const handleDialogClose = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
-      /* Reset state về trạng thái profile hiện tại */
       setEditFullName(profile?.full_name || "");
       setEditUsername(profile?.username || "");
+      if (profile?.bank_info) {
+        setEditBankName(profile.bank_info.bankName);
+        setEditAccountNo(profile.bank_info.accountNo);
+        setEditAccountName(profile.bank_info.accountName);
+      }
       setSelectedFile(null);
       setPreviewUrl(null);
       setEditError(null);
@@ -227,12 +220,10 @@ export default function ProfilePage() {
     }
   };
 
-  // === HÀM MỚI: XỬ LÝ SUBMIT ĐỔI MẬT KHẨU ===
   const handleChangePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setChangePassError(null);
 
-    // 1. Kiểm tra mật khẩu mới
     if (newPassword.length < 6) {
       setChangePassError("Mật khẩu mới phải ít nhất 6 ký tự.");
       return;
@@ -244,7 +235,6 @@ export default function ProfilePage() {
     setIsChangingPass(true);
 
     try {
-      // 2. Gọi API đổi mật khẩu
       const response = await fetch("/api/auth/change-password", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -253,10 +243,8 @@ export default function ProfilePage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Đổi mật khẩu thất bại.");
 
-      // 3. Thành công
       alert(data.message);
-      setIsChangePassOpen(false); // Đóng dialog
-      // Reset form
+      setIsChangePassOpen(false);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -269,7 +257,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Reset form ĐỔI MẬT KHẨU khi đóng Dialog ---
   const handleChangePassDialogClose = (open: boolean) => {
     setIsChangePassOpen(open);
     if (!open) {
@@ -281,7 +268,6 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Render UI ---
   if (loading)
     return (
       <div className="text-center py-10">
@@ -298,16 +284,10 @@ export default function ProfilePage() {
         </Card>
       </div>
     );
-  if (!profile)
-    return (
-      <div className="text-center py-10 text-muted-foreground">
-        Không tìm thấy profile.
-      </div>
-    );
+  if (!profile) return null;
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto p-4 md:p-0">
-      {/* --- Card hiển thị Profile --- */}
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4 bg-muted/30 p-6">
           <div>
@@ -316,26 +296,22 @@ export default function ProfilePage() {
               Trung tâm vũ trụ diecast của riêng bạn.
             </p>
           </div>
-          {/* --- Nút Edit và Dialog Sửa Profile --- */}
           <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1">
-                {" "}
-                <Edit className="h-4 w-4" /> <span>Sửa</span>{" "}
+                <Edit className="h-4 w-4" /> <span>Sửa</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[480px]">
               <DialogHeader>
                 <DialogTitle>Chỉnh sửa hồ sơ</DialogTitle>
                 <DialogDescription>
-                  {" "}
-                  Cập nhật xong thì Lưu nha.{" "}
+                  Cập nhật xong thì Lưu nha.
                 </DialogDescription>
               </DialogHeader>
-              {/* --- Form Edit --- */}
               <form onSubmit={handleEditSubmit} className="pt-4">
                 <div className="grid gap-6">
-                  {/* Upload Avatar */}
+                  {/* Avatar & Info */}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label
                       htmlFor="edit-avatar"
@@ -345,14 +321,13 @@ export default function ProfilePage() {
                     </Label>
                     <div className="col-span-3 flex items-center gap-4">
                       <Avatar className="h-16 w-16 border">
-                        {" "}
                         <AvatarImage
                           src={previewUrl || profile.avatar_url || ""}
                           alt="Xem trước"
-                        />{" "}
+                        />
                         <AvatarFallback>
                           {getInitials(editFullName || profile.full_name)}
-                        </AvatarFallback>{" "}
+                        </AvatarFallback>
                       </Avatar>
                       <Input
                         id="edit-avatar"
@@ -364,35 +339,76 @@ export default function ProfilePage() {
                       />
                     </div>
                   </div>
-                  {/* Họ tên */}
                   <div className="grid grid-cols-4 items-center gap-4">
-                    {" "}
                     <Label htmlFor="edit-fullname" className="text-right">
                       Họ tên
-                    </Label>{" "}
+                    </Label>
                     <Input
                       id="edit-fullname"
                       value={editFullName}
                       onChange={(e) => setEditFullName(e.target.value)}
                       className="col-span-3"
                       required
-                    />{" "}
+                    />
                   </div>
-                  {/* Username */}
                   <div className="grid grid-cols-4 items-center gap-4">
-                    {" "}
                     <Label htmlFor="edit-username" className="text-right">
                       Username
-                    </Label>{" "}
+                    </Label>
                     <Input
                       id="edit-username"
                       value={editUsername}
                       onChange={(e) => setEditUsername(e.target.value)}
                       className="col-span-3"
                       placeholder="min 3 ký tự"
-                    />{" "}
+                    />
                   </div>
-                  {/* Hiển thị lỗi API */}
+
+                  {/* Bank Info Section */}
+                  <div className="space-y-3 border-t pt-4">
+                    <h4 className="font-medium text-sm text-muted-foreground">
+                      Thông tin Ngân hàng (Tự động điền khi Rút tiền)
+                    </h4>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="bankName" className="text-right text-xs">
+                        Ngân hàng
+                      </Label>
+                      <Input
+                        id="bankName"
+                        placeholder="MB, VCB..."
+                        value={editBankName}
+                        onChange={(e) => setEditBankName(e.target.value)}
+                        className="col-span-3 h-8"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="accNo" className="text-right text-xs">
+                        Số TK
+                      </Label>
+                      <Input
+                        id="accNo"
+                        placeholder="01234..."
+                        value={editAccountNo}
+                        onChange={(e) => setEditAccountNo(e.target.value)}
+                        className="col-span-3 h-8"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="accName" className="text-right text-xs">
+                        Chủ TK
+                      </Label>
+                      <Input
+                        id="accName"
+                        placeholder="NGUYEN VAN A"
+                        value={editAccountName}
+                        onChange={(e) =>
+                          setEditAccountName(e.target.value.toUpperCase())
+                        }
+                        className="col-span-3 h-8"
+                      />
+                    </div>
+                  </div>
+
                   {editError && (
                     <p className="col-span-4 text-red-600 text-sm text-center">
                       {editError}
@@ -400,38 +416,33 @@ export default function ProfilePage() {
                   )}
                 </div>
                 <DialogFooter className="mt-6">
-                  {" "}
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => handleDialogClose(false)}
                   >
                     Hủy
-                  </Button>{" "}
+                  </Button>
                   <Button type="submit" disabled={isSaving}>
-                    {" "}
                     {isSaving ? (
                       <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                    ) : null}{" "}
-                    Lưu thay đổi{" "}
-                  </Button>{" "}
+                    ) : null}
+                    Lưu thay đổi
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
         </CardHeader>
-        {/* --- Hiển thị thông tin Profile --- */}
         <CardContent className="flex flex-col items-center sm:flex-row sm:items-start gap-6 p-6">
           <Avatar className="h-28 w-28 border-2 shadow-sm">
-            {" "}
             <AvatarImage
               src={profile.avatar_url || ""}
               alt={profile.username || "Avatar"}
-            />{" "}
+            />
             <AvatarFallback className="text-4xl">
-              {" "}
-              {getInitials(profile.full_name || profile.username)}{" "}
-            </AvatarFallback>{" "}
+              {getInitials(profile.full_name || profile.username)}
+            </AvatarFallback>
           </Avatar>
           <div className="space-y-1 text-center sm:text-left pt-2">
             <h2 className="text-2xl font-semibold">
@@ -449,34 +460,34 @@ export default function ProfilePage() {
             </p>
             <p className="text-sm text-muted-foreground">{profile.email}</p>
             <div className="pt-2 flex flex-col sm:flex-row items-center sm:items-baseline gap-x-4 gap-y-1 text-sm">
-              {" "}
               <p>
                 Uy tín:{" "}
                 <span className="font-bold text-lg">
                   {profile.reputation_score}
                 </span>
-              </p>{" "}
+              </p>
               {profile.is_verified && (
                 <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 ring-1 ring-inset ring-blue-200">
-                  {" "}
-                  Đã xác thực{" "}
+                  Đã xác thực
                 </span>
-              )}{" "}
+              )}
             </div>
-            <p className="text-xs text-muted-foreground pt-2">
-              Tham gia từ:{" "}
-              {new Date(profile.created_at).toLocaleDateString("vi-VN")}
-            </p>
+            {profile.bank_info && (
+              <div className="pt-2 text-xs text-muted-foreground border-t mt-2">
+                <p className="font-medium">Tài khoản nhận tiền mặc định:</p>
+                <p>
+                  {profile.bank_info.bankName} - {profile.bank_info.accountNo}
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* === CARD MỚI: BẢO MẬT & ĐỔI MẬT KHẨU === */}
       <Card>
         <CardHeader>
           <CardTitle className="text-xl font-bold flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" />
-            Bảo mật & Đăng nhập
+            <ShieldCheck className="h-5 w-5" /> Bảo mật & Đăng nhập
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -489,18 +500,16 @@ export default function ProfilePage() {
           >
             <DialogTrigger asChild>
               <Button variant="outline">
-                <KeyRound className="mr-2 h-4 w-4" />
-                Đổi mật khẩu
+                <KeyRound className="mr-2 h-4 w-4" /> Đổi mật khẩu
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Đổi mật khẩu</DialogTitle>
                 <DialogDescription>
-                  Nhập mật khẩu cũ và mật khẩu mới của bạn.
+                  Nhập mật khẩu cũ và mật khẩu mới.
                 </DialogDescription>
               </DialogHeader>
-              {/* --- Form đổi mật khẩu --- */}
               <form onSubmit={handleChangePasswordSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -568,18 +577,6 @@ export default function ProfilePage() {
             </DialogContent>
           </Dialog>
         </CardContent>
-      </Card>
-
-      <Card>
-        {" "}
-        <CardHeader>
-          <CardTitle>Tường nhà bạn</CardTitle>
-        </CardHeader>{" "}
-        <CardContent>
-          <p className="text-muted-foreground italic">
-            Chỗ này để khoe ảnh xe nè... Sắp có nha!
-          </p>
-        </CardContent>{" "}
       </Card>
     </div>
   );

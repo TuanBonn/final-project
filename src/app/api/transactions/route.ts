@@ -1,7 +1,10 @@
+// src/app/api/transactions/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
+import { sendOrderConfirmationEmail } from "@/lib/mail";
+import { createNotification } from "@/lib/notification";
 
 export const runtime = "nodejs";
 
@@ -49,7 +52,8 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi cấu hình server.");
 
-    const { productId, paymentMethod, quantity } = await request.json();
+    const { productId, paymentMethod, quantity, auctionId } =
+      await request.json();
     const buyQty = quantity ? parseInt(quantity) : 1;
 
     if (!productId || !paymentMethod) {
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Lấy thông tin sản phẩm (bao gồm số lượng tồn kho)
+    // 1. Lấy thông tin sản phẩm
     const { data: product, error: productError } = await supabaseAdmin
       .from("products")
       .select("id, price, status, seller_id, name, quantity")
@@ -79,34 +83,108 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (product.status !== "available") {
-      return NextResponse.json(
-        { error: "Sản phẩm này đã ngừng bán." },
-        { status: 409 }
-      );
+    let totalAmount = 0;
+
+    if (auctionId) {
+      // --- ĐẤU GIÁ ---
+      const { data: auction } = await supabaseAdmin
+        .from("auctions")
+        .select("status, winning_bidder_id, starting_bid")
+        .eq("id", auctionId)
+        .single();
+
+      if (!auction)
+        return NextResponse.json(
+          { error: "Đấu giá không tồn tại." },
+          { status: 404 }
+        );
+
+      // Kiểm tra quyền người thắng
+      const { data: highestBid } = await supabaseAdmin
+        .from("bids")
+        .select("bid_amount, bidder_id")
+        .eq("auction_id", auctionId)
+        .order("bid_amount", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (highestBid?.bidder_id !== buyerId) {
+        return NextResponse.json(
+          { error: "Bạn không phải người thắng cuộc." },
+          { status: 403 }
+        );
+      }
+
+      const winningPrice = highestBid
+        ? Number(highestBid.bid_amount)
+        : Number(auction.starting_bid);
+      totalAmount = winningPrice;
+    } else {
+      // --- MUA THƯỜNG ---
+      if (product.status !== "available") {
+        return NextResponse.json(
+          { error: "Sản phẩm này đã ngừng bán." },
+          { status: 409 }
+        );
+      }
+      if (product.seller_id === buyerId) {
+        return NextResponse.json(
+          { error: "Bạn không thể tự mua hàng của mình." },
+          { status: 400 }
+        );
+      }
+      if (product.quantity < buyQty) {
+        return NextResponse.json(
+          { error: `Chỉ còn ${product.quantity} sản phẩm.` },
+          { status: 409 }
+        );
+      }
+      totalAmount = Number(product.price) * buyQty;
     }
 
-    if (product.seller_id === buyerId) {
-      return NextResponse.json(
-        { error: "Bạn không thể tự mua hàng của chính mình." },
-        { status: 400 }
-      );
+    // === 2. XỬ LÝ THANH TOÁN QUA VÍ ===
+    let transactionStatus = "initiated";
+    if (paymentMethod === "wallet") {
+      const { data: buyer } = await supabaseAdmin
+        .from("users")
+        .select("balance")
+        .eq("id", buyerId)
+        .single();
+
+      const currentBalance = Number(buyer?.balance || 0);
+      if (currentBalance < totalAmount) {
+        return NextResponse.json(
+          { error: "Số dư ví không đủ." },
+          { status: 400 }
+        );
+      }
+
+      // TRỪ TIỀN
+      await supabaseAdmin
+        .from("users")
+        .update({ balance: currentBalance - totalAmount })
+        .eq("id", buyerId);
+
+      transactionStatus = "buyer_paid";
+
+      await supabaseAdmin.from("platform_payments").insert({
+        user_id: buyerId,
+        amount: totalAmount,
+        payment_for_type: "withdrawal",
+        status: "succeeded",
+        currency: "VND",
+      });
     }
 
-    // 2. Kiểm tra tồn kho
-    if (product.quantity < buyQty) {
-      return NextResponse.json(
-        { error: `Sản phẩm chỉ còn lại ${product.quantity} món.` },
-        { status: 409 }
-      );
-    }
+    // 3. Cập nhật kho
+    const qtyToDeduct = auctionId ? product.quantity : buyQty;
+    const newStock = Math.max(0, product.quantity - qtyToDeduct);
+    const newStatus = newStock === 0 ? "sold" : "available";
 
-    // 3. Tính toán tồn kho mới
-    const newStock = product.quantity - buyQty;
-    let newStatus = "available";
-    if (newStock === 0) {
-      newStatus = "sold"; // Hết hàng -> Chuyển trạng thái sold (ẩn khỏi list available)
-    }
+    await supabaseAdmin
+      .from("products")
+      .update({ quantity: newStock, status: newStatus })
+      .eq("id", productId);
 
     // 4. Tạo Giao dịch
     const { data: transaction, error: txError } = await supabaseAdmin
@@ -115,10 +193,10 @@ export async function POST(request: NextRequest) {
         product_id: productId,
         buyer_id: buyerId,
         seller_id: product.seller_id,
-        amount: Number(product.price) * buyQty, // Tổng tiền = Giá * Số lượng
-        status: "initiated",
+        amount: totalAmount,
+        status: transactionStatus,
         payment_method: paymentMethod,
-        quantity: buyQty, // Lưu số lượng mua vào đơn hàng
+        quantity: buyQty,
         platform_commission: 0,
       })
       .select()
@@ -132,26 +210,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Trừ tồn kho (Cập nhật Product)
-    const { error: updateError } = await supabaseAdmin
-      .from("products")
-      .update({
-        quantity: newStock,
-        status: newStatus,
-      })
-      .eq("id", productId);
-
-    if (updateError) {
-      console.error("Lỗi cập nhật kho:", updateError);
-      // Lưu ý: Ở đây nếu lỗi update kho thì đơn hàng đã tạo rồi -> Có thể gây sai lệch
-      // Trong production nên dùng RPC function để wrap cả 2 lệnh này trong 1 transaction database.
+    // === CẬP NHẬT TRẠNG THÁI AUCTION THÀNH 'ended' ===
+    // Điều này sẽ ẩn phiên đấu giá khỏi danh sách active/scheduled
+    if (auctionId) {
+      await supabaseAdmin
+        .from("auctions")
+        .update({ status: "ended" })
+        .eq("id", auctionId);
     }
 
+    // 5. Gửi Email & Thông báo
+    const { data: buyerInfo } = await supabaseAdmin
+      .from("users")
+      .select("email, username")
+      .eq("id", buyerId)
+      .single();
+
+    if (buyerInfo?.email) {
+      sendOrderConfirmationEmail(
+        buyerInfo.email,
+        transaction.id,
+        product.name,
+        totalAmount,
+        buyQty
+      ).catch((err) => console.error("Lỗi gửi mail background:", err));
+    }
+
+    createNotification(supabaseAdmin, {
+      userId: product.seller_id,
+      title: auctionId
+        ? "🏆 Người thắng đấu giá đã thanh toán!"
+        : "🎉 Có đơn hàng mới!",
+      message: `Khách hàng ${buyerInfo?.username || "Ẩn danh"} vừa mua "${
+        product.name
+      }".`,
+      type: "order",
+      link: "/orders?type=sell",
+    });
+
     return NextResponse.json(
-      {
-        message: "Đặt hàng thành công!",
-        transactionId: transaction.id,
-      },
+      { message: "Đặt hàng thành công!", transactionId: transaction.id },
       { status: 201 }
     );
   } catch (error: any) {

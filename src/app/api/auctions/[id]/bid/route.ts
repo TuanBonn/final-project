@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
+import { createNotification } from "@/lib/notification";
 
 export const runtime = "nodejs";
 
@@ -57,10 +58,15 @@ export async function POST(
     if (isNaN(bidAmount))
       return NextResponse.json({ error: "Giá không hợp lệ" }, { status: 400 });
 
-    // 1. Lấy thông tin phiên đấu giá hiện tại
+    // 1. Lấy thông tin phiên đấu giá
     const { data: auction, error } = await supabase
       .from("auctions")
-      .select("id, seller_id, status, end_time, starting_bid")
+      .select(
+        `
+        id, seller_id, status, end_time, starting_bid,
+        product:products ( name )
+      `
+      )
       .eq("id", auctionId)
       .single();
 
@@ -70,7 +76,7 @@ export async function POST(
         { status: 404 }
       );
 
-    // 2. Validate logic
+    // 2. Validate cơ bản
     if (auction.status !== "active") {
       return NextResponse.json(
         { error: "Phiên đấu giá này chưa bắt đầu hoặc đã kết thúc." },
@@ -90,10 +96,26 @@ export async function POST(
       );
     }
 
-    // 3. Lấy giá cao nhất hiện tại
+    // === 3. KIỂM TRA ĐÃ THAM GIA (ĐÃ TRẢ PHÍ) CHƯA ===
+    const { data: participant } = await supabase
+      .from("auction_participants")
+      .select("user_id")
+      .eq("auction_id", auctionId)
+      .eq("user_id", userId)
+      .single();
+
+    if (!participant) {
+      return NextResponse.json(
+        { error: "Bạn chưa nộp phí tham gia phiên đấu giá này." },
+        { status: 403 }
+      );
+    }
+    // =================================================
+
+    // 4. Validate Bước giá
     const { data: highestBidRecord } = await supabase
       .from("bids")
-      .select("bid_amount")
+      .select("bid_amount, bidder_id")
       .eq("auction_id", auctionId)
       .order("bid_amount", { ascending: false })
       .limit(1)
@@ -103,7 +125,13 @@ export async function POST(
       ? Number(highestBidRecord.bid_amount)
       : Number(auction.starting_bid);
 
-    // Bước nhảy giá tối thiểu (Ví dụ: 10.000đ)
+    if (highestBidRecord && highestBidRecord.bidder_id === userId) {
+      return NextResponse.json(
+        { error: "Bạn đang là người trả giá cao nhất rồi!" },
+        { status: 400 }
+      );
+    }
+
     const MIN_STEP = 10000;
 
     if (bidAmount < currentHighest + MIN_STEP) {
@@ -117,7 +145,7 @@ export async function POST(
       );
     }
 
-    // 4. Tạo Bid mới
+    // 5. Tạo Bid mới
     const { error: insertError } = await supabase.from("bids").insert({
       auction_id: auctionId,
       bidder_id: userId,
@@ -125,6 +153,30 @@ export async function POST(
     });
 
     if (insertError) throw insertError;
+
+    // 6. Chống Snipe
+    const now = new Date().getTime();
+    const endTime = new Date(auction.end_time).getTime();
+    const timeRemaining = endTime - now;
+
+    if (timeRemaining < 2 * 60 * 1000) {
+      const newEndTime = new Date(endTime + 2 * 60 * 1000);
+      await supabase
+        .from("auctions")
+        .update({ end_time: newEndTime.toISOString() })
+        .eq("id", auctionId);
+    }
+
+    // 7. Thông báo
+    if (highestBidRecord && highestBidRecord.bidder_id !== userId) {
+      createNotification(supabase, {
+        userId: highestBidRecord.bidder_id,
+        title: "⚠️ Bạn đã bị vượt giá!",
+        message: `Có người vừa trả giá cao hơn bạn trong phiên "${auction.product?.name}".`,
+        type: "auction",
+        link: `/auctions/${auctionId}`,
+      });
+    }
 
     return NextResponse.json(
       { message: "Đặt giá thành công!" },

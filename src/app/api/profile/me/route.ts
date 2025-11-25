@@ -1,13 +1,10 @@
 // src/app/api/profile/me/route.ts
-// Cả GET và PATCH đều dùng Service Key (Admin Client)
-
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers"; // Dùng cho GET
+import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { parse as parseCookie } from "cookie"; // Dùng cho PATCH
+import { parse as parseCookie } from "cookie";
 
-// --- Cấu hình ---
 const COOKIE_NAME = "auth-token";
 const JWT_SECRET = process.env.JWT_SECRET;
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,7 +16,6 @@ interface JwtPayload {
   role?: string;
 }
 
-// Hàm khởi tạo Admin Client (dùng nội bộ)
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("API /profile/me: Thiếu key!");
@@ -35,14 +31,16 @@ function getSupabaseAdmin(): SupabaseClient | null {
   }
 }
 
-// === HÀM GET (Đã sửa: Dùng Admin Client) ===
+// === HÀM GET (ĐÃ SỬA LỖI AWAIT COOKIES) ===
 export async function GET(request: Request) {
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
-    /* ... check config ... */
+    return NextResponse.json({ error: "Config Error" }, { status: 500 });
   }
 
-  const cookieStore = cookies();
+  // --- SỬA LỖI Ở ĐÂY: Thêm await ---
+  const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
+
   if (!token)
     return NextResponse.json({ error: "Yêu cầu xác thực." }, { status: 401 });
 
@@ -67,55 +65,49 @@ export async function GET(request: Request) {
     if (userProfile) delete (userProfile as any).password_hash;
     return NextResponse.json({ profile: userProfile }, { status: 200 });
   } catch (error: unknown) {
-    /* ... Xử lý lỗi token (trả 401) hoặc DB (trả 500) ... */
+    return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
   }
 }
 
-// === HÀM PATCH (Dùng Admin Client) ===
+// === HÀM PATCH (UPDATE) - GIỮ NGUYÊN ===
+// Hàm này không dùng next/headers cookies() mà dùng request.headers nên không bị lỗi này.
 export async function PATCH(request: Request) {
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
-    /* ... check config ... */
+    return NextResponse.json({ error: "Config Error" }, { status: 500 });
   }
 
-  // --- Lấy token từ header (dùng thư viện cookie) ---
   let token: string | undefined = undefined;
   try {
     const cookieHeader = request.headers.get("cookie");
     if (cookieHeader) token = parseCookie(cookieHeader)[COOKIE_NAME];
   } catch (e) {}
 
-  // --- Xác thực token ---
   let userId: string;
   try {
     if (!token) throw new jwt.JsonWebTokenError("Token not found");
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     userId = decoded.userId;
   } catch (error) {
-    return NextResponse.json(
-      { error: "Yêu cầu xác thực hoặc token không hợp lệ." },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Yêu cầu xác thực." }, { status: 401 });
   }
 
-  // --- Khởi tạo Admin Client ---
   const supabaseAdmin = getSupabaseAdmin();
   if (!supabaseAdmin)
     return NextResponse.json(
-      { message: "Lỗi client Supabase (Admin)." },
+      { message: "Lỗi client Supabase." },
       { status: 500 }
     );
 
-  // --- Xử lý logic cập nhật ---
   try {
     const body = await request.json();
-    const { fullName, username, avatarUrl } = body;
+    const { fullName, username, avatarUrl, bankInfo } = body;
     const updateData: {
       full_name?: string;
       username?: string;
       avatar_url?: string;
+      bank_info?: any;
     } = {};
 
-    // --- Validation & Prepare Data ---
     if (fullName !== undefined) updateData.full_name = fullName.trim();
     if (username !== undefined) {
       const trimmedUsername = username.trim();
@@ -140,19 +132,24 @@ export async function PATCH(request: Request) {
         updateData.username = trimmedUsername;
       }
     }
-    if (
-      avatarUrl !== undefined &&
-      typeof avatarUrl === "string" &&
-      avatarUrl.startsWith("http")
-    ) {
+    if (avatarUrl !== undefined) {
       updateData.avatar_url = avatarUrl;
     }
 
-    if (Object.keys(updateData).length === 0) {
-      /* ... trả về profile hiện tại (dùng adminClient) ... */
+    // Cập nhật Bank Info
+    if (bankInfo) {
+      if (bankInfo.bankName && bankInfo.accountNo && bankInfo.accountName) {
+        updateData.bank_info = bankInfo;
+      }
     }
 
-    // --- Update DB (DÙNG ADMIN CLIENT) ---
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { message: "Không có thay đổi." },
+        { status: 200 }
+      );
+    }
+
     const { data: updatedProfile, error: updateError } = await supabaseAdmin
       .from("users")
       .update(updateData)
@@ -161,8 +158,6 @@ export async function PATCH(request: Request) {
       .single();
 
     if (updateError) throw updateError;
-    if (!updatedProfile)
-      throw new Error("Update OK but no profile data returned.");
 
     delete (updatedProfile as any).password_hash;
     return NextResponse.json(
@@ -170,6 +165,9 @@ export async function PATCH(request: Request) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    /* ... Catch lỗi tổng của PATCH ... */
+    return NextResponse.json(
+      { error: "Lỗi cập nhật profile." },
+      { status: 500 }
+    );
   }
 }

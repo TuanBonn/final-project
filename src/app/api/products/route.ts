@@ -1,3 +1,4 @@
+// src/app/api/products/route.ts
 import { NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -93,7 +94,7 @@ export async function GET(request: Request) {
   }
 }
 
-// ================== POST (ĐĂNG SẢN PHẨM) ==================
+// ================== SỬA PHẦN POST (ĐĂNG SẢN PHẨM) ==================
 export async function POST(request: Request) {
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
@@ -132,6 +133,7 @@ export async function POST(request: Request) {
     if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");
 
     const body = await request.json();
+    // 1. Lấy quantity từ body
     const {
       name,
       description,
@@ -167,7 +169,8 @@ export async function POST(request: Request) {
         condition,
         image_urls: imageUrls,
         status: "available",
-        quantity: quantity ? parseInt(quantity) : 1, // Lưu số lượng (mặc định 1)
+        // 2. Lưu quantity vào DB (nếu không có thì mặc định là 1)
+        quantity: quantity ? parseInt(quantity.toString()) : 1,
       })
       .select()
       .single();

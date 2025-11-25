@@ -16,7 +16,6 @@ interface JwtPayload {
   [key: string]: unknown;
 }
 
-// Dùng Admin Client để đọc balance và ghi platform_payments
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -38,7 +37,7 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET: Lấy thông tin ví ===
+// === GET ===
 export async function GET(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -49,16 +48,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
   try {
-    // 1. Lấy số dư hiện tại
+    // 1. Lấy số dư và bank_info của User
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("balance")
+      .select("balance, bank_info")
       .eq("id", userId)
       .single();
 
     if (userError) throw userError;
 
-    // 2. Lấy lịch sử giao dịch (Platform Payments)
+    // 2. Lấy lịch sử giao dịch
     const { data: history, error: historyError } = await supabase
       .from("platform_payments")
       .select("*")
@@ -67,10 +66,29 @@ export async function GET(request: NextRequest) {
 
     if (historyError) throw historyError;
 
+    // === 3. LẤY CẤU HÌNH NGÂN HÀNG ADMIN TỪ APP_SETTINGS ===
+    const { data: appSettings } = await supabase
+      .from("app_settings")
+      .select("key, value")
+      .in("key", ["BANK_ID", "ACCOUNT_NO", "ACCOUNT_NAME", "QR_TEMPLATE"]);
+
+    // Chuyển mảng thành object cho dễ dùng
+    const systemBankInfo = {
+      bankId: appSettings?.find((s) => s.key === "BANK_ID")?.value || "MB",
+      accountNo: appSettings?.find((s) => s.key === "ACCOUNT_NO")?.value || "",
+      accountName:
+        appSettings?.find((s) => s.key === "ACCOUNT_NAME")?.value || "",
+      template:
+        appSettings?.find((s) => s.key === "QR_TEMPLATE")?.value || "compact2",
+    };
+    // =======================================================
+
     return NextResponse.json(
       {
         balance: user.balance,
+        bankInfo: user.bank_info,
         history: history || [],
+        systemBankInfo, // Trả về cho Client
       },
       { status: 200 }
     );
@@ -79,7 +97,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === POST: Nạp tiền (Deposit) hoặc Rút tiền (Withdraw) ===
+// ... (Phần POST giữ nguyên như cũ)
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -90,7 +108,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
   try {
-    const { type, amount } = await request.json();
+    const { type, amount, bankInfo } = await request.json();
 
     if (!amount || amount < 10000) {
       return NextResponse.json(
@@ -99,7 +117,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Xử lý Nạp tiền
+    // NẠP TIỀN
     if (type === "deposit") {
       const { data, error } = await supabase
         .from("platform_payments")
@@ -107,7 +125,7 @@ export async function POST(request: NextRequest) {
           user_id: userId,
           amount: amount,
           payment_for_type: "deposit",
-          status: "pending", // Chờ Admin duyệt
+          status: "pending",
           currency: "VND",
         })
         .select()
@@ -115,48 +133,56 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
       return NextResponse.json(
-        { message: "Đã tạo yêu cầu nạp tiền.", payment: data },
+        { message: "Đã tạo lệnh nạp.", payment: data },
         { status: 201 }
       );
     }
 
-    // Xử lý Rút tiền
+    // RÚT TIỀN
     else if (type === "withdrawal") {
-      // Kiểm tra số dư
+      if (
+        !bankInfo?.bankName ||
+        !bankInfo?.accountNo ||
+        !bankInfo?.accountName
+      ) {
+        return NextResponse.json(
+          { error: "Thiếu thông tin ngân hàng." },
+          { status: 400 }
+        );
+      }
+
       const { data: user } = await supabase
         .from("users")
         .select("balance")
         .eq("id", userId)
         .single();
+
       if (!user || user.balance < amount) {
         return NextResponse.json({ error: "Số dư không đủ." }, { status: 400 });
       }
 
-      // Tạo lệnh rút
       const { data, error } = await supabase
         .from("platform_payments")
         .insert({
           user_id: userId,
           amount: amount,
           payment_for_type: "withdrawal",
-          status: "pending", // Chờ Admin chuyển khoản và duyệt
+          status: "pending",
           currency: "VND",
+          withdrawal_info: bankInfo,
         })
         .select()
         .single();
 
-      // Tạm trừ tiền trong ví (để tránh rút nhiều lần)
-      // Lưu ý: Trong thực tế cần Transaction Database, ở đây làm đơn giản
+      // Trừ tiền ngay
       await supabase
         .from("users")
-        .update({
-          balance: user.balance - amount,
-        })
+        .update({ balance: user.balance - amount })
         .eq("id", userId);
 
       if (error) throw error;
       return NextResponse.json(
-        { message: "Đã gửi yêu cầu rút tiền.", payment: data },
+        { message: "Đã gửi yêu cầu rút.", payment: data },
         { status: 201 }
       );
     }
@@ -166,7 +192,6 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   } catch (error: any) {
-    console.error("Wallet API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
