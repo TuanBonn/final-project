@@ -3,13 +3,16 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Send, User, MessageSquare } from "lucide-react";
+// === SỬA LỖI: Thêm ArrowLeft vào import ===
+import { Loader2, Send, User, MessageSquare, ArrowLeft } from "lucide-react";
+// =========================================
 import { useUser } from "@/contexts/UserContext";
+import { useSearchParams, useRouter } from "next/navigation";
 
 // Khởi tạo Client Supabase
 const supabase = createClient(
@@ -39,6 +42,9 @@ interface Message {
 
 export default function MessagesPage() {
   const { user } = useUser();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -46,6 +52,13 @@ export default function MessagesPage() {
   const [loadingConv, setLoadingConv] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const conversationIdFromUrl = searchParams.get("id");
+    if (conversationIdFromUrl) {
+      setActiveConvId(conversationIdFromUrl);
+    }
+  }, [searchParams]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -95,13 +108,12 @@ export default function MessagesPage() {
         },
         (payload) => {
           const newMsg = payload.new as Message;
-          // Chỉ thêm nếu tin nhắn này chưa có trong list (tránh trùng do logic gửi tay bên dưới)
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
           scrollToBottom();
-          fetchConversations(); // Update last message
+          fetchConversations();
         }
       )
       .subscribe();
@@ -115,7 +127,7 @@ export default function MessagesPage() {
     if (activeConvId) {
       fetchMessages(activeConvId);
     }
-  }, [activeConvId, fetchMessages]);
+  }, [activeConvId, fetchMessages, router]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -130,7 +142,7 @@ export default function MessagesPage() {
     if (!newMessage.trim() || !activeConvId || !user) return;
 
     const tempContent = newMessage;
-    setNewMessage(""); // Clear input
+    setNewMessage("");
 
     try {
       const res = await fetch(`/api/chat/${activeConvId}`, {
@@ -139,21 +151,25 @@ export default function MessagesPage() {
         body: JSON.stringify({ content: tempContent }),
       });
 
-      const data = await res.json(); // Lấy dữ liệu tin nhắn vừa tạo
+      const data = await res.json();
 
       if (!res.ok) throw new Error("Failed to send");
 
-      // === SỬA LỖI: Cập nhật UI ngay lập tức cho người gửi ===
       if (data.message) {
         setMessages((prev) => [...prev, data.message]);
         scrollToBottom();
+        fetchConversations();
       }
-      // ======================================================
     } catch (error) {
       console.error("Send error:", error);
       alert("Gửi tin nhắn thất bại.");
-      setNewMessage(tempContent); // Hoàn lại tin nhắn
+      setNewMessage(tempContent);
     }
+  };
+
+  const handleSelectConversation = (id: string) => {
+    setActiveConvId(id);
+    router.push(`/messages?id=${id}`);
   };
 
   const activePartner = conversations.find(
@@ -163,7 +179,12 @@ export default function MessagesPage() {
   return (
     <div className="container mx-auto py-6 max-w-6xl h-[calc(100vh-100px)]">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
-        <Card className="md:col-span-1 flex flex-col h-full overflow-hidden">
+        {/* SIDEBAR DANH SÁCH */}
+        <Card
+          className={`md:col-span-1 flex flex-col h-full overflow-hidden ${
+            activeConvId ? "hidden md:flex" : "flex"
+          }`}
+        >
           <CardHeader className="py-4 border-b bg-muted/20">
             <CardTitle className="flex items-center gap-2 text-lg">
               <MessageSquare className="h-5 w-5" /> Tin nhắn
@@ -183,7 +204,7 @@ export default function MessagesPage() {
                 conversations.map((conv) => (
                   <button
                     key={conv.id}
-                    onClick={() => setActiveConvId(conv.id)}
+                    onClick={() => handleSelectConversation(conv.id)}
                     className={`flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
                       activeConvId === conv.id
                         ? "bg-primary/10 text-primary"
@@ -191,7 +212,10 @@ export default function MessagesPage() {
                     }`}
                   >
                     <Avatar>
-                      <AvatarImage src={conv.partner.avatar_url || ""} />
+                      <AvatarImage
+                        src={conv.partner.avatar_url || ""}
+                        className="object-cover"
+                      />
                       <AvatarFallback>
                         {conv.partner.username?.[0]?.toUpperCase() || "?"}
                       </AvatarFallback>
@@ -212,12 +236,33 @@ export default function MessagesPage() {
           </ScrollArea>
         </Card>
 
-        <Card className="md:col-span-2 flex flex-col h-full overflow-hidden shadow-lg border-t-4 border-t-primary/20">
+        {/* KHUNG CHAT CHÍNH */}
+        <Card
+          className={`md:col-span-2 flex flex-col h-full overflow-hidden shadow-lg border-t-4 border-t-primary/20 ${
+            !activeConvId ? "hidden md:flex" : "flex"
+          }`}
+        >
           {activeConvId ? (
             <>
               <div className="p-4 border-b flex items-center gap-3 bg-background shadow-sm z-10">
+                {/* Nút back trên mobile */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden mr-1"
+                  onClick={() => {
+                    setActiveConvId(null);
+                    router.push("/messages");
+                  }}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+
                 <Avatar className="h-10 w-10 border">
-                  <AvatarImage src={activePartner?.avatar_url || ""} />
+                  <AvatarImage
+                    src={activePartner?.avatar_url || ""}
+                    className="object-cover"
+                  />
                   <AvatarFallback>
                     {activePartner?.username?.[0]?.toUpperCase()}
                   </AvatarFallback>

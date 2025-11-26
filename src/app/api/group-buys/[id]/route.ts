@@ -30,7 +30,7 @@ export async function GET(
         host:users!host_id ( id, username, avatar_url, reputation_score ),
         participants:group_buy_participants (
            quantity, status, joined_at,
-           user:users ( id, username, avatar_url )
+           user:users ( id, username, avatar_url, shipping_info ) 
         )
       `
       )
@@ -41,7 +41,6 @@ export async function GET(
       return NextResponse.json({ error: "Kèo không tồn tại" }, { status: 404 });
     }
 
-    // Tính tổng số lượng đã gom
     const totalQuantity =
       groupBuy.participants?.reduce(
         (acc: number, p: any) => acc + p.quantity,

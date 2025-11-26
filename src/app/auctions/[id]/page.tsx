@@ -24,12 +24,12 @@ import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { useUser } from "@/contexts/UserContext";
 import { BuyProductDialog } from "@/components/BuyProductDialog";
 
+// Khởi tạo Supabase Client (Dùng để nhận Realtime)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ... (Interface Bid và AuctionDetail giữ nguyên)
 interface Bid {
   id: string;
   bid_amount: number;
@@ -45,6 +45,8 @@ interface AuctionDetail {
   currentPrice: number;
   start_time: string;
   end_time: string;
+  winning_bidder_id: string | null;
+  isJoined: boolean;
   product: {
     id: string;
     name: string;
@@ -53,6 +55,7 @@ interface AuctionDetail {
     condition: string;
   };
   seller: {
+    id: string;
     username: string;
     avatar_url: string | null;
     reputation_score: number;
@@ -65,8 +68,16 @@ const formatCurrency = (val: number) =>
     val
   );
 
-const Countdown = ({ targetDate }: { targetDate: string }) => {
+// Component Countdown
+const Countdown = ({
+  targetDate,
+  onExpire,
+}: {
+  targetDate: string;
+  onExpire?: () => void;
+}) => {
   const [timeLeft, setTimeLeft] = useState("");
+  const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
     const updateTimer = () => {
@@ -74,8 +85,17 @@ const Countdown = ({ targetDate }: { targetDate: string }) => {
       const distance = new Date(targetDate).getTime() - now;
 
       if (distance < 0) {
-        setTimeLeft("ĐÃ KẾT THÚC");
+        setTimeLeft("ĐANG CHỐT...");
+        if (!isExpired) {
+          setIsExpired(true);
+          if (onExpire) onExpire();
+        }
         return;
+      }
+
+      // Reset expired nếu thời gian được gia hạn (anti-snipe)
+      if (isExpired && distance > 0) {
+        setIsExpired(false);
       }
 
       const days = Math.floor(distance / (1000 * 60 * 60 * 24));
@@ -91,10 +111,16 @@ const Countdown = ({ targetDate }: { targetDate: string }) => {
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [targetDate]);
+  }, [targetDate, onExpire, isExpired]);
 
   return (
-    <span className="font-mono font-bold text-red-600 text-lg">{timeLeft}</span>
+    <span
+      className={`font-mono font-bold text-lg ${
+        isExpired ? "text-gray-500" : "text-red-600"
+      }`}
+    >
+      {timeLeft}
+    </span>
   );
 };
 
@@ -104,46 +130,47 @@ export default function AuctionDetailPage() {
   const router = useRouter();
   const [auction, setAuction] = useState<AuctionDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasJoined, setHasJoined] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/auctions/${id}`);
-      if (!res.ok) throw new Error("Lỗi tải");
-      const data = await res.json();
-      setAuction(data.auction);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  // Hàm tải dữ liệu
+  const fetchData = useCallback(
+    async (isSilent = false) => {
+      if (!isSilent) setLoading(true);
+      try {
+        // Thêm timestamp để tránh cache trình duyệt
+        const res = await fetch(
+          `/api/auctions/${id}?t=${new Date().getTime()}`
+        );
+        if (!res.ok) {
+          if (res.status === 404) return;
+          throw new Error("Lỗi tải");
+        }
+        const data = await res.json();
+        setAuction(data.auction); // Cập nhật state
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (!isSilent) setLoading(false);
+      }
+    },
+    [id]
+  );
 
-  // Check user đã tham gia chưa (client-side check đơn giản, server check kỹ hơn)
-  const checkParticipation = useCallback(async () => {
-    if (!user || !id) return;
-    // Ta có thể gọi API hoặc query trực tiếp nếu dùng Supabase Client
-    const { data } = await supabase
-      .from("auction_participants")
-      .select("user_id")
-      .eq("auction_id", id)
-      .eq("user_id", user.id)
-      .single();
-
-    if (data) setHasJoined(true);
-  }, [user, id]);
-
+  // Fetch lần đầu
   useEffect(() => {
     fetchData();
-    checkParticipation();
-  }, [fetchData, checkParticipation]);
+  }, [fetchData]);
 
-  // Realtime
+  // === REALTIME SETUP (QUAN TRỌNG) ===
   useEffect(() => {
     if (!id) return;
+
+    console.log("🔌 Connecting Realtime for Auction:", id);
+
     const channel = supabase
-      .channel(`auction:${id}`)
+      .channel(`auction_room:${id}`) // Tên kênh duy nhất
+      // 1. Lắng nghe BID MỚI (INSERT vào bảng bids)
       .on(
         "postgres_changes",
         {
@@ -152,12 +179,31 @@ export default function AuctionDetailPage() {
           table: "bids",
           filter: `auction_id=eq.${id}`,
         },
-        () => {
-          fetchData();
+        (payload) => {
+          console.log("⚡ Realtime: Có người đặt giá mới!", payload);
+          fetchData(true); // Gọi API lấy dữ liệu mới nhất ngay lập tức
         }
       )
-      .subscribe();
+      // 2. Lắng nghe GIA HẠN THỜI GIAN / KẾT THÚC (UPDATE bảng auctions)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "auctions",
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log("⚡ Realtime: Phiên đấu giá cập nhật!", payload);
+          fetchData(true); // Cập nhật lại end_time, status, winner...
+        }
+      )
+      .subscribe((status) => {
+        console.log("📡 Realtime Status:", status);
+      });
+
     return () => {
+      console.log("🔌 Disconnecting Realtime...");
       supabase.removeChannel(channel);
     };
   }, [id, fetchData]);
@@ -181,10 +227,9 @@ export default function AuctionDetailPage() {
 
       if (res.ok) {
         alert(data.message);
-        setHasJoined(true);
+        fetchData(); // Refresh để cập nhật trạng thái isJoined
       } else {
         if (res.status === 402) {
-          // Chuyển hướng nạp tiền nếu thiếu tiền
           if (confirm("Số dư không đủ. Bạn có muốn nạp tiền ngay?")) {
             router.push("/wallet");
           }
@@ -200,7 +245,30 @@ export default function AuctionDetailPage() {
     }
   };
 
-  if (loading)
+  const handleFinalize = async () => {
+    if (auction && auction.status === "active") {
+      setFinalizing(true);
+      try {
+        const res = await fetch(`/api/auctions/${id}/finalize`, {
+          method: "POST",
+        });
+        if (res.ok) fetchData();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setFinalizing(false);
+      }
+    }
+  };
+
+  // Callback khi đặt giá thành công (gọi từ BidForm)
+  const onBidSuccess = () => {
+    // Không cần làm gì cả vì Realtime sẽ tự bắt sự kiện và refresh
+    // Nhưng để trải nghiệm người dùng mượt nhất (instant feedback), có thể gọi fetch nhẹ:
+    // fetchData(true);
+  };
+
+  if (loading && !auction)
     return (
       <div className="flex justify-center py-20">
         <Loader2 className="animate-spin h-10 w-10" />
@@ -212,14 +280,17 @@ export default function AuctionDetailPage() {
       <div className="text-center py-20">Không tìm thấy phiên đấu giá.</div>
     );
 
-  const isEnded =
-    auction.status === "ended" || new Date(auction.end_time) < new Date();
+  const isEnded = auction.status === "ended" || auction.status === "cancelled";
   const topBid =
     auction.bids && auction.bids.length > 0 ? auction.bids[0] : null;
-  const isWinner =
-    isEnded && topBid && user && topBid.bidder.username === user.username;
 
-  // Tính hạn chót thanh toán (24h sau khi kết thúc)
+  const isWinner =
+    user &&
+    ((isEnded && auction.winning_bidder_id === user.id) ||
+      (!isEnded &&
+        topBid?.bidder.username === user.username &&
+        new Date() > new Date(auction.end_time)));
+
   const paymentDeadline = new Date(
     new Date(auction.end_time).getTime() + 24 * 60 * 60 * 1000
   );
@@ -243,14 +314,12 @@ export default function AuctionDetailPage() {
             <div className="absolute top-4 right-4 z-10">
               <Badge
                 className={
-                  auction.status === "active" && !isEnded
-                    ? "bg-green-600 hover:bg-green-700"
+                  !isEnded
+                    ? "bg-green-600 hover:bg-green-700 animate-pulse"
                     : "bg-gray-500"
                 }
               >
-                {auction.status === "active" && !isEnded
-                  ? "ĐANG DIỄN RA"
-                  : "ĐÃ KẾT THÚC"}
+                {!isEnded ? "ĐANG DIỄN RA" : "ĐÃ KẾT THÚC"}
               </Badge>
             </div>
           </div>
@@ -303,7 +372,7 @@ export default function AuctionDetailPage() {
         <div className="space-y-6 lg:col-span-1 self-start lg:sticky lg:top-24">
           <Card
             className={`border-2 shadow-lg bg-card z-20 ${
-              isWinner
+              isWinner && isEnded
                 ? "border-green-500 ring-2 ring-green-200"
                 : "border-primary/20"
             }`}
@@ -320,7 +389,14 @@ export default function AuctionDetailPage() {
                       isEnded ? "text-gray-500" : "text-red-500 animate-pulse"
                     }`}
                   />
-                  <Countdown targetDate={auction.end_time} />
+                  {isEnded ? (
+                    <span className="font-bold text-gray-600">ĐÃ KẾT THÚC</span>
+                  ) : (
+                    <Countdown
+                      targetDate={auction.end_time}
+                      onExpire={handleFinalize}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -330,7 +406,10 @@ export default function AuctionDetailPage() {
                   Giá cao nhất hiện tại
                 </p>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-4xl font-bold text-primary animate-in fade-in slide-in-from-bottom-2 duration-300 key={auction.currentPrice}">
+                  <p
+                    className="text-4xl font-bold text-primary animate-in fade-in slide-in-from-bottom-2 duration-300 key={auction.currentPrice}"
+                    key={auction.currentPrice} // Key change triggers animation
+                  >
                     {formatCurrency(auction.currentPrice)}
                   </p>
                 </div>
@@ -342,7 +421,7 @@ export default function AuctionDetailPage() {
               <Separator />
 
               {/* Khu vực Hành động */}
-              {isWinner ? (
+              {isWinner && isEnded ? (
                 <div className="space-y-4 animate-in zoom-in duration-500">
                   <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4 text-center shadow-sm">
                     <div className="flex justify-center mb-2">
@@ -365,15 +444,12 @@ export default function AuctionDetailPage() {
                         })}{" "}
                         - {paymentDeadline.toLocaleDateString()}
                       </p>
-                      <p className="text-xs mt-1 text-red-500">
-                        (Trong vòng 24 giờ)
-                      </p>
                     </div>
                   </div>
 
                   <BuyProductDialog
                     product={{
-                      id: auction.product_id || auction.product.id || "unknown",
+                      id: auction.product.id,
                       name: auction.product.name,
                       price: auction.currentPrice,
                       status: "in_transaction",
@@ -382,15 +458,19 @@ export default function AuctionDetailPage() {
                     fixedPrice={auction.currentPrice}
                     auctionId={auction.id}
                   />
-
-                  <p className="text-center text-xs text-muted-foreground">
-                    * Sản phẩm đã được chuyển vào danh sách chờ thanh toán của
-                    bạn.
-                  </p>
                 </div>
-              ) : auction.status === "active" && !isEnded ? (
-                // Nếu chưa tham gia -> Hiện nút Tham gia
-                !hasJoined ? (
+              ) : isEnded && !isWinner ? (
+                <Button
+                  disabled
+                  variant="secondary"
+                  className="w-full py-6 text-lg"
+                >
+                  Phiên đấu giá đã kết thúc
+                </Button>
+              ) : !isEnded ? (
+                // Đang diễn ra
+                !auction.isJoined ? (
+                  // Chưa tham gia -> Hiện nút Tham gia
                   <div className="space-y-2">
                     <Button
                       onClick={handleJoinAuction}
@@ -411,21 +491,14 @@ export default function AuctionDetailPage() {
                     </p>
                   </div>
                 ) : (
-                  // Nếu đã tham gia -> Hiện form đặt giá
+                  // Đã tham gia -> Hiện form đặt giá
                   <BidForm
                     auctionId={auction.id}
                     currentPrice={auction.currentPrice}
+                    onSuccess={onBidSuccess} // Truyền callback refresh
                   />
                 )
-              ) : (
-                <Button
-                  disabled
-                  variant="secondary"
-                  className="w-full py-6 text-lg"
-                >
-                  Phiên đấu giá đã kết thúc
-                </Button>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 
@@ -434,7 +507,7 @@ export default function AuctionDetailPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-yellow-500" /> Lịch sử đặt giá
-                {auction.status === "active" && !isEnded && (
+                {!isEnded && (
                   <span className="text-xs font-normal text-muted-foreground ml-auto flex items-center gap-1">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>

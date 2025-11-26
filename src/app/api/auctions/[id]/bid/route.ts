@@ -39,7 +39,7 @@ async function getUserId(request: NextRequest): Promise<string | null> {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const userId = await getUserId(request);
   if (!userId)
@@ -48,7 +48,7 @@ export async function POST(
       { status: 401 }
     );
 
-  const { id: auctionId } = await params;
+  const { id: auctionId } = await ctx.params;
   const supabase = getSupabaseAdmin();
 
   try {
@@ -83,7 +83,8 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (new Date(auction.end_time) < new Date()) {
+    const now = new Date();
+    if (new Date(auction.end_time) < now) {
       return NextResponse.json(
         { error: "Thời gian đấu giá đã kết thúc." },
         { status: 400 }
@@ -96,7 +97,7 @@ export async function POST(
       );
     }
 
-    // === 3. KIỂM TRA ĐÃ THAM GIA (ĐÃ TRẢ PHÍ) CHƯA ===
+    // 3. Kiểm tra đã tham gia (đã trả phí)
     const { data: participant } = await supabase
       .from("auction_participants")
       .select("user_id")
@@ -110,7 +111,6 @@ export async function POST(
         { status: 403 }
       );
     }
-    // =================================================
 
     // 4. Validate Bước giá
     const { data: highestBidRecord } = await supabase
@@ -137,7 +137,7 @@ export async function POST(
     if (bidAmount < currentHighest + MIN_STEP) {
       return NextResponse.json(
         {
-          error: `Bạn phải ra giá cao hơn giá hiện tại ít nhất ${new Intl.NumberFormat(
+          error: `Giá phải cao hơn hiện tại ít nhất ${new Intl.NumberFormat(
             "vi-VN"
           ).format(MIN_STEP)}đ`,
         },
@@ -154,25 +154,24 @@ export async function POST(
 
     if (insertError) throw insertError;
 
-    // 6. Chống Snipe
-    const now = new Date().getTime();
+    // 6. Chống Snipe (Gia hạn thêm 2 phút nếu bid ở phút cuối)
     const endTime = new Date(auction.end_time).getTime();
-    const timeRemaining = endTime - now;
+    const timeRemaining = endTime - now.getTime();
 
     if (timeRemaining < 2 * 60 * 1000) {
-      const newEndTime = new Date(endTime + 2 * 60 * 1000);
+      const newEndTime = new Date(endTime + 2 * 60 * 1000); // Cộng thêm 2 phút
       await supabase
         .from("auctions")
         .update({ end_time: newEndTime.toISOString() })
         .eq("id", auctionId);
     }
 
-    // 7. Thông báo
+    // 7. Thông báo cho người bị vượt giá
     if (highestBidRecord && highestBidRecord.bidder_id !== userId) {
       createNotification(supabase, {
         userId: highestBidRecord.bidder_id,
         title: "⚠️ Bạn đã bị vượt giá!",
-        message: `Có người vừa trả giá cao hơn bạn trong phiên "${auction.product?.name}".`,
+        message: `Có người vừa trả giá cao hơn bạn trong phiên "${auction.product?.name}". Vào đặt lại ngay!`,
         type: "auction",
         link: `/auctions/${auctionId}`,
       });

@@ -3,32 +3,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useUser } from "@/contexts/UserContext";
-import { uploadFileViaApi } from "@/lib/storageUtils";
-import { ImageUploadPreview } from "@/components/ImageUploadPreview"; // Component chọn ảnh
-
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Loader2, Users, AlertCircle } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Loader2, UploadCloud, Users } from "lucide-react";
+import { uploadFileViaApi } from "@/lib/storageUtils";
+import { ImageUploadPreview } from "@/components/ImageUploadPreview";
+import { useUser } from "@/contexts/UserContext";
 
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
@@ -37,210 +20,164 @@ const formatCurrencyForInput = (value: string | number): string => {
   return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
 };
 
-const groupBuySchema = z.object({
-  productName: z.string().min(5, "Tên sản phẩm ít nhất 5 ký tự"),
-  description: z.string().optional(),
-  price: z.string().min(1, "Vui lòng nhập giá gom"),
-  targetQuantity: z.string().min(1, "Nhập số lượng mục tiêu"),
-  deadline: z.string().refine((val) => val !== "", "Chọn hạn chót"),
-});
-
-type GroupBuyFormValues = z.infer<typeof groupBuySchema>;
-
 export default function CreateGroupBuyPage() {
   const router = useRouter();
   const { user } = useUser();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const form = useForm<GroupBuyFormValues>({
-    resolver: zodResolver(groupBuySchema),
-    defaultValues: {
-      productName: "",
-      description: "",
-      price: "",
-      targetQuantity: "",
-      deadline: "",
-    },
+  const [formData, setFormData] = useState({
+    productName: "",
+    productDescription: "",
+    pricePerUnit: "",
+    targetQuantity: "",
   });
 
-  const onSubmit = async (values: GroupBuyFormValues) => {
-    setIsSubmitting(true);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setServerError(null);
 
-    try {
-      if (selectedFiles.length === 0)
-        throw new Error("Vui lòng chọn ít nhất 1 ảnh sản phẩm.");
+    if (!user) {
+      alert("Vui lòng đăng nhập.");
+      router.push("/login");
+      return;
+    }
 
+    if (selectedFiles.length === 0) {
+      setServerError("Vui lòng chọn ít nhất 1 ảnh.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
       // 1. Upload ảnh
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
       const imageUrls = await Promise.all(uploadPromises);
 
-      // 2. Gửi API
-      const payload = {
-        ...values,
-        imageUrls,
-      };
-
+      // 2. Gọi API tạo kèo
       const res = await fetch("/api/group-buys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          productName: formData.productName,
+          description: formData.productDescription,
+          price: formData.pricePerUnit, // API sẽ tự replace non-digit
+          targetQuantity: formData.targetQuantity,
+          imageUrls: imageUrls,
+          // Không gửi deadline nữa
+        }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Tạo kèo thất bại.");
+      if (!res.ok) throw new Error(data.error || "Tạo kèo thất bại");
 
       alert("Đã lên kèo thành công!");
       router.push("/group-buys");
     } catch (error: any) {
       setServerError(error.message);
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
-  if (!user)
-    return <div className="text-center py-20">Vui lòng đăng nhập.</div>;
-
   return (
-    <div className="container mx-auto py-8 max-w-2xl">
+    <div className="container mx-auto py-10 max-w-2xl px-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
             <Users className="h-6 w-6 text-orange-600" /> Tạo Kèo Mua Chung
           </CardTitle>
-          <CardDescription>
-            Gom đơn để mua được giá sỉ tốt nhất.
-          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="productName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tên sản phẩm *</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Ví dụ: Set 5 xe Hotwheels Fast & Furious"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Tên SP */}
+            <div className="space-y-2">
+              <Label>Tên sản phẩm *</Label>
+              <Input
+                required
+                value={formData.productName}
+                onChange={(e) =>
+                  setFormData({ ...formData, productName: e.target.value })
+                }
+                placeholder="Ví dụ: Set 5 xe Tomica Limited..."
               />
+            </div>
 
-              <FormItem>
-                <FormLabel>Hình ảnh *</FormLabel>
-                <FormControl>
-                  <ImageUploadPreview
-                    onFilesChange={setSelectedFiles}
-                    maxFiles={5}
-                  />
-                </FormControl>
-              </FormItem>
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mô tả & Điều khoản</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Mô tả chi tiết sản phẩm, quy định cọc..."
-                        {...field}
-                        rows={4}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            {/* Ảnh SP */}
+            <div className="space-y-2">
+              <Label>Hình ảnh *</Label>
+              <ImageUploadPreview
+                onFilesChange={setSelectedFiles}
+                maxFiles={5}
               />
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Giá / món (VND) *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Ví dụ: 50.000"
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(
-                              formatCurrencyForInput(e.target.value)
-                            )
-                          }
-                          value={formatCurrencyForInput(field.value)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="targetQuantity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Số lượng cần gom *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="Ví dụ: 10"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+            {/* Giá & Số lượng */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Giá mỗi suất (VNĐ) *</Label>
+                <Input
+                  required
+                  value={formData.pricePerUnit}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      pricePerUnit: formatCurrencyForInput(e.target.value),
+                    })
+                  }
+                  placeholder="100.000"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Số lượng mục tiêu *</Label>
+                <Input
+                  required
+                  type="number"
+                  min="1"
+                  value={formData.targetQuantity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, targetQuantity: e.target.value })
+                  }
+                  placeholder="10"
+                />
+              </div>
+            </div>
 
-              <FormField
-                control={form.control}
-                name="deadline"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hạn chót tham gia *</FormLabel>
-                    <FormControl>
-                      <Input type="datetime-local" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            {/* Mô tả */}
+            <div className="space-y-2">
+              <Label>Mô tả chi tiết & Điều khoản *</Label>
+              <Textarea
+                required
+                className="h-32"
+                value={formData.productDescription}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    productDescription: e.target.value,
+                  })
+                }
+                placeholder="Mô tả về sản phẩm, quy định cọc, cam kết của Host..."
               />
+            </div>
 
-              {serverError && (
-                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-md text-sm">
-                  <AlertCircle className="h-4 w-4" /> {serverError}
-                </div>
-              )}
+            {serverError && (
+              <p className="text-red-500 text-sm">{serverError}</p>
+            )}
 
-              <Button
-                type="submit"
-                className="w-full bg-orange-600 hover:bg-orange-700 text-lg py-6"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                ) : (
-                  "Đăng Kèo Ngay"
-                )}
-              </Button>
-            </form>
-          </Form>
+            <Button
+              type="submit"
+              className="w-full py-6 text-lg bg-orange-600 hover:bg-orange-700"
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="animate-spin mr-2" /> : null}
+              Đăng Kèo Ngay
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

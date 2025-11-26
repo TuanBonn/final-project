@@ -36,33 +36,25 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET: Lấy danh sách kèo thơm ===
+// === GET: Lấy danh sách kèo ===
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
-
-    // Lấy các kèo 'open'
     const { data: groupBuys, error } = await supabase
       .from("group_buys")
       .select(
         `
-        id,
-        product_name,
-        product_images,
-        price_per_unit,
-        target_quantity,
-        join_deadline,
-        status,
-        host:users!host_id ( username, avatar_url, reputation_score ),
+        id, product_name, product_images, price_per_unit, target_quantity, status,
+        host:users!host_id ( username, avatar_url ),
         participants:group_buy_participants ( count )
       `
       )
-      .eq("status", "open")
+      .neq("status", "failed") // Ẩn kèo đã hủy
+      .neq("status", "completed") // Ẩn kèo đã xong
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    // Format data
     const formatted = groupBuys?.map((gb: any) => ({
       id: gb.id,
       name: gb.product_name,
@@ -70,7 +62,6 @@ export async function GET(request: NextRequest) {
       price: Number(gb.price_per_unit),
       target: gb.target_quantity,
       current: gb.participants?.[0]?.count || 0,
-      deadline: gb.join_deadline,
       host: gb.host,
       status: gb.status,
     }));
@@ -91,29 +82,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const {
-      productName,
-      description,
-      price,
-      targetQuantity,
-      deadline,
-      imageUrls,
-    } = body;
+    const { productName, description, price, targetQuantity, imageUrls } = body;
 
-    if (!productName || !price || !targetQuantity || !deadline) {
+    if (!productName || !price || !targetQuantity) {
       return NextResponse.json(
         { error: "Thiếu thông tin bắt buộc." },
         { status: 400 }
       );
     }
 
-    const joinDeadline = new Date(deadline);
-    if (joinDeadline <= new Date()) {
-      return NextResponse.json(
-        { error: "Hạn chót không hợp lệ." },
-        { status: 400 }
-      );
-    }
+    // Clean giá tiền (100.000 -> 100000)
+    const cleanPrice = price.toString().replace(/\D/g, "");
 
     const { data: newGroupBuy, error } = await supabase
       .from("group_buys")
@@ -121,11 +100,11 @@ export async function POST(request: NextRequest) {
         host_id: userId,
         product_name: productName,
         product_description: description,
-        price_per_unit: price.replace(/\D/g, ""),
+        price_per_unit: cleanPrice,
         target_quantity: Number(targetQuantity),
-        join_deadline: joinDeadline.toISOString(),
         product_images: imageUrls || [],
         status: "open",
+        // join_deadline: null // Bỏ deadline
       })
       .select()
       .single();

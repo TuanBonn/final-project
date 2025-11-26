@@ -2,9 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link"; // <-- IMPORT THÊM
-import { MoreHorizontal, EyeOff, Eye, Loader2, Edit } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,162 +11,188 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-// Kiểu ProductRow (nhận props từ page)
-type ProductRow = {
-  id: string;
-  name: string;
-  status: "available" | "in_transaction" | "sold";
-};
+  MoreHorizontal,
+  Edit,
+  Eye,
+  Lock,
+  RefreshCw, // Icon Gỡ ẩn/Khôi phục
+  EyeOff, // Icon Ẩn
+} from "lucide-react";
+import Link from "next/link";
 
 interface ProductActionsProps {
-  product: ProductRow;
-  onActionSuccess: () => void; // "Bộ đàm"
+  product: {
+    id: string;
+    name: string;
+    status: string; // Quan trọng để check 'auction', 'available', 'sold'
+  };
+  onActionSuccess?: () => void;
 }
 
 export function ProductActions({
   product,
   onActionSuccess,
 }: ProductActionsProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [alertOpen, setAlertOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-  // Quyết định hành động dựa trên trạng thái
+  // Check trạng thái
+  const isAuction = product.status === "auction";
+  const isSold = product.status === "sold";
   const isAvailable = product.status === "available";
-  const currentAction = isAvailable ? "Gỡ (Ẩn)" : "Khôi phục";
-  const newStatus = isAvailable ? "sold" : "available";
 
-  // Hàm gọi API (chỉ dùng cho Gỡ/Khôi phục)
-  const callUpdateApi = async (payload: object) => {
-    setIsLoading(true);
-    setError(null);
+  // 1. Hàm KHÔI PHỤC / GỠ ẨN (Đưa từ sold -> available)
+  const handleRestore = async () => {
+    if (isAuction) return;
+
+    if (!confirm(`Bạn muốn GỠ ẨN sản phẩm "${product.name}" để bán lại?`))
+      return;
+
+    setLoading(true);
     try {
-      const response = await fetch(`/api/admin/products/${product.id}`, {
+      const res = await fetch(`/api/admin/products/${product.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ status: "available" }), // Đưa về available
       });
+      const data = await res.json();
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Hành động thất bại.");
+      if (!res.ok) throw new Error(data.error);
 
-      onActionSuccess(); // Báo cáo cho cha
-      return true;
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
-      return false;
+      alert("Đã gỡ ẩn thành công! Sản phẩm đã xuất hiện lại trên sàn.");
+      if (onActionSuccess) onActionSuccess();
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || "Lỗi khi gỡ ẩn sản phẩm");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // Hàm xử lý "Gỡ" / "Khôi phục"
-  const handleToggleStatus = async () => {
-    const success = await callUpdateApi({ status: newStatus });
-    if (success) {
-      setAlertOpen(false); // Đóng hộp thoại
+  // 2. Hàm TẠM ẨN (Đưa từ available -> sold)
+  // Lưu ý: Ta dùng trạng thái 'sold' để ẩn sản phẩm khỏi danh sách mua
+  const handleHide = async () => {
+    if (isAuction) return;
+
+    if (
+      !confirm(
+        `Bạn muốn TẠM ẨN sản phẩm "${product.name}"? Khách hàng sẽ không thấy sản phẩm này nữa.`
+      )
+    )
+      return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "sold" }), // Đưa về sold (coi như ẩn)
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error);
+
+      alert("Đã ẩn sản phẩm thành công.");
+      if (onActionSuccess) onActionSuccess();
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || "Lỗi khi ẩn sản phẩm");
+    } finally {
+      setLoading(false);
     }
   };
-
-  // (Không cần hàm handleEdit nữa)
 
   return (
-    <>
-      {/* Hộp thoại xác nhận (Giữ nguyên) */}
-      <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sếp chắc chưa?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                Sếp sắp{" "}
-                <strong className="text-red-600">
-                  {currentAction.toLowerCase()}
-                </strong>{" "}
-                sản phẩm:
-                <strong className="mx-1">{product.name}</strong>?
-                {isAvailable
-                  ? " Sản phẩm sẽ bị ẩn khỏi trang bán hàng."
-                  : " Sản phẩm sẽ xuất hiện lại trên trang bán hàng."}
-                {error && (
-                  <p className="text-red-600 mt-2 font-medium">{error}</p>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Hủy</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleToggleStatus}
-              disabled={isLoading}
-              className={isAvailable ? "bg-red-600 hover:bg-red-700" : ""}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                `Ok, ${currentAction}!`
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-8 w-8 p-0">
+          <span className="sr-only">Open menu</span>
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+        <DropdownMenuItem
+          onClick={() => navigator.clipboard.writeText(product.id)}
+        >
+          Copy ID
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
 
-      {/* Nút 3 chấm */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <MoreHorizontal className="h-4 w-4" />
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+        {/* Xem chi tiết (Luôn mở) */}
+        <DropdownMenuItem asChild>
+          <Link href={`/products/${product.id}`} target="_blank">
+            <Eye className="mr-2 h-4 w-4" /> Xem chi tiết
+          </Link>
+        </DropdownMenuItem>
 
-          {/* === SỬA NÚT NÀY === */}
-          <DropdownMenuItem asChild>
+        {/* Sửa (Disable nếu là auction) */}
+        <DropdownMenuItem
+          asChild
+          disabled={isAuction}
+          className={isAuction ? "opacity-50 cursor-not-allowed" : ""}
+        >
+          {isAuction ? (
+            <span className="flex items-center w-full">
+              <Lock className="mr-2 h-4 w-4 text-yellow-600" /> Sửa (Bị khóa)
+            </span>
+          ) : (
             <Link href={`/admin/products/${product.id}/edit`}>
-              <Edit className="mr-2 h-4 w-4" />
-              <span>Sửa chi tiết</span>
+              <Edit className="mr-2 h-4 w-4" /> Chỉnh sửa
             </Link>
-          </DropdownMenuItem>
-          {/* ================= */}
+          )}
+        </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+        <DropdownMenuSeparator />
+
+        {/* --- LOGIC NÚT ẨN / GỠ ẨN --- */}
+
+        {/* Nếu đang bán (available) -> Hiện nút TẠM ẨN */}
+        {isAvailable && (
           <DropdownMenuItem
-            onClick={() => {
-              setError(null);
-              setAlertOpen(true);
-            }}
-            disabled={isLoading}
-            className={
-              isAvailable
-                ? "text-red-600 focus:text-red-600"
-                : "text-green-600 focus:text-green-600"
-            }
+            onClick={handleHide}
+            disabled={loading || isAuction}
+            className="text-orange-600 focus:text-orange-600"
           >
-            {isAvailable ? (
-              <EyeOff className="mr-2 h-4 w-4" />
+            {loading ? (
+              "Đang xử lý..."
             ) : (
-              <Eye className="mr-2 h-4 w-4" />
+              <>
+                <EyeOff className="mr-2 h-4 w-4" /> Tạm ẩn sản phẩm
+              </>
             )}
-            <span>{currentAction} sản phẩm</span>
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
+        )}
+
+        {/* Nếu đã bán/ẩn (sold) -> Hiện nút GỠ ẨN / KHÔI PHỤC */}
+        {isSold && (
+          <DropdownMenuItem
+            onClick={handleRestore}
+            disabled={loading || isAuction}
+            className="text-blue-600 focus:text-blue-600"
+          >
+            {loading ? (
+              "Đang xử lý..."
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" /> Gỡ ẩn / Khôi phục
+              </>
+            )}
+          </DropdownMenuItem>
+        )}
+
+        {/* Nếu là Auction -> Thông báo khóa */}
+        {isAuction && (
+          <DropdownMenuItem
+            disabled
+            className="text-muted-foreground italic text-xs"
+          >
+            Sản phẩm đấu giá không thể Ẩn/Xóa
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

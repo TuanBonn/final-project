@@ -35,6 +35,9 @@ export async function GET(request: Request) {
     const filterBrandIds = params.getAll("brand_id");
     const filterSellerId = params.get("seller_id");
 
+    // --- MỚI: Lấy từ khóa tìm kiếm ---
+    const search = params.get("search") || "";
+
     // --- LOGIC PHÂN TRANG ---
     const page = parseInt(params.get("page") || "1");
     const limit = parseInt(params.get("limit") || "15");
@@ -60,6 +63,11 @@ export async function GET(request: Request) {
         { count: "exact" }
       )
       .eq("status", "available");
+
+    // --- MỚI: Áp dụng tìm kiếm ---
+    if (search) {
+      query = query.ilike("name", `%${search}%`);
+    }
 
     if (filterConditions.length > 0)
       query = query.in("condition", filterConditions);
@@ -94,8 +102,9 @@ export async function GET(request: Request) {
   }
 }
 
-// ================== SỬA PHẦN POST (ĐĂNG SẢN PHẨM) ==================
+// ... (Phần POST giữ nguyên)
 export async function POST(request: Request) {
+  // (Giữ nguyên code POST cũ của bạn ở đây)
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
       { error: "Lỗi cấu hình server." },
@@ -133,7 +142,6 @@ export async function POST(request: Request) {
     if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");
 
     const body = await request.json();
-    // 1. Lấy quantity từ body
     const {
       name,
       description,
@@ -169,7 +177,6 @@ export async function POST(request: Request) {
         condition,
         image_urls: imageUrls,
         status: "available",
-        // 2. Lưu quantity vào DB (nếu không có thì mặc định là 1)
         quantity: quantity ? parseInt(quantity.toString()) : 1,
       })
       .select()

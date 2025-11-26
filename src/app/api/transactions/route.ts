@@ -62,9 +62,20 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (buyQty < 1) {
+
+    // === 0. KIỂM TRA ĐỊA CHỈ GIAO HÀNG ===
+    const { data: buyer } = await supabaseAdmin
+      .from("users")
+      .select("shipping_info, balance, username, email")
+      .eq("id", buyerId)
+      .single();
+
+    if (!buyer?.shipping_info) {
       return NextResponse.json(
-        { error: "Số lượng không hợp lệ." },
+        {
+          error:
+            "Bạn chưa cập nhật địa chỉ giao hàng. Vui lòng vào trang Hồ sơ để cập nhật.",
+        },
         { status: 400 }
       );
     }
@@ -85,8 +96,8 @@ export async function POST(request: NextRequest) {
 
     let totalAmount = 0;
 
+    // === LOGIC ĐẤU GIÁ ===
     if (auctionId) {
-      // --- ĐẤU GIÁ ---
       const { data: auction } = await supabaseAdmin
         .from("auctions")
         .select("status, winning_bidder_id, starting_bid")
@@ -94,36 +105,52 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (!auction)
-        return NextResponse.json(
-          { error: "Đấu giá không tồn tại." },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: "Đấu giá lỗi." }, { status: 404 });
 
-      // Kiểm tra quyền người thắng
-      const { data: highestBid } = await supabaseAdmin
-        .from("bids")
-        .select("bid_amount, bidder_id")
-        .eq("auction_id", auctionId)
-        .order("bid_amount", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (highestBid?.bidder_id !== buyerId) {
+      // Validate Winner
+      if (auction.winning_bidder_id !== buyerId) {
         return NextResponse.json(
           { error: "Bạn không phải người thắng cuộc." },
           { status: 403 }
         );
       }
 
-      const winningPrice = highestBid
+      // Check trùng đơn
+      const { data: existingTx } = await supabaseAdmin
+        .from("transactions")
+        .select("id")
+        .eq("product_id", productId)
+        .eq("buyer_id", buyerId)
+        .neq("status", "cancelled")
+        .maybeSingle();
+
+      if (existingTx) {
+        return NextResponse.json(
+          {
+            error: "Đơn hàng cho phiên này đã được tạo.",
+            transactionId: existingTx.id,
+          },
+          { status: 409 }
+        );
+      }
+
+      // Lấy giá thắng
+      const { data: highestBid } = await supabaseAdmin
+        .from("bids")
+        .select("bid_amount")
+        .eq("auction_id", auctionId)
+        .order("bid_amount", { ascending: false })
+        .limit(1)
+        .single();
+
+      totalAmount = highestBid
         ? Number(highestBid.bid_amount)
         : Number(auction.starting_bid);
-      totalAmount = winningPrice;
     } else {
       // --- MUA THƯỜNG ---
       if (product.status !== "available") {
         return NextResponse.json(
-          { error: "Sản phẩm này đã ngừng bán." },
+          { error: "Sản phẩm này không khả dụng." },
           { status: 409 }
         );
       }
@@ -142,16 +169,11 @@ export async function POST(request: NextRequest) {
       totalAmount = Number(product.price) * buyQty;
     }
 
-    // === 2. XỬ LÝ THANH TOÁN QUA VÍ ===
+    // === 2. XỬ LÝ THANH TOÁN (VÍ) ===
     let transactionStatus = "initiated";
-    if (paymentMethod === "wallet") {
-      const { data: buyer } = await supabaseAdmin
-        .from("users")
-        .select("balance")
-        .eq("id", buyerId)
-        .single();
 
-      const currentBalance = Number(buyer?.balance || 0);
+    if (paymentMethod === "wallet") {
+      const currentBalance = Number(buyer.balance || 0);
       if (currentBalance < totalAmount) {
         return NextResponse.json(
           { error: "Số dư ví không đủ." },
@@ -159,11 +181,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // TRỪ TIỀN
-      await supabaseAdmin
+      const { error: balanceError } = await supabaseAdmin
         .from("users")
         .update({ balance: currentBalance - totalAmount })
         .eq("id", buyerId);
+
+      if (balanceError) throw balanceError;
 
       transactionStatus = "buyer_paid";
 
@@ -176,14 +199,20 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. Cập nhật kho
+    // 3. Cập nhật kho & Status sản phẩm
     const qtyToDeduct = auctionId ? product.quantity : buyQty;
     const newStock = Math.max(0, product.quantity - qtyToDeduct);
-    const newStatus = newStock === 0 ? "sold" : "available";
+
+    let finalProductStatus;
+    if (auctionId) {
+      finalProductStatus = "auction";
+    } else {
+      finalProductStatus = newStock === 0 ? "sold" : "available";
+    }
 
     await supabaseAdmin
       .from("products")
-      .update({ quantity: newStock, status: newStatus })
+      .update({ quantity: newStock, status: finalProductStatus })
       .eq("id", productId);
 
     // 4. Tạo Giao dịch
@@ -198,6 +227,7 @@ export async function POST(request: NextRequest) {
         payment_method: paymentMethod,
         quantity: buyQty,
         platform_commission: 0,
+        shipping_address: buyer.shipping_info, // <--- LƯU ĐỊA CHỈ VÀO ĐƠN HÀNG
       })
       .select()
       .single();
@@ -210,8 +240,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // === CẬP NHẬT TRẠNG THÁI AUCTION THÀNH 'ended' ===
-    // Điều này sẽ ẩn phiên đấu giá khỏi danh sách active/scheduled
     if (auctionId) {
       await supabaseAdmin
         .from("auctions")
@@ -220,15 +248,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Gửi Email & Thông báo
-    const { data: buyerInfo } = await supabaseAdmin
-      .from("users")
-      .select("email, username")
-      .eq("id", buyerId)
-      .single();
-
-    if (buyerInfo?.email) {
+    if (buyer.email) {
       sendOrderConfirmationEmail(
-        buyerInfo.email,
+        buyer.email,
         transaction.id,
         product.name,
         totalAmount,
@@ -239,9 +261,9 @@ export async function POST(request: NextRequest) {
     createNotification(supabaseAdmin, {
       userId: product.seller_id,
       title: auctionId
-        ? "🏆 Người thắng đấu giá đã thanh toán!"
+        ? "🏆 Người thắng đấu giá đã tạo đơn!"
         : "🎉 Có đơn hàng mới!",
-      message: `Khách hàng ${buyerInfo?.username || "Ẩn danh"} vừa mua "${
+      message: `Khách hàng ${buyer.username || "Ẩn danh"} vừa đặt mua "${
         product.name
       }".`,
       type: "order",

@@ -23,7 +23,7 @@ export default function LogoutButton() {
 
       // Đăng xuất thành công
       console.log("Đăng xuất thành công từ client."); // Log để debug
-      router.push("/"); // Về trang chủ
+      router.replace("/"); // Về trang chủ
       router.refresh(); // Làm mới trang để cập nhật UI (Header sẽ nhận lại user là null)
     } catch (error: unknown) {
       console.error("Lỗi khi đăng xuất:", error);

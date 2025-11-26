@@ -38,13 +38,13 @@ async function getUserId(request: NextRequest): Promise<string | null> {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const userId = await getUserId(request);
   if (!userId)
     return NextResponse.json({ error: "Vui lòng đăng nhập." }, { status: 401 });
 
-  const { id: groupBuyId } = await params;
+  const { id: groupBuyId } = await ctx.params;
   const supabase = getSupabaseAdmin();
 
   try {
@@ -60,22 +60,68 @@ export async function POST(
     // 1. Kiểm tra kèo
     const { data: groupBuy } = await supabase
       .from("group_buys")
-      .select("status, join_deadline")
+      .select("status, join_deadline, price_per_unit, product_name")
       .eq("id", groupBuyId)
       .single();
 
     if (!groupBuy)
       return NextResponse.json({ error: "Kèo không tồn tại" }, { status: 404 });
+
     if (groupBuy.status !== "open")
       return NextResponse.json({ error: "Kèo này đã đóng." }, { status: 400 });
-    if (new Date(groupBuy.join_deadline) < new Date())
-      return NextResponse.json(
-        { error: "Đã hết hạn tham gia." },
-        { status: 400 }
-      );
 
-    // 2. Kiểm tra đã tham gia chưa (Nếu rồi -> Update, chưa -> Insert)
-    // Ở đây dùng Upsert cho tiện
+    // === SỬA LỖI TẠI ĐÂY ===
+    // Chỉ kiểm tra hết hạn NẾU có set deadline
+    if (groupBuy.join_deadline) {
+      const now = new Date();
+      const deadline = new Date(groupBuy.join_deadline);
+      if (deadline < now) {
+        return NextResponse.json(
+          { error: "Đã hết hạn tham gia." },
+          { status: 400 }
+        );
+      }
+    }
+    // ======================
+
+    // 2. Tính tổng tiền
+    const totalAmount = Number(groupBuy.price_per_unit) * qty;
+
+    // 3. Kiểm tra số dư User
+    const { data: user } = await supabase
+      .from("users")
+      .select("balance")
+      .eq("id", userId)
+      .single();
+
+    if (!user || Number(user.balance) < totalAmount) {
+      return NextResponse.json(
+        { error: "Số dư ví không đủ. Vui lòng nạp thêm." },
+        { status: 402 }
+      );
+    }
+
+    // 4. THỰC HIỆN GIAO DỊCH (Trừ tiền + Join)
+
+    // A. Trừ tiền User
+    const { error: balanceError } = await supabase
+      .from("users")
+      .update({ balance: Number(user.balance) - totalAmount })
+      .eq("id", userId);
+
+    if (balanceError) throw balanceError;
+
+    // B. Ghi log Payment
+    await supabase.from("platform_payments").insert({
+      user_id: userId,
+      amount: totalAmount,
+      payment_for_type: "group_buy_order",
+      status: "succeeded",
+      currency: "VND",
+      related_id: groupBuyId,
+    });
+
+    // C. Thêm vào danh sách tham gia
     const { error: upsertError } = await supabase
       .from("group_buy_participants")
       .upsert(
@@ -83,7 +129,7 @@ export async function POST(
           group_buy_id: groupBuyId,
           user_id: userId,
           quantity: qty,
-          status: "pending_payment", // Mặc định chờ thanh toán/cọc
+          status: "paid",
         },
         { onConflict: "group_buy_id,user_id" }
       );
@@ -91,7 +137,7 @@ export async function POST(
     if (upsertError) throw upsertError;
 
     return NextResponse.json(
-      { message: "Tham gia thành công!" },
+      { message: "Thanh toán và tham gia thành công!" },
       { status: 200 }
     );
   } catch (error: any) {

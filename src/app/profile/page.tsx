@@ -1,41 +1,58 @@
 // src/app/profile/page.tsx
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Loader2, KeyRound, ShieldCheck } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
-import { uploadFileViaApi } from "@/lib/storageUtils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Loader2,
+  ShieldCheck,
+  MapPin,
+  CreditCard,
+  Save,
+  User,
+  Camera,
+  UploadCloud,
+  KeyRound,
+  Package,
+  HelpCircle,
+} from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
+import { Separator } from "@/components/ui/separator";
+import { uploadFileViaApi } from "@/lib/storageUtils";
+// import { createClient } from "@supabase/supabase-js"; // <-- XÓA DÒNG NÀY (Không cần nữa)
+import { ProductCard } from "@/components/ProductCard";
 
-interface UserProfile {
-  id: string;
+interface ShippingInfo {
+  fullName: string;
+  phone: string;
+  address: string;
+  city: string;
+}
+
+interface BankInfo {
+  bankName: string;
+  accountNo: string;
+  accountName: string;
+}
+
+interface BasicInfo {
+  username: string;
   email: string;
-  username: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-  role: string;
-  is_verified: boolean;
-  reputation_score: number;
-  created_at: string;
-  bank_info: {
-    bankName: string;
-    accountNo: string;
-    accountName: string;
-  } | null;
+  fullName: string;
+  avatarUrl: string;
 }
 
 const getInitials = (name: string | null): string => {
@@ -49,535 +66,614 @@ const getInitials = (name: string | null): string => {
 };
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const { fetchUserData: refetchUserContext } = useUser();
-
-  const [isSaving, setIsSaving] = useState(false);
-  const [editFullName, setEditFullName] = useState("");
-  const [editUsername, setEditUsername] = useState("");
-
-  // State Bank Info
-  const [editBankName, setEditBankName] = useState("");
-  const [editAccountNo, setEditAccountNo] = useState("");
-  const [editAccountName, setEditAccountName] = useState("");
-
-  const [editError, setEditError] = useState<string | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const { user, fetchUserData } = useUser();
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Change password states
-  const [isChangePassOpen, setIsChangePassOpen] = useState(false);
-  const [isChangingPass, setIsChangingPass] = useState(false);
-  const [changePassError, setChangePassError] = useState<string | null>(null);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  // --- States cho Profile ---
+  const [basicInfo, setBasicInfo] = useState<BasicInfo>({
+    username: "",
+    email: "",
+    fullName: "",
+    avatarUrl: "",
+  });
+  const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
+    fullName: "",
+    phone: "",
+    address: "",
+    city: "",
+  });
+  const [bankInfo, setBankInfo] = useState<BankInfo>({
+    bankName: "",
+    accountNo: "",
+    accountName: "",
+  });
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/profile/me", {
-        cache: "no-store",
-        credentials: "include",
+  // --- States cho Đổi mật khẩu ---
+  const [passwords, setPasswords] = useState({
+    current: "",
+    new: "",
+    confirm: "",
+  });
+  const [passLoading, setPassLoading] = useState(false);
+
+  // --- States cho Sản phẩm của User ---
+  const [userProducts, setUserProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // 1. Load thông tin User
+  useEffect(() => {
+    if (user) {
+      setBasicInfo({
+        username: user.username || "",
+        email: user.email || "",
+        fullName: user.full_name || "",
+        avatarUrl: user.avatar_url || "",
       });
-      const responseText = await response.text();
+      if (user.shipping_info) setShippingInfo(user.shipping_info);
+      if (user.bank_info) setBankInfo(user.bank_info);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError("Yêu cầu đăng nhập.");
-          router.push("/login?message=Session expired");
-        } else {
-          setError("Lỗi tải profile.");
-        }
-        setProfile(null);
-        return;
-      }
+      // Fetch sản phẩm
+      fetchUserProducts();
+    }
+  }, [user]);
 
-      const data = JSON.parse(responseText);
-      if (data.profile) {
-        setProfile(data.profile);
-        setEditFullName(data.profile.full_name || "");
-        setEditUsername(data.profile.username || "");
+  // 2. Hàm lấy sản phẩm (GỌI API SERVER)
+  const fetchUserProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      // Gọi API thay vì dùng supabase client trực tiếp
+      const res = await fetch("/api/profile/products");
+      const data = await res.json();
 
-        if (data.profile.bank_info) {
-          setEditBankName(data.profile.bank_info.bankName || "");
-          setEditAccountNo(data.profile.bank_info.accountNo || "");
-          setEditAccountName(data.profile.bank_info.accountName || "");
-        }
+      if (res.ok && data.products) {
+        setUserProducts(data.products);
       } else {
-        setError("Không tìm thấy dữ liệu profile.");
-        setProfile(null);
+        console.error("Lỗi tải sản phẩm:", data.error);
+        setUserProducts([]);
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
-      setProfile(null);
+    } catch (error) {
+      console.error("Lỗi kết nối:", error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // 3. Xử lý Upload Avatar
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Ảnh quá lớn (Tối đa 5MB)");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const uploadedUrl = await uploadFileViaApi("avatars", file);
+      if (uploadedUrl) {
+        setBasicInfo((prev) => ({ ...prev, avatarUrl: uploadedUrl }));
+      }
+    } catch (error: any) {
+      alert("Lỗi tải ảnh lên: " + (error.message || "Unknown error"));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // 4. Xử lý Lưu thông tin
+  const handleUpdateProfile = async () => {
+    setLoading(true);
+    try {
+      const payload = {
+        username: basicInfo.username,
+        email: basicInfo.email,
+        full_name: basicInfo.fullName,
+        avatar_url: basicInfo.avatarUrl,
+        shipping_info: shippingInfo,
+        bank_info: {
+          ...bankInfo,
+          accountName: bankInfo.accountName.toUpperCase(),
+        },
+      };
+
+      const res = await fetch("/api/profile/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lỗi cập nhật");
+
+      alert("Đã lưu thông tin thành công!");
+      if (fetchUserData) await fetchUserData();
+    } catch (error: any) {
+      alert(error.message || "Lỗi khi lưu hồ sơ.");
     } finally {
       setLoading(false);
     }
-  }, [router]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setEditError("Ảnh quá bự (tối đa 5MB thôi).");
-        setSelectedFile(null);
-        setPreviewUrl(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        return;
-      }
-      setSelectedFile(file);
-      setEditError(null);
-      const reader = new FileReader();
-      reader.onloadend = () => setPreviewUrl(reader.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setSelectedFile(null);
-      setPreviewUrl(null);
-    }
   };
 
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profile) return;
-    setIsSaving(true);
-    setEditError(null);
-    let uploadedAvatarUrl: string | null = null;
-
-    try {
-      if (selectedFile) {
-        uploadedAvatarUrl = await uploadFileViaApi("avatars", selectedFile);
-      }
-
-      const updatePayload: any = {};
-      const currentFullName = profile?.full_name || "";
-      const currentUsername = profile?.username || "";
-
-      if (editFullName.trim() !== "" && editFullName.trim() !== currentFullName)
-        updatePayload.fullName = editFullName.trim();
-      if (editUsername.trim() !== currentUsername)
-        updatePayload.username = editUsername.trim();
-      if (uploadedAvatarUrl) updatePayload.avatarUrl = uploadedAvatarUrl;
-
-      // Bank Info
-      if (editBankName && editAccountNo && editAccountName) {
-        updatePayload.bankInfo = {
-          bankName: editBankName,
-          accountNo: editAccountNo,
-          accountName: editAccountName.toUpperCase(),
-        };
-      }
-
-      if (Object.keys(updatePayload).length > 0) {
-        const response = await fetch("/api/profile/me", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updatePayload),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Update failed.");
-        setProfile(data.profile);
-        await refetchUserContext();
-      }
-
-      setIsDialogOpen(false);
-      setSelectedFile(null);
-      setPreviewUrl(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err: unknown) {
-      setEditError(err instanceof Error ? err.message : "Update error.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDialogClose = (open: boolean) => {
-    setIsDialogOpen(open);
-    if (!open) {
-      setEditFullName(profile?.full_name || "");
-      setEditUsername(profile?.username || "");
-      if (profile?.bank_info) {
-        setEditBankName(profile.bank_info.bankName);
-        setEditAccountNo(profile.bank_info.accountNo);
-        setEditAccountName(profile.bank_info.accountName);
-      }
-      setSelectedFile(null);
-      setPreviewUrl(null);
-      setEditError(null);
-      setIsSaving(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setChangePassError(null);
-
-    if (newPassword.length < 6) {
-      setChangePassError("Mật khẩu mới phải ít nhất 6 ký tự.");
+  // 5. Xử lý Đổi Mật Khẩu
+  const handleChangePassword = async () => {
+    if (passwords.new !== passwords.confirm) {
+      alert("Mật khẩu xác nhận không khớp!");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setChangePassError("Mật khẩu mới không khớp.");
+    if (passwords.new.length < 6) {
+      alert("Mật khẩu mới phải có ít nhất 6 ký tự.");
       return;
     }
-    setIsChangingPass(true);
 
+    setPassLoading(true);
     try {
-      const response = await fetch("/api/auth/change-password", {
+      const res = await fetch("/api/auth/change-password", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({
+          currentPassword: passwords.current,
+          newPassword: passwords.new,
+        }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Đổi mật khẩu thất bại.");
 
-      alert(data.message);
-      setIsChangePassOpen(false);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err: unknown) {
-      setChangePassError(
-        err instanceof Error ? err.message : "Lỗi không xác định."
-      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Đổi mật khẩu thất bại");
+
+      alert("Đổi mật khẩu thành công!");
+      setPasswords({ current: "", new: "", confirm: "" });
+    } catch (error: any) {
+      alert(error.message || "Lỗi đổi mật khẩu.");
     } finally {
-      setIsChangingPass(false);
+      setPassLoading(false);
     }
   };
 
-  const handleChangePassDialogClose = (open: boolean) => {
-    setIsChangePassOpen(open);
-    if (!open) {
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setChangePassError(null);
-      setIsChangingPass(false);
-    }
-  };
-
-  if (loading)
+  if (!user) {
     return (
-      <div className="text-center py-10">
-        <Loader2 className="animate-spin inline-block mr-2 h-6 w-6" /> Đang
-        tải...
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="animate-spin h-8 w-8 text-primary" />
       </div>
     );
-  if (error)
-    return (
-      <div className="text-center py-10 px-4">
-        <Card className="inline-block bg-red-100 border-red-400 p-4">
-          <p className="text-red-700 font-semibold">Lỗi:</p>
-          <p className="text-red-600">{error}</p>
-        </Card>
-      </div>
-    );
-  if (!profile) return null;
+  }
 
   return (
-    <div className="space-y-8 max-w-3xl mx-auto p-4 md:p-0">
-      <Card className="overflow-hidden">
-        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4 bg-muted/30 p-6">
-          <div>
-            <CardTitle className="text-2xl font-bold">Hồ sơ của bạn</CardTitle>
-            <p className="text-sm text-muted-foreground pt-1">
-              Trung tâm vũ trụ diecast của riêng bạn.
-            </p>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1">
-                <Edit className="h-4 w-4" /> <span>Sửa</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px]">
-              <DialogHeader>
-                <DialogTitle>Chỉnh sửa hồ sơ</DialogTitle>
-                <DialogDescription>
-                  Cập nhật xong thì Lưu nha.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleEditSubmit} className="pt-4">
-                <div className="grid gap-6">
-                  {/* Avatar & Info */}
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label
-                      htmlFor="edit-avatar"
-                      className="text-right whitespace-nowrap"
-                    >
-                      Ảnh mới
-                    </Label>
-                    <div className="col-span-3 flex items-center gap-4">
-                      <Avatar className="h-16 w-16 border">
-                        <AvatarImage
-                          src={previewUrl || profile.avatar_url || ""}
-                          alt="Xem trước"
-                        />
-                        <AvatarFallback>
-                          {getInitials(editFullName || profile.full_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <Input
-                        id="edit-avatar"
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        onChange={handleFileChange}
-                        className="text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
-                        ref={fileInputRef}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-fullname" className="text-right">
-                      Họ tên
-                    </Label>
-                    <Input
-                      id="edit-fullname"
-                      value={editFullName}
-                      onChange={(e) => setEditFullName(e.target.value)}
-                      className="col-span-3"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-username" className="text-right">
-                      Username
-                    </Label>
-                    <Input
-                      id="edit-username"
-                      value={editUsername}
-                      onChange={(e) => setEditUsername(e.target.value)}
-                      className="col-span-3"
-                      placeholder="min 3 ký tự"
-                    />
-                  </div>
+    <div className="container mx-auto py-8 max-w-6xl px-4">
+      <h1 className="text-3xl font-bold mb-6">Hồ sơ cá nhân</h1>
 
-                  {/* Bank Info Section */}
-                  <div className="space-y-3 border-t pt-4">
-                    <h4 className="font-medium text-sm text-muted-foreground">
-                      Thông tin Ngân hàng (Tự động điền khi Rút tiền)
-                    </h4>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="bankName" className="text-right text-xs">
-                        Ngân hàng
-                      </Label>
-                      <Input
-                        id="bankName"
-                        placeholder="MB, VCB..."
-                        value={editBankName}
-                        onChange={(e) => setEditBankName(e.target.value)}
-                        className="col-span-3 h-8"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="accNo" className="text-right text-xs">
-                        Số TK
-                      </Label>
-                      <Input
-                        id="accNo"
-                        placeholder="01234..."
-                        value={editAccountNo}
-                        onChange={(e) => setEditAccountNo(e.target.value)}
-                        className="col-span-3 h-8"
-                      />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="accName" className="text-right text-xs">
-                        Chủ TK
-                      </Label>
-                      <Input
-                        id="accName"
-                        placeholder="NGUYEN VAN A"
-                        value={editAccountName}
-                        onChange={(e) =>
-                          setEditAccountName(e.target.value.toUpperCase())
-                        }
-                        className="col-span-3 h-8"
-                      />
-                    </div>
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* === CỘT TRÁI: PREVIEW PROFILE === */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="border shadow-md overflow-hidden text-center h-full">
+            <div className="mt-8 mb-4 flex justify-center relative group">
+              <Avatar className="h-32 w-32 border-4 border-background shadow-lg">
+                <AvatarImage
+                  src={basicInfo.avatarUrl || user.avatar_url || ""}
+                  className="object-cover"
+                />
+                <AvatarFallback className="text-4xl font-bold bg-muted text-muted-foreground">
+                  {getInitials(basicInfo.fullName || user.full_name)}
+                </AvatarFallback>
+              </Avatar>
 
-                  {editError && (
-                    <p className="col-span-4 text-red-600 text-sm text-center">
-                      {editError}
-                    </p>
-                  )}
-                </div>
-                <DialogFooter className="mt-6">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => handleDialogClose(false)}
-                  >
-                    Hủy
-                  </Button>
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving ? (
-                      <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                    ) : null}
-                    Lưu thay đổi
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center sm:flex-row sm:items-start gap-6 p-6">
-          <Avatar className="h-28 w-28 border-2 shadow-sm">
-            <AvatarImage
-              src={profile.avatar_url || ""}
-              alt={profile.username || "Avatar"}
-            />
-            <AvatarFallback className="text-4xl">
-              {getInitials(profile.full_name || profile.username)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="space-y-1 text-center sm:text-left pt-2">
-            <h2 className="text-2xl font-semibold">
-              {profile.full_name || (
-                <span className="text-muted-foreground italic">
-                  Chưa đặt tên
-                </span>
-              )}
-            </h2>
-            <p className="text-muted-foreground">
-              @
-              {profile.username || (
-                <span className="italic">Chưa đặt username</span>
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground">{profile.email}</p>
-            <div className="pt-2 flex flex-col sm:flex-row items-center sm:items-baseline gap-x-4 gap-y-1 text-sm">
-              <p>
-                Uy tín:{" "}
-                <span className="font-bold text-lg">
-                  {profile.reputation_score}
-                </span>
-              </p>
-              {profile.is_verified && (
-                <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 ring-1 ring-inset ring-blue-200">
-                  Đã xác thực
-                </span>
-              )}
+              <div
+                className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="text-white h-8 w-8" />
+              </div>
             </div>
-            {profile.bank_info && (
-              <div className="pt-2 text-xs text-muted-foreground border-t mt-2">
-                <p className="font-medium">Tài khoản nhận tiền mặc định:</p>
-                <p>
-                  {profile.bank_info.bankName} - {profile.bank_info.accountNo}
+
+            <CardContent className="pb-6 px-6">
+              <div className="mb-4">
+                <h2 className="text-2xl font-bold text-foreground">
+                  {basicInfo.fullName || user.full_name || "Chưa đặt tên"}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  @{basicInfo.username || user.username}
                 </p>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl font-bold flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" /> Bảo mật & Đăng nhập
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Quản lý cài đặt bảo mật và đổi mật khẩu của bạn.
-          </p>
-          <Dialog
-            open={isChangePassOpen}
-            onOpenChange={handleChangePassDialogClose}
-          >
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <KeyRound className="mr-2 h-4 w-4" /> Đổi mật khẩu
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Đổi mật khẩu</DialogTitle>
-                <DialogDescription>
-                  Nhập mật khẩu cũ và mật khẩu mới.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleChangePasswordSubmit}>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="currentPass" className="text-right">
-                      Mật khẩu cũ
-                    </Label>
-                    <Input
-                      id="currentPass"
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="col-span-3"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="newPass" className="text-right">
-                      Mật khẩu mới
-                    </Label>
-                    <Input
-                      id="newPass"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="col-span-3"
-                      required
-                      minLength={6}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="confirmPass" className="text-right">
-                      Xác nhận mới
-                    </Label>
-                    <Input
-                      id="confirmPass"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="col-span-3"
-                      required
-                    />
-                  </div>
-                  {changePassError && (
-                    <p className="col-span-4 text-red-600 text-sm text-center">
-                      {changePassError}
-                    </p>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => handleChangePassDialogClose(false)}
+              <div className="flex justify-center items-center gap-2 mb-6 flex-wrap">
+                {user.is_verified && (
+                  <Badge
+                    variant="default"
+                    className="bg-green-600 hover:bg-green-700 py-0.5 px-2 text-[10px] font-bold uppercase tracking-wider gap-1"
                   >
-                    Hủy
-                  </Button>
-                  <Button type="submit" disabled={isChangingPass}>
-                    {isChangingPass ? (
+                    <ShieldCheck className="h-3 w-3" /> Verified
+                  </Badge>
+                )}
+                <Badge
+                  variant="outline"
+                  className="border-yellow-500 text-yellow-700 bg-yellow-50 py-0.5 px-2 text-[11px]"
+                >
+                  Uy tín: {user.reputation_score}
+                </Badge>
+              </div>
+
+              <Separator className="my-4" />
+              <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+                Đây là giao diện công khai của bạn trên sàn.
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* === CỘT PHẢI: CÀI ĐẶT === */}
+        <div className="lg:col-span-2">
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-4 h-12">
+              <TabsTrigger value="general">
+                <User className="w-4 h-4 md:mr-2" />{" "}
+                <span className="hidden md:inline">Cơ bản</span>
+              </TabsTrigger>
+              <TabsTrigger value="shipping">
+                <MapPin className="w-4 h-4 md:mr-2" />{" "}
+                <span className="hidden md:inline">Giao hàng</span>
+              </TabsTrigger>
+              <TabsTrigger value="banking">
+                <CreditCard className="w-4 h-4 md:mr-2" />{" "}
+                <span className="hidden md:inline">Ngân hàng</span>
+              </TabsTrigger>
+              <TabsTrigger value="security">
+                <KeyRound className="w-4 h-4 md:mr-2" />{" "}
+                <span className="hidden md:inline">Bảo mật</span>
+              </TabsTrigger>
+            </TabsList>
+
+            {/* TAB 1: CƠ BẢN */}
+            <TabsContent value="general">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Thông tin tài khoản</CardTitle>
+                  <CardDescription>
+                    Quản lý tên hiển thị và thông tin đăng nhập.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="relative h-14 w-14">
+                      <Avatar className="h-14 w-14 border">
+                        <AvatarImage
+                          src={basicInfo.avatarUrl || ""}
+                          className="object-cover"
+                        />
+                        <AvatarFallback>AV</AvatarFallback>
+                      </Avatar>
+                      {uploading && (
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                          <Loader2 className="animate-spin text-white h-6 w-6" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        <UploadCloud className="mr-2 h-4 w-4" /> Đổi ảnh đại
+                        diện
+                      </Button>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label>Tên hiển thị</Label>
+                    <Input
+                      value={basicInfo.fullName}
+                      onChange={(e) =>
+                        setBasicInfo({ ...basicInfo, fullName: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Username</Label>
+                      <Input
+                        value={basicInfo.username}
+                        onChange={(e) =>
+                          setBasicInfo({
+                            ...basicInfo,
+                            username: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={basicInfo.email}
+                        onChange={(e) =>
+                          setBasicInfo({ ...basicInfo, email: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="bg-muted/20 border-t py-4">
+                  <Button
+                    onClick={handleUpdateProfile}
+                    disabled={loading}
+                    className="ml-auto"
+                  >
+                    {loading ? (
                       <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                    ) : null}
-                    Xác nhận
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}{" "}
+                    Lưu thay đổi
                   </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </CardContent>
-      </Card>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            {/* TAB 2: GIAO HÀNG */}
+            <TabsContent value="shipping">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Địa chỉ giao hàng</CardTitle>
+                  <CardDescription>
+                    Thông tin để người bán gửi hàng cho bạn.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Họ tên người nhận</Label>
+                      <Input
+                        value={shippingInfo.fullName}
+                        onChange={(e) =>
+                          setShippingInfo({
+                            ...shippingInfo,
+                            fullName: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Số điện thoại</Label>
+                      <Input
+                        value={shippingInfo.phone}
+                        onChange={(e) =>
+                          setShippingInfo({
+                            ...shippingInfo,
+                            phone: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Địa chỉ chi tiết</Label>
+                    <Input
+                      value={shippingInfo.address}
+                      onChange={(e) =>
+                        setShippingInfo({
+                          ...shippingInfo,
+                          address: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tỉnh / Thành phố</Label>
+                    <Input
+                      value={shippingInfo.city}
+                      onChange={(e) =>
+                        setShippingInfo({
+                          ...shippingInfo,
+                          city: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="bg-muted/20 border-t py-4">
+                  <Button
+                    onClick={handleUpdateProfile}
+                    disabled={loading}
+                    className="ml-auto"
+                  >
+                    {loading ? (
+                      <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}{" "}
+                    Lưu địa chỉ
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            {/* TAB 3: NGÂN HÀNG */}
+            <TabsContent value="banking">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tài khoản nhận tiền</CardTitle>
+                  <CardDescription>
+                    Dùng để rút tiền từ Ví về tài khoản của bạn.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Tên Ngân hàng</Label>
+                    <Input
+                      value={bankInfo.bankName}
+                      onChange={(e) =>
+                        setBankInfo({ ...bankInfo, bankName: e.target.value })
+                      }
+                      placeholder="VD: Vietcombank"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Số tài khoản</Label>
+                      <Input
+                        value={bankInfo.accountNo}
+                        onChange={(e) =>
+                          setBankInfo({
+                            ...bankInfo,
+                            accountNo: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Chủ tài khoản</Label>
+                      <Input
+                        value={bankInfo.accountName}
+                        onChange={(e) =>
+                          setBankInfo({
+                            ...bankInfo,
+                            accountName: e.target.value.toUpperCase(),
+                          })
+                        }
+                        className="uppercase"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="bg-muted/20 border-t py-4">
+                  <Button
+                    onClick={handleUpdateProfile}
+                    disabled={loading}
+                    className="ml-auto"
+                  >
+                    {loading ? (
+                      <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}{" "}
+                    Lưu ngân hàng
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            {/* TAB 4: BẢO MẬT */}
+            <TabsContent value="security">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Bảo mật tài khoản</CardTitle>
+                  <CardDescription>
+                    Đổi mật khẩu và khôi phục tài khoản.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Mật khẩu hiện tại</Label>
+                      <Input
+                        type="password"
+                        value={passwords.current}
+                        onChange={(e) =>
+                          setPasswords({
+                            ...passwords,
+                            current: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Mật khẩu mới</Label>
+                        <Input
+                          type="password"
+                          value={passwords.new}
+                          onChange={(e) =>
+                            setPasswords({ ...passwords, new: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Xác nhận mật khẩu mới</Label>
+                        <Input
+                          type="password"
+                          value={passwords.confirm}
+                          onChange={(e) =>
+                            setPasswords({
+                              ...passwords,
+                              confirm: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      className="text-muted-foreground text-sm"
+                      onClick={() =>
+                        alert("Tính năng Quên mật khẩu đang được phát triển.")
+                      }
+                    >
+                      <HelpCircle className="mr-2 h-4 w-4" /> Quên mật khẩu?
+                    </Button>
+
+                    <Button
+                      onClick={handleChangePassword}
+                      disabled={passLoading}
+                    >
+                      {passLoading ? (
+                        <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                      ) : (
+                        <KeyRound className="mr-2 h-4 w-4" />
+                      )}
+                      Đổi mật khẩu
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+
+      {/* === PHẦN MỚI: SẢN PHẨM CỦA TÔI === */}
+      <div className="mt-12">
+        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+          <Package className="h-6 w-6 text-primary" /> Sản phẩm đang bán của tôi
+        </h2>
+
+        {loadingProducts ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin h-8 w-8 text-muted-foreground" />
+          </div>
+        ) : userProducts.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {userProducts.map((prod) => (
+              <ProductCard key={prod.id} product={prod} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-muted/30 rounded-lg border border-dashed">
+            <p className="text-muted-foreground">
+              Bạn chưa đăng bán sản phẩm nào.
+            </p>
+            <Button
+              variant="link"
+              onClick={() => (window.location.href = "/sell")}
+            >
+              Đăng bán ngay
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

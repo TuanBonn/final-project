@@ -54,7 +54,7 @@ export async function GET() {
         bids:bids ( bid_amount )
       `
       )
-      // === CHỈ LẤY PHIÊN ĐANG HOẠT ĐỘNG HOẶC SẮP DIỄN RA ===
+      // Chỉ lấy phiên đang hoạt động hoặc sắp diễn ra
       .in("status", ["active", "scheduled"])
       .order("end_time", { ascending: true });
 
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
 
-    // Tạo sản phẩm mới với trạng thái 'in_transaction'
+    // 1. Tạo sản phẩm mới với trạng thái 'auction' (Bị khóa ngay lập tức)
     const { data: newProduct, error: prodError } = await supabase
       .from("products")
       .insert({
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
         brand_id: brand_id,
         condition: condition,
         image_urls: imageUrls || [],
-        status: "in_transaction",
+        status: "auction", // <--- SET STATUS LÀ AUCTION
       })
       .select()
       .single();
@@ -169,6 +169,7 @@ export async function POST(request: NextRequest) {
       initialStatus = "scheduled";
     }
 
+    // 2. Tạo phiên đấu giá
     const { data: newAuction, error: auctionError } = await supabase
       .from("auctions")
       .insert({
@@ -183,6 +184,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (auctionError) {
+      // Rollback nếu tạo auction lỗi
       await supabase.from("products").delete().eq("id", newProduct.id);
       throw auctionError;
     }

@@ -33,10 +33,10 @@ import {
   Eye,
   CheckCircle,
   XCircle,
-  Copy,
-  QrCode,
   ArrowDownCircle,
   ArrowUpCircle,
+  ShoppingBag,
+  CreditCard,
 } from "lucide-react";
 import { PaymentStatus, PaymentForType } from "@prisma/client";
 import Image from "next/image";
@@ -63,6 +63,49 @@ const formatCurrency = (val: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
     val
   );
+
+// Helper xác định loại giao dịch là TRỪ TIỀN hay CỘNG TIỀN
+const isNegativeTransaction = (type: string) => {
+  return (
+    type === "withdrawal" ||
+    type === "group_buy_order" || // Mua GroupBuy là trừ tiền
+    type.includes("fee") || // Các loại phí
+    type === "auction_bid_fee"
+  );
+};
+
+// Helper lấy icon và màu sắc cho loại giao dịch
+const getTypeInfo = (type: string) => {
+  if (
+    type === "deposit" ||
+    type === "group_buy_refund" ||
+    type === "group_buy_payout"
+  ) {
+    return {
+      icon: ArrowDownCircle,
+      color: "text-green-600",
+      label: "Tiền vào",
+    };
+  }
+  if (type === "withdrawal") {
+    return { icon: ArrowUpCircle, color: "text-red-600", label: "Rút tiền" };
+  }
+  if (type === "group_buy_order") {
+    return {
+      icon: ShoppingBag,
+      color: "text-orange-600",
+      label: "Thanh toán Mua chung",
+    };
+  }
+  if (type.includes("fee")) {
+    return { icon: CreditCard, color: "text-gray-600", label: "Phí dịch vụ" };
+  }
+  return {
+    icon: ArrowUpCircle,
+    color: "text-gray-600",
+    label: type.replace(/_/g, " "),
+  };
+};
 
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
@@ -132,11 +175,6 @@ export default function AdminPaymentsPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert("Đã copy: " + text);
-  };
-
   const getVietQRUrl = (payment: PaymentRow) => {
     if (!payment.withdrawal_info) return "";
     const bankId = payment.withdrawal_info.bankName;
@@ -188,69 +226,70 @@ export default function AdminPaymentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payments.map((pay) => (
-                <TableRow key={pay.id}>
-                  <TableCell>
-                    <div className="font-medium">{pay.user?.username}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {pay.user?.email}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className="capitalize flex w-fit gap-1"
+              {payments.map((pay) => {
+                const isNegative = isNegativeTransaction(pay.payment_for_type);
+                const typeInfo = getTypeInfo(pay.payment_for_type);
+                const TypeIcon = typeInfo.icon;
+
+                return (
+                  <TableRow key={pay.id}>
+                    <TableCell>
+                      <div className="font-medium">{pay.user?.username}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {pay.user?.email}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className="capitalize flex w-fit gap-1"
+                      >
+                        <TypeIcon className={`h-3 w-3 ${typeInfo.color}`} />
+                        {/* Hiển thị tên loại đẹp hơn */}
+                        {pay.payment_for_type.replace(/_/g, " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell
+                      className={`font-mono font-bold ${
+                        isNegative ? "text-red-600" : "text-green-600"
+                      }`}
                     >
-                      {pay.payment_for_type === "deposit" ? (
-                        <ArrowDownCircle className="h-3 w-3 text-green-600" />
-                      ) : pay.payment_for_type === "withdrawal" ? (
-                        <ArrowUpCircle className="h-3 w-3 text-red-600" />
-                      ) : null}
-                      {pay.payment_for_type.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell
-                    className={`font-mono font-bold ${
-                      pay.payment_for_type === "withdrawal"
-                        ? "text-red-600"
-                        : "text-green-600"
-                    }`}
-                  >
-                    {pay.payment_for_type === "withdrawal" ? "-" : "+"}
-                    {formatCurrency(pay.amount)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        pay.status === "succeeded"
-                          ? "default"
-                          : pay.status === "failed"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {pay.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {pay.status === "pending" &&
-                      (pay.payment_for_type === "withdrawal" ||
-                        pay.payment_for_type === "deposit") && (
-                        <Button
-                          size="sm"
-                          onClick={() => setSelectedPayment(pay)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" /> Duyệt
-                        </Button>
-                      )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {isNegative ? "-" : "+"}
+                      {formatCurrency(pay.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          pay.status === "succeeded"
+                            ? "default"
+                            : pay.status === "failed"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                      >
+                        {pay.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {pay.status === "pending" &&
+                        (pay.payment_for_type === "withdrawal" ||
+                          pay.payment_for_type === "deposit") && (
+                          <Button
+                            size="sm"
+                            onClick={() => setSelectedPayment(pay)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" /> Duyệt
+                          </Button>
+                        )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
 
-        {/* DIALOG XỬ LÝ */}
+        {/* DIALOG XỬ LÝ (Giữ nguyên logic) */}
         <Dialog
           open={!!selectedPayment}
           onOpenChange={(open) => !open && setSelectedPayment(null)}

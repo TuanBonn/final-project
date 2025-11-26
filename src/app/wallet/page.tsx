@@ -37,19 +37,16 @@ import {
   ArrowDownCircle,
   RefreshCcw,
   QrCode,
+  ShoppingBag,
 } from "lucide-react";
 import { PaymentStatus, PaymentForType } from "@prisma/client";
 
-// === CẤU HÌNH TÀI KHOẢN NHẬN TIỀN (ADMIN) ===
-// Bạn có thể thay bằng thông tin thật hoặc để hệ thống lấy từ API settings như trước
-// Ở đây tôi dùng biến global để demo, bạn có thể kết hợp với API get settings nếu muốn
 interface SystemBankInfo {
   bankId: string;
   accountNo: string;
   accountName: string;
   template: string;
 }
-// =============================================
 
 interface PaymentHistory {
   id: string;
@@ -64,31 +61,57 @@ const formatCurrency = (amount: number) =>
     amount
   );
 
+// Helper xác định loại giao dịch là TRỪ TIỀN
+const isNegativeTransaction = (type: string) => {
+  return (
+    type === "withdrawal" ||
+    type === "group_buy_order" || // Trừ tiền đặt cọc
+    type.includes("fee") ||
+    type === "auction_bid_fee"
+  );
+};
+
+// Helper lấy Label
+const getPaymentLabel = (type: string) => {
+  switch (type) {
+    case "deposit":
+      return "Nạp tiền";
+    case "withdrawal":
+      return "Rút tiền";
+    case "group_buy_order":
+      return "Đặt cọc Mua chung";
+    case "group_buy_refund":
+      return "Hoàn tiền Mua chung (Kèo hủy)";
+    case "group_buy_payout":
+      return "Doanh thu Mua chung (Host)";
+    case "auction_creation_fee":
+      return "Phí tạo đấu giá";
+    case "auction_bid_fee":
+      return "Phí tham gia đấu giá";
+    case "transaction_commission":
+      return "Phí sàn";
+    default:
+      return type.replace(/_/g, " ");
+  }
+};
+
 export default function WalletPage() {
   const [balance, setBalance] = useState<number>(0);
   const [history, setHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // State lưu thông tin ngân hàng từ API (Settings)
   const [systemBankInfo, setSystemBankInfo] = useState<SystemBankInfo | null>(
     null
   );
-
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<"deposit" | "withdrawal">(
     "deposit"
   );
   const [amountInput, setAmountInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // QR Code state
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-
-  // Bank Info State (cho Rút tiền)
   const [bankName, setBankName] = useState("");
   const [accountNo, setAccountNo] = useState("");
   const [accountName, setAccountName] = useState("");
-
   const [savedBankInfo, setSavedBankInfo] = useState<any>(null);
 
   const fetchWalletData = useCallback(async () => {
@@ -114,25 +137,19 @@ export default function WalletPage() {
     fetchWalletData();
   }, [fetchWalletData]);
 
-  // Hàm tạo mã VietQR (Chỉ chạy khi bấm nút)
   const generateQR = () => {
     const amount = parseInt(amountInput.replace(/\D/g, ""), 10);
-
     if (!amount || amount < 10000) {
       alert("Số tiền tối thiểu là 10.000đ");
       setQrCodeUrl(null);
       return;
     }
-
     if (!systemBankInfo) {
-      alert("Chưa có thông tin tài khoản hệ thống. Vui lòng liên hệ Admin.");
+      alert("Chưa có thông tin tài khoản hệ thống.");
       return;
     }
-
     const { bankId, accountNo, accountName, template } = systemBankInfo;
-    // Tạo nội dung chuyển khoản
     const addInfo = `NAPTIEN W${Math.floor(Math.random() * 10000)}`;
-
     const url = `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${amount}&addInfo=${addInfo}&accountName=${encodeURIComponent(
       accountName
     )}`;
@@ -143,9 +160,6 @@ export default function WalletPage() {
     const val = e.target.value.replace(/\D/g, "");
     const numVal = parseInt(val || "0");
     setAmountInput(new Intl.NumberFormat("vi-VN").format(numVal));
-
-    // === SỬA: KHÔNG GỌI generateQR() Ở ĐÂY NỮA ===
-    // Nếu người dùng sửa số tiền, ta ẩn QR cũ đi để tránh nhầm lẫn
     if (qrCodeUrl) setQrCodeUrl(null);
   };
 
@@ -155,16 +169,14 @@ export default function WalletPage() {
       alert("Số tiền tối thiểu là 10,000đ");
       return;
     }
-
     if (actionType === "withdrawal") {
       if (!bankName || !accountNo || !accountName) {
         alert("Vui lòng nhập đầy đủ thông tin ngân hàng.");
         return;
       }
     } else if (actionType === "deposit") {
-      // Bắt buộc phải tạo QR trước khi xác nhận (để đảm bảo người dùng đã thấy thông tin)
       if (!qrCodeUrl) {
-        alert("Vui lòng bấm 'Tạo mã QR' và thực hiện chuyển khoản trước.");
+        alert("Vui lòng bấm 'Tạo mã QR' trước.");
         return;
       }
     }
@@ -189,7 +201,7 @@ export default function WalletPage() {
 
       alert(
         actionType === "deposit"
-          ? "Đã tạo lệnh nạp tiền! Vui lòng chờ Admin duyệt."
+          ? "Đã tạo lệnh nạp tiền!"
           : "Đã gửi yêu cầu rút tiền."
       );
       setDialogOpen(false);
@@ -207,7 +219,6 @@ export default function WalletPage() {
     setActionType(type);
     setAmountInput("");
     setQrCodeUrl(null);
-
     if (type === "withdrawal" && savedBankInfo) {
       setBankName(savedBankInfo.bankName || "");
       setAccountNo(savedBankInfo.accountNo || "");
@@ -222,7 +233,6 @@ export default function WalletPage() {
 
   return (
     <div className="container mx-auto py-8 max-w-4xl space-y-8">
-      {/* Card Số dư */}
       <Card className="bg-gradient-to-r from-slate-900 to-slate-800 text-white border-none shadow-xl">
         <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div>
@@ -257,7 +267,6 @@ export default function WalletPage() {
         </CardContent>
       </Card>
 
-      {/* Lịch sử giao dịch */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -291,69 +300,69 @@ export default function WalletPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                history.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium capitalize">
-                      {item.payment_for_type === "deposit"
-                        ? "Nạp tiền"
-                        : item.payment_for_type === "withdrawal"
-                        ? "Rút tiền / Thanh toán"
-                        : item.payment_for_type.replace(/_/g, " ")}
-                    </TableCell>
-                    <TableCell
-                      className={`font-mono font-bold ${
-                        item.payment_for_type === "withdrawal" ||
-                        item.payment_for_type.includes("fee")
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                    >
-                      {item.payment_for_type === "withdrawal" ||
-                      item.payment_for_type.includes("fee")
-                        ? "-"
-                        : "+"}
-                      {formatCurrency(item.amount)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          item.status === "succeeded"
-                            ? "default"
-                            : item.status === "failed"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                        className={
-                          item.status === "succeeded"
-                            ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
-                            : ""
-                        }
+                history.map((item) => {
+                  const isNegative = isNegativeTransaction(
+                    item.payment_for_type
+                  );
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {item.payment_for_type.includes("group_buy") ? (
+                            <ShoppingBag className="h-4 w-4 text-orange-600" />
+                          ) : null}
+                          {getPaymentLabel(item.payment_for_type)}
+                        </div>
+                      </TableCell>
+                      <TableCell
+                        className={`font-mono font-bold ${
+                          isNegative ? "text-red-600" : "text-green-600"
+                        }`}
                       >
-                        {item.status === "succeeded"
-                          ? "Thành công"
-                          : item.status === "pending"
-                          ? "Đang xử lý"
-                          : "Thất bại"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-muted-foreground">
-                      {new Date(item.created_at).toLocaleDateString("vi-VN", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                  </TableRow>
-                ))
+                        {isNegative ? "-" : "+"}
+                        {formatCurrency(item.amount)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            item.status === "succeeded"
+                              ? "default"
+                              : item.status === "failed"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                          className={
+                            item.status === "succeeded"
+                              ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
+                              : ""
+                          }
+                        >
+                          {item.status === "succeeded"
+                            ? "Thành công"
+                            : item.status === "pending"
+                            ? "Đang xử lý"
+                            : "Thất bại"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {new Date(item.created_at).toLocaleDateString("vi-VN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Dialog Nạp/Rút */}
+      {/* Dialog Nạp/Rút (Giữ nguyên logic cũ) */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           className={
@@ -374,9 +383,7 @@ export default function WalletPage() {
                 : "Nhập số tiền và thông tin nhận tiền."}
             </DialogDescription>
           </DialogHeader>
-
           <div className="py-4 space-y-4">
-            {/* INPUT SỐ TIỀN + NÚT TẠO QR (Cho Deposit) */}
             <div className="flex gap-2 items-end">
               <div className="space-y-2 flex-1">
                 <Label>Số tiền (VND)</Label>
@@ -388,7 +395,6 @@ export default function WalletPage() {
                   autoFocus
                 />
               </div>
-              {/* Nút tạo QR nằm cạnh ô nhập tiền */}
               {actionType === "deposit" && (
                 <Button
                   onClick={generateQR}
@@ -396,13 +402,11 @@ export default function WalletPage() {
                   variant={qrCodeUrl ? "outline" : "default"}
                   className="mb-[2px]"
                 >
-                  <QrCode className="mr-2 h-4 w-4" />
+                  <QrCode className="mr-2 h-4 w-4" />{" "}
                   {qrCodeUrl ? "Tạo lại QR" : "Tạo mã QR"}
                 </Button>
               )}
             </div>
-
-            {/* KHU VỰC HIỂN THỊ QR (Nạp tiền) - Chỉ hiện khi đã bấm nút Tạo */}
             {actionType === "deposit" && qrCodeUrl && systemBankInfo && (
               <div className="mt-4 border rounded-lg p-4 bg-muted/20 flex flex-col items-center animate-in fade-in zoom-in duration-300">
                 <p className="text-sm font-medium mb-3 flex items-center gap-2 text-blue-600">
@@ -446,8 +450,6 @@ export default function WalletPage() {
                 </p>
               </div>
             )}
-
-            {/* Form Rút tiền */}
             {actionType === "withdrawal" && (
               <div className="space-y-4 border-t pt-4 mt-2">
                 <div className="space-y-2">
@@ -476,7 +478,6 @@ export default function WalletPage() {
                     }
                   />
                 </div>
-
                 <div className="bg-yellow-50 p-3 rounded-md text-sm text-yellow-800 border border-yellow-200 flex items-start gap-2">
                   <span className="text-lg">ℹ️</span>
                   <span>
@@ -487,7 +488,6 @@ export default function WalletPage() {
               </div>
             )}
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Hủy
@@ -500,7 +500,7 @@ export default function WalletPage() {
             >
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              )}{" "}
               {actionType === "deposit" ? "Đã chuyển khoản" : "Gửi yêu cầu"}
             </Button>
           </DialogFooter>

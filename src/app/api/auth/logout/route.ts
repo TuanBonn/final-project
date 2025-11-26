@@ -6,7 +6,7 @@ const COOKIE_NAME = "auth-token";
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     if (!cookieStore.has(COOKIE_NAME))
       return NextResponse.json({ message: "Đã đăng xuất." }, { status: 200 });
 

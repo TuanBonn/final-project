@@ -90,8 +90,10 @@ export async function POST(request: Request) {
     const userResponse = { ...user };
     delete (userResponse as any).password_hash;
 
-    // --- Set Cookie ---
-    cookies().set({
+    // --- Set Cookie (SỬA LỖI TẠI ĐÂY) ---
+    // Thêm 'await' trước cookies()
+    const cookieStore = await cookies();
+    cookieStore.set({
       name: COOKIE_NAME,
       value: token,
       httpOnly: true,

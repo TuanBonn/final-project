@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, Gavel, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button"; // <-- Import Button
+import { Loader2, AlertCircle, Gavel, Clock, ShieldAlert } from "lucide-react"; // <-- Import Icon
 import { AuctionActions } from "@/components/admin/AuctionActions";
 import { AuctionStatus } from "@prisma/client";
 
@@ -44,6 +45,7 @@ export default function AdminAuctionsPage() {
   const [auctions, setAuctions] = useState<AuctionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState("all");
+  const [scanning, setScanning] = useState(false); // State cho nút quét
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -65,14 +67,56 @@ export default function AdminAuctionsPage() {
     fetchData();
   }, [fetchData]);
 
+  // Hàm xử lý quét đơn quá hạn
+  const handleScanOverdue = async () => {
+    if (
+      !confirm(
+        "Hệ thống sẽ quét các đơn kết thúc > 24h chưa thanh toán và trừ điểm uy tín. Tiếp tục?"
+      )
+    )
+      return;
+
+    setScanning(true);
+    try {
+      const res = await fetch("/api/admin/auctions/check-overdue", {
+        method: "POST",
+      });
+      const data = await res.json();
+      alert(data.message || "Đã hoàn tất quét.");
+      fetchData(); // Reload lại bảng
+    } catch (error) {
+      alert("Lỗi khi quét.");
+    } finally {
+      setScanning(false);
+    }
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Quản lý Đấu giá</CardTitle>
-        <CardDescription>
-          Theo dõi và kiểm duyệt các phiên đấu giá.
-        </CardDescription>
+      <CardHeader className="flex flex-row justify-between items-start">
+        <div>
+          <CardTitle>Quản lý Đấu giá</CardTitle>
+          <CardDescription>
+            Theo dõi và kiểm duyệt các phiên đấu giá.
+          </CardDescription>
+        </div>
+
+        {/* NÚT QUÉT ĐƠN QUÁ HẠN */}
+        <Button
+          variant="destructive"
+          onClick={handleScanOverdue}
+          disabled={scanning}
+          className="gap-2"
+        >
+          {scanning ? (
+            <Loader2 className="animate-spin h-4 w-4" />
+          ) : (
+            <ShieldAlert className="h-4 w-4" />
+          )}
+          Quét đơn bùng kèo (24h)
+        </Button>
       </CardHeader>
+
       <CardContent>
         <Tabs defaultValue="all" onValueChange={setCurrentTab} className="mb-4">
           <TabsList>

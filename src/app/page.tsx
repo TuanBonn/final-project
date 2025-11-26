@@ -2,10 +2,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Search } from "lucide-react"; // <-- Import icon Search
 import { FilterSidebar } from "@/components/FilterSidebar";
 import { ProductCard, ProductWithDetails } from "@/components/ProductCard";
-import { Pagination } from "@/components/Pagination"; // <-- IMPORT MỚI
+import { Pagination } from "@/components/Pagination";
+import { Input } from "@/components/ui/input"; // <-- Import Input
 
 export default function HomePage() {
   const [products, setProducts] = useState<ProductWithDetails[]>([]);
@@ -16,7 +17,8 @@ export default function HomePage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // State cho Bộ lọc
+  // State cho Bộ lọc & Tìm kiếm
+  const [search, setSearch] = useState(""); // <-- State tìm kiếm
   const [sort, setSort] = useState("created_at_desc");
   const [filterVerified, setFilterVerified] = useState(false);
   const [filterConditions, setFilterConditions] = useState<string[]>([]);
@@ -27,44 +29,51 @@ export default function HomePage() {
     setPage(1);
   }, []);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      setError(null);
+  // Hàm fetch dữ liệu (dùng useCallback để tránh tạo lại hàm liên tục)
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-      const params = new URLSearchParams();
-      params.append("page", page.toString());
-      params.append("limit", "15"); // Lấy 12 sản phẩm mỗi trang
-      params.append("sort", sort);
+    const params = new URLSearchParams();
+    params.append("page", page.toString());
+    params.append("limit", "15");
+    params.append("sort", sort);
+    if (search) params.append("search", search); // <-- Gửi search lên API
 
-      if (filterVerified) params.append("verified", "true");
-      filterConditions.forEach((cond) => params.append("condition", cond));
-      filterBrands.forEach((brandId) => params.append("brand_id", brandId));
+    if (filterVerified) params.append("verified", "true");
+    filterConditions.forEach((cond) => params.append("condition", cond));
+    filterBrands.forEach((brandId) => params.append("brand_id", brandId));
 
-      try {
-        const res = await fetch(`/api/products?${params.toString()}`);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Lỗi tải sản phẩm");
-        }
-        const data = await res.json();
-
-        setProducts(data.products || []);
-        setTotalPages(data.pagination?.totalPages || 1);
-      } catch (err: any) {
-        setError(err.message || "Không thể tải sản phẩm.");
-      } finally {
-        setLoading(false);
+    try {
+      const res = await fetch(`/api/products?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Lỗi tải sản phẩm");
       }
-    };
+      const data = await res.json();
 
-    fetchProducts();
+      setProducts(data.products || []);
+      setTotalPages(data.pagination?.totalPages || 1);
+    } catch (err: any) {
+      setError(err.message || "Không thể tải sản phẩm.");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, sort, filterVerified, filterConditions, filterBrands, search]);
 
-    // Scroll lên đầu trang khi chuyển trang
+  // Debounce: Đợi 500ms sau khi ngừng gõ mới gọi API
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchProducts();
+    }, 500);
+
+    // Scroll lên đầu trang khi đổi trang
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [page, sort, filterVerified, filterConditions, filterBrands]);
+
+    return () => clearTimeout(timeout);
+  }, [fetchProducts]);
 
   return (
     <div className="flex flex-col lg:flex-row gap-8">
@@ -92,6 +101,20 @@ export default function HomePage() {
       />
 
       <main className="flex-1">
+        {/* === THANH TÌM KIẾM === */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Tìm kiếm sản phẩm..."
+            className="pl-10 h-12 text-base bg-background shadow-sm"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1); // Reset về trang 1 khi tìm kiếm
+            }}
+          />
+        </div>
+
         {loading ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />

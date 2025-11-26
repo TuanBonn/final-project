@@ -14,6 +14,7 @@ import { BuyProductDialog } from "@/components/BuyProductDialog";
 import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { ChatButton } from "@/components/ChatButton";
 import { AddToCartButton } from "@/components/AddToCartButton";
+import { BackButton } from "@/components/BackButton";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -74,11 +75,7 @@ export default async function ProductDetailPage({
 
   return (
     <div className="container mx-auto py-6 max-w-6xl px-4">
-      <Button variant="ghost" asChild className="mb-6">
-        <Link href="/">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại trang chủ
-        </Link>
-      </Button>
+      <BackButton />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
         {/* === CỘT TRÁI: GALLERY ẢNH === */}

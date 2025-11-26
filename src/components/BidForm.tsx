@@ -39,8 +39,12 @@ export function BidForm({
     }
 
     const amount = parseInt(bidAmount.replace(/\D/g, ""), 10);
-    if (amount < nextMinBid) {
-      alert(`Giá phải cao hơn hiện tại tối thiểu ${formatCurrency(minStep)}`);
+    if (isNaN(amount) || amount < nextMinBid) {
+      alert(
+        `Giá phải cao hơn hiện tại tối thiểu ${formatCurrency(
+          minStep
+        )} (Tức là >= ${formatCurrency(nextMinBid)})`
+      );
       return;
     }
 
@@ -57,7 +61,7 @@ export function BidForm({
 
       alert("🎉 Chúc mừng! Bạn đang là người trả giá cao nhất.");
       setBidAmount("");
-      router.refresh(); // Load lại trang để cập nhật giá mới
+      // Không cần router.refresh() vì Realtime ở trang cha sẽ tự cập nhật UI
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -72,7 +76,7 @@ export function BidForm({
       </h3>
       <p className="text-sm text-muted-foreground mb-4">
         Giá đặt tiếp theo tối thiểu:{" "}
-        <strong className="text-foreground">
+        <strong className="text-foreground text-lg text-green-600">
           {formatCurrency(nextMinBid)}
         </strong>
       </p>
@@ -80,7 +84,7 @@ export function BidForm({
       <form onSubmit={handleBid} className="flex gap-2">
         <Input
           placeholder="Nhập giá muốn mua..."
-          className="flex-1 font-mono"
+          className="flex-1 font-mono text-lg"
           value={bidAmount}
           onChange={(e) =>
             setBidAmount(
@@ -90,7 +94,12 @@ export function BidForm({
             )
           }
         />
-        <Button type="submit" disabled={loading || !bidAmount}>
+        <Button
+          type="submit"
+          disabled={loading || !bidAmount}
+          size="lg"
+          className="bg-primary hover:bg-primary/90"
+        >
           {loading ? (
             <Loader2 className="animate-spin mr-2 h-4 w-4" />
           ) : (
@@ -98,7 +107,7 @@ export function BidForm({
           )}
         </Button>
       </form>
-      <p className="text-xs text-muted-foreground mt-2">
+      <p className="text-xs text-muted-foreground mt-2 italic">
         * Bạn cần chịu trách nhiệm với mức giá mình đưa ra.
       </p>
     </div>

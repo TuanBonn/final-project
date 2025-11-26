@@ -6,7 +6,6 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-// --- Cấu hình ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -27,9 +26,9 @@ function getSupabaseAdmin(): SupabaseClient | null {
 async function verifyAdmin(request: NextRequest): Promise<boolean> {
   if (!JWT_SECRET) return false;
   try {
-    let token: string | undefined = undefined;
     const cookieHeader = request.headers.get("cookie");
-    if (cookieHeader) token = parseCookie(cookieHeader)[COOKIE_NAME];
+    if (!cookieHeader) return false;
+    const token = parseCookie(cookieHeader)[COOKIE_NAME];
     if (!token) return false;
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     return decoded.role === "admin";
@@ -38,7 +37,6 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === GET ===
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
@@ -51,34 +49,62 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 
-    let query = supabaseAdmin
-      .from("transactions")
-      .select(
-        `
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const search = searchParams.get("search") || "";
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    let query = supabaseAdmin.from("transactions").select(
+      `
         id,
         amount,
         platform_commission,
         status,
         payment_method,
         created_at,
-        product:products ( name ),
-        buyer:users!buyer_id ( username ),
-        seller:users!seller_id ( username )
-      `
-      )
-      .order("created_at", { ascending: false });
+        quantity,
+        shipping_address,
+        product:products!inner ( name, image_urls ),
+        buyer:users!buyer_id ( username, full_name ),
+        seller:users!seller_id ( username, full_name )
+      `,
+      { count: "exact" }
+    );
 
     // Filter theo status
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
 
-    const { data: transactions, error } = await query;
+    // Filter Tìm kiếm: Chỉ tìm theo Tên Sản Phẩm để tránh lỗi OR chéo bảng
+    if (search) {
+      // Nếu search là UUID (ID đơn hàng), tìm theo ID
+      const isUUID =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          search
+        );
+      if (isUUID) {
+        query = query.eq("id", search);
+      } else {
+        // Ngược lại tìm theo tên sản phẩm
+        query = query.ilike("product.name", `%${search}%`);
+      }
+    }
+
+    query = query.order("created_at", { ascending: false }).range(from, to);
+
+    const { data: transactions, error, count } = await query;
 
     if (error) throw error;
 
+    const totalPages = count ? Math.ceil(count / limit) : 1;
+
     return NextResponse.json(
-      { transactions: transactions || [] },
+      {
+        transactions: transactions || [],
+        pagination: { page, limit, total: count, totalPages },
+      },
       { status: 200 }
     );
   } catch (error: any) {

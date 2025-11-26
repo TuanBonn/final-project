@@ -31,8 +31,10 @@ export async function PATCH(request: Request) {
   }
 
   // 2. Xác thực người dùng (Lấy userId từ token)
-  const cookieStore = cookies();
+  // --- SỬA LỖI TẠI ĐÂY: Thêm await ---
+  const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
+
   let userId: string;
   try {
     if (!token) throw new jwt.JsonWebTokenError("Token not found");

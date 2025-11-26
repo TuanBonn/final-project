@@ -34,6 +34,7 @@ enum ProductStatus {
   available
   in_transaction
   sold
+  auction
   @@map("product_status")
 }
 
@@ -69,6 +70,8 @@ enum ParticipantStatus {
   pending_payment
   paid
   shipped
+  received      
+  refunded
   @@map("participant_status")
 }
 
@@ -79,6 +82,9 @@ enum PaymentForType {
   dealer_subscription
   deposit    // Nạp tiền
   withdrawal // Rút tiền
+  group_buy_order    // <-- MỚI: Trả tiền mua chung
+  group_buy_refund   // <-- MỚI: Hoàn tiền mua chung
+  group_buy_payout   // <-- MỚI: Trả tiền cho Host
   @@map("payment_for_type_enum")
 }
 
@@ -117,6 +123,7 @@ model User {
   is_verified      Boolean  @default(false)
   reputation_score Int      @default(0)
   status           UserStatus @default(active)
+  shipping_info    Json?    @db.JsonB // { fullName, phone, address, city, district, ward }
   
   // Ví tiền
   balance          Decimal  @default(0) @db.Decimal
@@ -322,6 +329,8 @@ model Transaction {
   
   payment_method      PaymentMethod     @default(cod)
 
+  shipping_address Json?    @db.JsonB
+
   created_at          DateTime          @default(now()) @db.Timestamptz
   updated_at          DateTime          @default(now()) @db.Timestamptz
   review              Review?
@@ -382,7 +391,7 @@ model GroupBuy {
   price_per_unit      Decimal                 @db.Decimal
   target_quantity     Int
   max_quantity        Int?
-  join_deadline       DateTime                @db.Timestamptz
+  join_deadline       DateTime?                @db.Timestamptz
   status              GroupBuyStatus          @default(open)
   created_at          DateTime                @default(now()) @db.Timestamptz
   participants        GroupBuyParticipant[]
