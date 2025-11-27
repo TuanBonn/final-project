@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi cấu hình server.");
 
+    // Lấy auctionId từ request body
     const { productId, paymentMethod, quantity, auctionId } =
       await request.json();
     const buyQty = quantity ? parseInt(quantity) : 1;
@@ -148,7 +149,8 @@ export async function POST(request: NextRequest) {
         : Number(auction.starting_bid);
     } else {
       // --- MUA THƯỜNG ---
-      if (product.status !== "available") {
+      // Chấp nhận status 'auction' nếu là sản phẩm vừa chốt từ đấu giá/groupbuy
+      if (product.status !== "available" && product.status !== "auction") {
         return NextResponse.json(
           { error: "Sản phẩm này không khả dụng." },
           { status: 409 }
@@ -227,7 +229,10 @@ export async function POST(request: NextRequest) {
         payment_method: paymentMethod,
         quantity: buyQty,
         platform_commission: 0,
-        shipping_address: buyer.shipping_info, // <--- LƯU ĐỊA CHỈ VÀO ĐƠN HÀNG
+        shipping_address: buyer.shipping_info,
+        // === CẬP NHẬT QUAN TRỌNG: Lưu auction_id ===
+        auction_id: auctionId || null,
+        // ============================================
       })
       .select()
       .single();

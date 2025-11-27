@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Search,
   Package,
+  Lock,
 } from "lucide-react";
 import Image from "next/image";
 import { TransactionStatus, PaymentMethod } from "@prisma/client";
@@ -36,6 +37,8 @@ interface Order {
   created_at: string;
   quantity: number;
   shipping_address: any;
+  group_buy_id?: string | null; // Thêm
+  auction_id?: string | null; // Thêm
   product: { name: string; image_urls: string[] | null } | null;
   seller: { username: string; full_name: string } | null;
   buyer: { username: string; full_name: string } | null;
@@ -109,15 +112,16 @@ export default function OrdersPage() {
 
   const renderActions = (order: Order) => {
     const isBuyer = type === "buy";
+    const isSpecialOrder = !!order.group_buy_id || !!order.auction_id; // Check đơn đặc biệt
 
     if (isBuyer) {
-      if (order.status === "cancelled") {
+      if (order.status === "cancelled")
         return (
           <Badge variant="outline" className="bg-muted text-muted-foreground">
             Đã hủy
           </Badge>
         );
-      }
+
       if (order.status === "completed") {
         const isReviewed = order.reviews && order.reviews.length > 0;
         if (isReviewed)
@@ -134,27 +138,39 @@ export default function OrdersPage() {
           />
         );
       }
+
       if (order.status === "disputed")
         return <Badge variant="destructive">Đang khiếu nại</Badge>;
+
       if (order.status === "initiated" || order.status === "buyer_paid") {
         return (
           <div className="flex flex-col items-end gap-1">
             {order.status === "buyer_paid" && (
               <span className="text-[10px] text-green-600 font-medium">
-                Đã thanh toán (Hủy sẽ hoàn tiền)
+                Đã thanh toán
               </span>
             )}
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => handleAction(order.id, "cancel")}
-              disabled={!!processingId}
-            >
-              <XCircle className="mr-2 h-4 w-4" /> Hủy đơn
-            </Button>
+
+            {/* Logic Ẩn/Hiện nút Hủy */}
+            {isSpecialOrder ? (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded border border-orange-200 text-orange-700">
+                <Lock className="h-3 w-3" />
+                {order.group_buy_id ? "Mua Chung" : "Đấu Giá"} (Không thể hủy)
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleAction(order.id, "cancel")}
+                disabled={!!processingId}
+              >
+                <XCircle className="mr-2 h-4 w-4" /> Hủy đơn
+              </Button>
+            )}
           </div>
         );
       }
+
       if (order.status === "seller_shipped") {
         return (
           <div className="flex gap-2">
@@ -181,7 +197,10 @@ export default function OrdersPage() {
       return (
         <span className="text-sm text-muted-foreground">Đang xử lý...</span>
       );
-    } else {
+    }
+
+    // --- NGƯỜI BÁN ---
+    else {
       const AddressButton = (
         <OrderDetailsDialog
           shippingAddress={order.shipping_address}
@@ -220,6 +239,7 @@ export default function OrdersPage() {
             <Badge variant="destructive">Khách khiếu nại</Badge>
           </ActionWrapper>
         );
+
       if (order.status === "initiated" || order.status === "buyer_paid") {
         return (
           <ActionWrapper>
@@ -240,6 +260,7 @@ export default function OrdersPage() {
           </ActionWrapper>
         );
       }
+
       if (order.status === "seller_shipped")
         return (
           <ActionWrapper>
@@ -256,9 +277,10 @@ export default function OrdersPage() {
     }
   };
 
-  // Placeholder text thay đổi theo Tab
   const searchPlaceholder =
-    type === "buy" ? "Tìm theo tên người bán..." : "Tìm theo tên người mua...";
+    type === "buy"
+      ? "Tìm tên SP hoặc người bán..."
+      : "Tìm tên SP hoặc người mua...";
 
   return (
     <div className="container mx-auto py-8 max-w-4xl px-4">
@@ -352,7 +374,20 @@ export default function OrdersPage() {
                           x{order.quantity || 1}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+
+                      {/* BADGE PHÂN LOẠI ĐẶC BIỆT */}
+                      {order.group_buy_id && (
+                        <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200 w-fit text-[10px] px-1 py-0">
+                          Group Buy
+                        </Badge>
+                      )}
+                      {order.auction_id && (
+                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200 w-fit text-[10px] px-1 py-0">
+                          Đấu Giá
+                        </Badge>
+                      )}
+
+                      <p className="text-sm text-muted-foreground mt-1">
                         {type === "buy"
                           ? `Shop: ${order.seller?.username}`
                           : `Khách: ${order.buyer?.username}`}

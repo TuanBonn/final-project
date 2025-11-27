@@ -22,7 +22,6 @@ function getSupabaseAdmin() {
   });
 }
 
-// Helper lấy UserID từ token
 async function getUserId(request: NextRequest): Promise<string | null> {
   if (!JWT_SECRET) return null;
   try {
@@ -39,13 +38,13 @@ async function getUserId(request: NextRequest): Promise<string | null> {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id: auctionId } = await params;
+  const { id: auctionId } = await ctx.params;
+  const userId = await getUserId(request); // Lấy ID người dùng hiện tại
 
   try {
     const supabase = getSupabaseAdmin();
-    const userId = await getUserId(request); // Lấy user hiện tại
 
     // 1. Lấy thông tin đấu giá
     const { data: auction, error } = await supabase
@@ -59,7 +58,7 @@ export async function GET(
         end_time,
         status,
         winning_bidder_id,
-        product:products ( id, name, description, image_urls, condition ),
+        product:products ( id, name, description, image_urls, condition, quantity ),
         seller:users!seller_id ( id, username, avatar_url, reputation_score )
       `
       )
@@ -92,22 +91,32 @@ export async function GET(
       .eq("auction_id", auctionId)
       .order("bid_amount", { ascending: false });
 
-    // 3. Kiểm tra user đã tham gia chưa (Server-side check chính xác hơn)
+    const highestBid = bids && bids.length > 0 ? Number(bids[0].bid_amount) : 0;
+    const currentPrice = Math.max(Number(auction.starting_bid), highestBid);
+
+    // 3. Check đơn hàng đã tạo chưa (cho logic thắng giải)
+    const { data: transaction } = await supabase
+      .from("transactions")
+      .select("id")
+      .eq("auction_id", auctionId)
+      .maybeSingle();
+
+    // === 4. QUAN TRỌNG: KIỂM TRA ĐÃ THAM GIA CHƯA ===
     let isJoined = false;
     if (userId) {
+      // Kiểm tra trong bảng auction_participants xem có user này không
       const { data: participant } = await supabase
         .from("auction_participants")
         .select("user_id")
         .eq("auction_id", auctionId)
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
-      if (participant) isJoined = true;
+      if (participant) {
+        isJoined = true;
+      }
     }
-
-    // 4. Tính toán giá
-    const highestBid = bids && bids.length > 0 ? Number(bids[0].bid_amount) : 0;
-    const currentPrice = Math.max(Number(auction.starting_bid), highestBid);
+    // ================================================
 
     return NextResponse.json(
       {
@@ -115,7 +124,8 @@ export async function GET(
           ...auction,
           currentPrice,
           bids: bids || [],
-          isJoined, // Trả về flag này cho Frontend dùng
+          orderId: transaction?.id || null,
+          isJoined: isJoined, // Trả về true nếu đã tham gia
         },
       },
       { status: 200 }

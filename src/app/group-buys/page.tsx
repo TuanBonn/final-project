@@ -13,38 +13,33 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Users, Clock, PlusCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUser } from "@/contexts/UserContext";
+import { Loader2, Plus, Users, ShieldCheck, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
-interface GroupBuyItem {
+interface GroupBuy {
   id: string;
   name: string;
   image: string | null;
   price: number;
   target: number;
   current: number;
-  deadline: string;
-  host: { username: string; avatar_url: string | null };
-  status: string;
+  status: string; // "open", "successful", "completed", "failed"
+  host: {
+    username: string;
+    avatar_url: string | null;
+  };
 }
 
-const formatCurrency = (amount: number) =>
+const formatCurrency = (val: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
-    amount
+    val
   );
 
-const getDaysLeft = (deadline: string) => {
-  const diff = new Date(deadline).getTime() - new Date().getTime();
-  if (diff < 0) return "Hết hạn";
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  return `${days} ngày`;
-};
-
 export default function GroupBuysPage() {
-  const { user } = useUser();
-  const [groupBuys, setGroupBuys] = useState<GroupBuyItem[]>([]);
+  const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,121 +56,115 @@ export default function GroupBuysPage() {
     fetchData();
   }, []);
 
+  // Lọc danh sách (nếu cần search client-side đơn giản)
+  const filteredList = groupBuys.filter((gb) =>
+    gb.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="container mx-auto py-8 px-4">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Users className="h-8 w-8 text-orange-600" /> Săn Deal Mua Chung
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Gom đơn giá sỉ, tiết kiệm chi phí ship.
+          <h1 className="text-3xl font-bold">Sàn Mua Chung (Group Buy)</h1>
+          <p className="text-muted-foreground">
+            Gom đơn để có giá tốt nhất. An toàn với chế độ giữ tiền.
           </p>
         </div>
-
-        {user && (
-          <Button asChild className="bg-orange-600 hover:bg-orange-700">
-            <Link href="/group-buys/create">
-              <PlusCircle className="mr-2 h-4 w-4" /> Tạo kèo mới
-            </Link>
-          </Button>
-        )}
+        <Button asChild className="bg-orange-600 hover:bg-orange-700">
+          <Link href="/group-buys/create">
+            <Plus className="mr-2 h-4 w-4" /> Tạo Kèo Mới
+          </Link>
+        </Button>
       </div>
 
+      {/* SEARCH */}
+      <div className="relative mb-8 max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Tìm kiếm kèo..."
+          className="pl-10"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {/* LIST */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <Loader2 className="h-10 w-10 animate-spin text-orange-600" />
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
         </div>
-      ) : groupBuys.length === 0 ? (
-        <div className="text-center py-20 bg-muted/20 rounded-lg border border-dashed">
-          <p className="text-lg text-muted-foreground mb-4">
-            Chưa có kèo nào đang mở.
-          </p>
-          {user && (
-            <Button variant="outline" asChild>
-              <Link href="/group-buys/create">Lên kèo ngay!</Link>
-            </Button>
-          )}
+      ) : filteredList.length === 0 ? (
+        <div className="text-center py-20 bg-muted/30 rounded-xl border border-dashed">
+          <p className="text-muted-foreground">Chưa có kèo mua chung nào.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {groupBuys.map((gb) => {
-            return (
-              <Card
-                key={gb.id}
-                className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow border-orange-100"
-              >
-                <div className="relative aspect-video bg-muted">
+          {filteredList.map((gb) => (
+            <Link href={`/group-buys/${gb.id}`} key={gb.id} className="group">
+              <Card className="h-full overflow-hidden hover:shadow-md transition-shadow border-muted">
+                {/* IMAGE */}
+                <div className="relative h-48 w-full bg-muted">
                   {gb.image ? (
                     <Image
                       src={gb.image}
                       alt={gb.name}
                       fill
-                      className="object-cover"
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
                       No Image
                     </div>
                   )}
-                  {/* ĐÃ XÓA BADGE % ƯỚC TÍNH Ở ĐÂY */}
+
+                  {/* BADGE TRẠNG THÁI (SỬA) */}
+                  <div className="absolute top-2 right-2">
+                    {gb.status === "open" ? (
+                      <Badge className="bg-blue-600 hover:bg-blue-700">
+                        Đang gom
+                      </Badge>
+                    ) : gb.status === "successful" ? (
+                      <Badge className="bg-green-600 hover:bg-green-700">
+                        Đã chốt
+                      </Badge>
+                    ) : null}
+                  </div>
                 </div>
 
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                    <Avatar className="h-5 w-5">
+                <CardContent className="p-4">
+                  <h3 className="font-bold text-lg line-clamp-2 mb-2 group-hover:text-primary transition-colors">
+                    {gb.name}
+                  </h3>
+
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xl font-bold text-orange-600">
+                      {formatCurrency(gb.price)}
+                    </p>
+                    {/* TIẾN ĐỘ */}
+                    <div className="flex items-center text-xs font-medium bg-muted px-2 py-1 rounded text-muted-foreground">
+                      <Users className="h-3 w-3 mr-1" />
+                      {gb.current}/{gb.target}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-3 border-t mt-2">
+                    <Avatar className="h-6 w-6">
                       <AvatarImage src={gb.host.avatar_url || ""} />
                       <AvatarFallback>H</AvatarFallback>
                     </Avatar>
-                    <span>Host: {gb.host.username}</span>
-                  </div>
-                  <CardTitle className="text-base line-clamp-2 h-12 leading-snug">
-                    <Link
-                      href={`/group-buys/${gb.id}`}
-                      className="hover:text-orange-600 transition-colors"
-                    >
-                      {gb.name}
-                    </Link>
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="p-4 pt-0 flex-1">
-                  <div className="mb-4">
-                    <p className="text-2xl font-bold text-orange-600">
-                      {formatCurrency(gb.price)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Giá / 1 sản phẩm
-                    </p>
-                  </div>
-
-                  {/* ĐÃ SỬA LẠI PHẦN TIẾN ĐỘ (BỎ THANH PROGRESS) */}
-                  <div className="flex items-center gap-2 text-sm font-medium bg-orange-50 text-orange-800 px-3 py-1.5 rounded-md w-fit">
-                    <Users className="h-4 w-4" />
-                    <span>
-                      Tiến độ: {gb.current} / {gb.target}
+                    <span className="text-xs text-muted-foreground truncate flex-1">
+                      Host:{" "}
+                      <span className="font-medium text-foreground">
+                        {gb.host.username}
+                      </span>
                     </span>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="h-4 w-4" /> Còn lại:{" "}
-                    <span className="font-medium text-foreground">
-                      {getDaysLeft(gb.deadline)}
-                    </span>
+                    <ShieldCheck className="h-3 w-3 text-blue-600" />
                   </div>
                 </CardContent>
-
-                <CardFooter className="p-4 pt-0">
-                  <Button
-                    className="w-full bg-orange-600 hover:bg-orange-700"
-                    asChild
-                  >
-                    <Link href={`/group-buys/${gb.id}`}>Tham gia ngay</Link>
-                  </Button>
-                </CardFooter>
               </Card>
-            );
-          })}
+            </Link>
+          ))}
         </div>
       )}
     </div>

@@ -15,16 +15,14 @@ import {
   ArrowLeft,
   ShieldCheck,
   ShoppingBag,
-  Truck,
-  PackageCheck,
-  AlertTriangle,
   Check,
   X,
   Settings,
+  AlertTriangle,
+  ExternalLink, // Icon mới
 } from "lucide-react";
 import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { useUser } from "@/contexts/UserContext";
-import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
@@ -35,6 +33,7 @@ export default function GroupBuyDetailPage() {
   const { id } = useParams();
   const { user } = useUser();
   const router = useRouter();
+
   const [groupBuy, setGroupBuy] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [joinQuantity, setJoinQuantity] = useState("1");
@@ -43,7 +42,7 @@ export default function GroupBuyDetailPage() {
   const fetchGroupBuy = useCallback(async () => {
     try {
       const res = await fetch(`/api/group-buys/${id}`);
-      if (!res.ok) throw new Error("Lỗi tải");
+      if (!res.ok) throw new Error("Lỗi tải dữ liệu");
       const data = await res.json();
       setGroupBuy(data.groupBuy);
     } catch (error) {
@@ -57,18 +56,17 @@ export default function GroupBuyDetailPage() {
     fetchGroupBuy();
   }, [fetchGroupBuy]);
 
-  // --- 1. HOST CHỐT KÈO / HỦY KÈO ---
+  // --- HOST CHỐT KÈO / HỦY KÈO ---
   const handleHostStatusChange = async (newStatus: "successful" | "failed") => {
     const confirmMsg =
       newStatus === "successful"
-        ? "Xác nhận CHỐT KÈO THÀNH CÔNG? Bạn sẽ bắt đầu gửi hàng."
-        : "Xác nhận HỦY KÈO? Hệ thống sẽ hoàn tiền cho mọi người.";
+        ? "Xác nhận CHỐT KÈO THÀNH CÔNG? \n\nHệ thống sẽ TỰ ĐỘNG TẠO ĐƠN HÀNG cho tất cả người tham gia vào mục 'Quản lý đơn hàng'."
+        : "Xác nhận HỦY KÈO? \n\nHệ thống sẽ hoàn tiền 100%.";
 
     if (!confirm(confirmMsg)) return;
 
     setIsActionLoading(true);
     try {
-      // Gọi API Admin (Host cũng gọi được do đã sửa API)
       const res = await fetch(`/api/admin/group-buys/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -80,7 +78,7 @@ export default function GroupBuyDetailPage() {
         throw new Error(data.error);
       }
 
-      alert("Cập nhật trạng thái thành công!");
+      alert("Thành công! Các đơn hàng đã được tạo.");
       fetchGroupBuy();
     } catch (e: any) {
       alert(e.message);
@@ -89,7 +87,7 @@ export default function GroupBuyDetailPage() {
     }
   };
 
-  // --- 2. THAM GIA ---
+  // --- KHÁCH THAM GIA ---
   const handleJoin = async () => {
     if (!user) {
       router.push("/login");
@@ -99,7 +97,7 @@ export default function GroupBuyDetailPage() {
     if (qty < 1) return alert("Số lượng tối thiểu là 1");
 
     const total = qty * Number(groupBuy.price_per_unit);
-    if (!confirm(`Xác nhận tham gia? Trừ ${formatCurrency(total)} trong ví.`))
+    if (!confirm(`Xác nhận tham gia? Trừ ${formatCurrency(total)} vào ví.`))
       return;
 
     setIsActionLoading(true);
@@ -125,65 +123,6 @@ export default function GroupBuyDetailPage() {
     }
   };
 
-  // --- 3. GỬI / NHẬN HÀNG ---
-  const handleParticipantAction = async (
-    action: "ship" | "confirm",
-    targetUserId?: string
-  ) => {
-    if (
-      !confirm(
-        action === "ship" ? "Xác nhận gửi hàng?" : "Xác nhận đã nhận hàng?"
-      )
-    )
-      return;
-    setIsActionLoading(true);
-    try {
-      const res = await fetch("/api/group-buys/participant", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          groupBuyId: id,
-          targetUserId: targetUserId || user?.id,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      alert(data.message);
-      fetchGroupBuy();
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  // --- 4. BÁO CÁO HỦY KÈO ---
-  const handleReport = async () => {
-    const reason = prompt("Lý do bạn muốn yêu cầu hủy kèo này?");
-    if (!reason) return;
-
-    setIsActionLoading(true);
-    try {
-      const res = await fetch("/api/group-buys/participant", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "report",
-          groupBuyId: id,
-          reason,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      alert(data.message);
-    } catch (error: any) {
-      alert(error.message);
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
   if (loading)
     return (
       <div className="flex justify-center py-20">
@@ -194,7 +133,9 @@ export default function GroupBuyDetailPage() {
     return <div className="text-center py-20">Kèo không tồn tại.</div>;
 
   const isOpen = groupBuy.status === "open";
-  const isSuccessful = groupBuy.status === "successful";
+  const isSuccessful = groupBuy.status === "successful"; // Đã tạo đơn hàng
+  const isFailed = groupBuy.status === "failed";
+
   const isHost = user && groupBuy.host.id === user.id;
   const myParticipation = user
     ? groupBuy.participants.find((p: any) => p.user.id === user.id)
@@ -226,20 +167,16 @@ export default function GroupBuyDetailPage() {
                 className={
                   isOpen
                     ? "bg-blue-600"
-                    : groupBuy.status === "successful"
+                    : isSuccessful
                     ? "bg-green-600"
-                    : groupBuy.status === "failed"
-                    ? "bg-red-600"
-                    : "bg-gray-600"
+                    : "bg-red-600"
                 }
               >
                 {isOpen
                   ? "Đang Gom"
-                  : groupBuy.status === "successful"
-                  ? "Thành Công"
-                  : groupBuy.status === "failed"
-                  ? "Thất Bại"
-                  : "Hoàn Tất"}
+                  : isSuccessful
+                  ? "Đã Chốt & Tạo Đơn"
+                  : "Đã Hủy"}
               </Badge>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground mb-4">
@@ -266,7 +203,7 @@ export default function GroupBuyDetailPage() {
 
         {/* CỘT PHẢI */}
         <div className="space-y-6">
-          {/* PANEL QUẢN LÝ CHO HOST */}
+          {/* PANEL QUẢN LÝ HOST */}
           {isHost && isOpen && (
             <Card className="border-2 border-blue-200 bg-blue-50">
               <CardHeader className="pb-2">
@@ -276,7 +213,9 @@ export default function GroupBuyDetailPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-blue-700">
-                  Bạn có thể chốt kèo sớm hoặc hủy.
+                  Đủ số lượng? Chốt ngay để hệ thống{" "}
+                  <strong>tự động tạo đơn hàng</strong> cho tất cả người tham
+                  gia.
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -292,14 +231,14 @@ export default function GroupBuyDetailPage() {
                     onClick={() => handleHostStatusChange("failed")}
                     disabled={isActionLoading}
                   >
-                    <X className="mr-2 h-4 w-4" /> Hủy
+                    <X className="mr-2 h-4 w-4" /> Hủy Kèo
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          <Card className="border-orange-200 bg-orange-50/30 shadow-lg sticky top-24">
+          <Card className="border-orange-200 bg-orange-50/30 shadow-lg">
             <CardContent className="p-6 space-y-6">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">
@@ -309,14 +248,40 @@ export default function GroupBuyDetailPage() {
                   {formatCurrency(Number(groupBuy.price_per_unit))}
                 </p>
               </div>
+
+              {/* THÔNG BÁO KHI THÀNH CÔNG */}
+              {isSuccessful && (
+                <div className="bg-green-100 border border-green-300 text-green-800 p-4 rounded-md">
+                  <p className="font-bold flex items-center gap-2">
+                    <Check className="h-5 w-5" /> Kèo đã được chốt!
+                  </p>
+                  <p className="text-sm mt-1">
+                    Hệ thống đã tạo đơn hàng. Vui lòng kiểm tra trong mục{" "}
+                    <strong>Quản lý đơn hàng</strong> để theo dõi vận chuyển.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 w-full border-green-600 text-green-700 hover:bg-green-200"
+                    asChild
+                  >
+                    <Link href="/orders">
+                      <ExternalLink className="mr-2 h-4 w-4" /> Đến trang Đơn
+                      hàng
+                    </Link>
+                  </Button>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 text-sm font-medium bg-white text-orange-800 px-3 py-2 rounded-md border border-orange-100 w-fit shadow-sm">
-                <Users className="h-4 w-4" />{" "}
+                <Users className="h-4 w-4" />
                 <span>
-                  Tiến độ: {groupBuy.currentQuantity} /{" "}
+                  Đã đăng ký: {groupBuy.currentQuantity} /{" "}
                   {groupBuy.target_quantity}
                 </span>
               </div>
 
+              {/* Nút Tham gia */}
               {isOpen && !isHost && !hasJoined && (
                 <div className="space-y-3 pt-4 border-t border-orange-200 mt-2">
                   <div className="flex items-center gap-3">
@@ -346,26 +311,15 @@ export default function GroupBuyDetailPage() {
                 </div>
               )}
 
-              {hasJoined && (
-                <div className="bg-green-100 text-green-800 p-3 rounded-md text-center text-sm font-medium border border-green-200">
-                  🎉 Bạn đã tham gia!
+              {hasJoined && isOpen && (
+                <div className="bg-blue-100 text-blue-800 p-3 rounded-md text-center text-sm font-medium border border-blue-200">
+                  Bạn đang tham gia kèo này. Chờ Host chốt nhé!
                 </div>
-              )}
-
-              {hasJoined && (isOpen || isSuccessful) && !isHost && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
-                  onClick={handleReport}
-                  disabled={isActionLoading}
-                >
-                  <AlertTriangle className="mr-2 h-4 w-4" /> Yêu cầu hủy kèo
-                </Button>
               )}
             </CardContent>
           </Card>
 
+          {/* DANH SÁCH THAM GIA */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">Danh sách tham gia</CardTitle>
@@ -380,73 +334,21 @@ export default function GroupBuyDetailPage() {
                 {groupBuy.participants.map((p: any, idx: number) => (
                   <div
                     key={idx}
-                    className="flex flex-col gap-2 p-3 bg-muted/30 rounded-lg border"
+                    className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={p.user.avatar_url} />
-                          <AvatarFallback>U</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium">
-                            {p.user.username}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            SL: {p.quantity}
-                          </p>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={p.user.avatar_url} />
+                        <AvatarFallback>U</AvatarFallback>
+                      </Avatar>
                       <div>
-                        {p.status === "paid" && (
-                          <Badge variant="secondary">Đã cọc</Badge>
-                        )}
-                        {p.status === "shipped" && (
-                          <Badge className="bg-blue-600">Đã gửi</Badge>
-                        )}
-                        {p.status === "received" && (
-                          <Badge className="bg-green-600">Đã nhận</Badge>
-                        )}
-                        {p.status === "refunded" && (
-                          <Badge variant="destructive">Hoàn tiền</Badge>
-                        )}
+                        <p className="text-sm font-medium">{p.user.username}</p>
+                        <p className="text-xs text-muted-foreground">
+                          SL: {p.quantity}
+                        </p>
                       </div>
                     </div>
-
-                    {isHost && isSuccessful && p.status === "paid" && (
-                      <div className="flex gap-2 mt-2">
-                        <div className="flex-1">
-                          <OrderDetailsDialog
-                            shippingAddress={p.user.shipping_info}
-                            buyerName={p.user.username}
-                          />
-                        </div>
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-blue-600 hover:bg-blue-700"
-                          onClick={() =>
-                            handleParticipantAction("ship", p.user.id)
-                          }
-                          disabled={isActionLoading}
-                        >
-                          <Truck className="mr-2 h-3 w-3" /> Xác nhận gửi
-                        </Button>
-                      </div>
-                    )}
-
-                    {user &&
-                      user.id === p.user.id &&
-                      p.status === "shipped" && (
-                        <Button
-                          size="sm"
-                          className="w-full mt-1 bg-green-600 hover:bg-green-700"
-                          onClick={() => handleParticipantAction("confirm")}
-                          disabled={isActionLoading}
-                        >
-                          <PackageCheck className="mr-2 h-3 w-3" /> Đã nhận được
-                          hàng
-                        </Button>
-                      )}
+                    <Badge variant="secondary">Đã cọc</Badge>
                   </div>
                 ))}
               </div>

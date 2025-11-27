@@ -326,6 +326,9 @@ model Transaction {
   platform_commission Decimal           @default(0) @db.Decimal
   status              TransactionStatus @default(initiated)
   quantity            Int               @default(1)
+
+  group_buy_id     String?   @db.Uuid
+  auction_id          String?           @db.Uuid
   
   payment_method      PaymentMethod     @default(cod)
 

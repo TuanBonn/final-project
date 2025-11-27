@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
     const to = from + limit - 1;
 
     // Khởi tạo query cơ bản
+    // QUAN TRỌNG: Thêm group_buy_id và auction_id vào select
     let query = supabase.from("transactions").select(
       `
         id,
@@ -66,6 +67,8 @@ export async function GET(request: NextRequest) {
         created_at,
         quantity,
         shipping_address,
+        group_buy_id,    
+        auction_id,      
         product:products ( name, image_urls ),
         buyer:users!buyer_id ( username, full_name ),
         seller:users!seller_id ( username, full_name ),
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest) {
       query = query.eq("buyer_id", userId);
     }
 
-    // 2. XỬ LÝ TÌM KIẾM (Chiến thuật Pre-fetch IDs để tránh lỗi 500)
+    // 2. XỬ LÝ TÌM KIẾM (Chiến thuật Pre-fetch IDs)
     if (search) {
       // A. Tìm các Product có tên khớp
       const { data: foundProducts } = await supabase
@@ -90,38 +93,31 @@ export async function GET(request: NextRequest) {
         .ilike("name", `%${search}%`);
       const productIds = foundProducts?.map((p) => p.id) || [];
 
-      // B. Tìm các User có tên khớp (username hoặc full_name)
+      // B. Tìm các User có tên khớp
       const { data: foundUsers } = await supabase
         .from("users")
         .select("id")
         .or(`username.ilike.%${search}%,full_name.ilike.%${search}%`);
       const userIds = foundUsers?.map((u) => u.id) || [];
 
-      // C. Ghép điều kiện OR vào query chính
+      // C. Ghép điều kiện OR
       const conditions = [];
 
-      // C1. Khớp tên sản phẩm
       if (productIds.length > 0) {
         conditions.push(`product_id.in.(${productIds.join(",")})`);
       }
 
-      // C2. Khớp tên người (Tùy tab mà tìm Seller hay Buyer)
       if (userIds.length > 0) {
         if (type === "buy") {
-          // Đơn Mua -> Tìm người bán
           conditions.push(`seller_id.in.(${userIds.join(",")})`);
         } else {
-          // Đơn Bán -> Tìm người mua
           conditions.push(`buyer_id.in.(${userIds.join(",")})`);
         }
       }
 
       if (conditions.length > 0) {
-        // Áp dụng bộ lọc OR
         query = query.or(conditions.join(","));
       } else {
-        // Nếu search có text mà không tìm thấy Product hay User nào -> Trả về rỗng
-        // (Gán điều kiện sai ID để không ra kết quả nào)
         query = query.eq("id", "00000000-0000-0000-0000-000000000000");
       }
     }

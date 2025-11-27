@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const COOKIE_NAME = "auth-token";
 
 const DEFAULT_PENALTY_SCORE = 20;
-const PAYMENT_WINDOW_HOURS = 0;
+const PAYMENT_WINDOW_HOURS = 24;
 
 function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey, {

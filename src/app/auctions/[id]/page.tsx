@@ -1,7 +1,7 @@
 // src/app/auctions/[id]/page.tsx
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
@@ -18,13 +18,13 @@ import {
   User as UserIcon,
   Wallet,
   AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import { BidForm } from "@/components/BidForm";
 import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { useUser } from "@/contexts/UserContext";
 import { BuyProductDialog } from "@/components/BuyProductDialog";
 
-// Khởi tạo Supabase Client (Dùng để nhận Realtime)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -47,12 +47,14 @@ interface AuctionDetail {
   end_time: string;
   winning_bidder_id: string | null;
   isJoined: boolean;
+  orderId: string | null; // ID đơn hàng nếu đã tạo
   product: {
     id: string;
     name: string;
     description: string;
     image_urls: string[] | null;
     condition: string;
+    quantity: number;
   };
   seller: {
     id: string;
@@ -92,8 +94,6 @@ const Countdown = ({
         }
         return;
       }
-
-      // Reset expired nếu thời gian được gia hạn (anti-snipe)
       if (isExpired && distance > 0) {
         setIsExpired(false);
       }
@@ -133,12 +133,17 @@ export default function AuctionDetailPage() {
   const [joining, setJoining] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
 
-  // Hàm tải dữ liệu
+  // Ref để tránh stale closure trong setInterval
+  const auctionRef = useRef(auction);
+  useEffect(() => {
+    auctionRef.current = auction;
+  }, [auction]);
+
   const fetchData = useCallback(
     async (isSilent = false) => {
       if (!isSilent) setLoading(true);
       try {
-        // Thêm timestamp để tránh cache trình duyệt
+        // Thêm timestamp để tránh cache
         const res = await fetch(
           `/api/auctions/${id}?t=${new Date().getTime()}`
         );
@@ -147,7 +152,14 @@ export default function AuctionDetailPage() {
           throw new Error("Lỗi tải");
         }
         const data = await res.json();
-        setAuction(data.auction); // Cập nhật state
+
+        // Cập nhật state nếu có dữ liệu mới
+        setAuction((prev) => {
+          if (JSON.stringify(prev) !== JSON.stringify(data.auction)) {
+            return data.auction;
+          }
+          return prev;
+        });
       } catch (error) {
         console.error(error);
       } finally {
@@ -157,34 +169,39 @@ export default function AuctionDetailPage() {
     [id]
   );
 
-  // Fetch lần đầu
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // === REALTIME SETUP (QUAN TRỌNG) ===
+  // Polling fallback (mỗi 3s nếu đang active)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (auctionRef.current?.status === "active") {
+        fetchData(true);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Realtime listener
   useEffect(() => {
     if (!id) return;
-
-    console.log("🔌 Connecting Realtime for Auction:", id);
-
+    console.log("Listening to realtime channel:", `auction_room:${id}`);
     const channel = supabase
-      .channel(`auction_room:${id}`) // Tên kênh duy nhất
-      // 1. Lắng nghe BID MỚI (INSERT vào bảng bids)
+      .channel(`auction_room:${id}`)
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*", // Nghe mọi sự kiện
           schema: "public",
           table: "bids",
           filter: `auction_id=eq.${id}`,
         },
-        (payload) => {
-          console.log("⚡ Realtime: Có người đặt giá mới!", payload);
-          fetchData(true); // Gọi API lấy dữ liệu mới nhất ngay lập tức
+        () => {
+          console.log("New bid! Refreshing...");
+          fetchData(true);
         }
       )
-      // 2. Lắng nghe GIA HẠN THỜI GIAN / KẾT THÚC (UPDATE bảng auctions)
       .on(
         "postgres_changes",
         {
@@ -194,16 +211,13 @@ export default function AuctionDetailPage() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          console.log("⚡ Realtime: Phiên đấu giá cập nhật!", payload);
-          fetchData(true); // Cập nhật lại end_time, status, winner...
+          console.log("Auction updated!", payload);
+          fetchData(true);
         }
       )
-      .subscribe((status) => {
-        console.log("📡 Realtime Status:", status);
-      });
+      .subscribe();
 
     return () => {
-      console.log("🔌 Disconnecting Realtime...");
       supabase.removeChannel(channel);
     };
   }, [id, fetchData]);
@@ -227,7 +241,7 @@ export default function AuctionDetailPage() {
 
       if (res.ok) {
         alert(data.message);
-        fetchData(); // Refresh để cập nhật trạng thái isJoined
+        fetchData(true);
       } else {
         if (res.status === 402) {
           if (confirm("Số dư không đủ. Bạn có muốn nạp tiền ngay?")) {
@@ -261,13 +275,6 @@ export default function AuctionDetailPage() {
     }
   };
 
-  // Callback khi đặt giá thành công (gọi từ BidForm)
-  const onBidSuccess = () => {
-    // Không cần làm gì cả vì Realtime sẽ tự bắt sự kiện và refresh
-    // Nhưng để trải nghiệm người dùng mượt nhất (instant feedback), có thể gọi fetch nhẹ:
-    // fetchData(true);
-  };
-
   if (loading && !auction)
     return (
       <div className="flex justify-center py-20">
@@ -294,6 +301,9 @@ export default function AuctionDetailPage() {
   const paymentDeadline = new Date(
     new Date(auction.end_time).getTime() + 24 * 60 * 60 * 1000
   );
+
+  // Kiểm tra đã có đơn hàng chưa
+  const hasOrder = !!auction.orderId;
 
   return (
     <div className="container mx-auto py-6 max-w-5xl px-4">
@@ -407,8 +417,8 @@ export default function AuctionDetailPage() {
                 </p>
                 <div className="flex items-baseline gap-2">
                   <p
-                    className="text-4xl font-bold text-primary animate-in fade-in slide-in-from-bottom-2 duration-300 key={auction.currentPrice}"
-                    key={auction.currentPrice} // Key change triggers animation
+                    className="text-4xl font-bold text-primary animate-in fade-in slide-in-from-bottom-2 duration-300"
+                    key={auction.currentPrice}
                   >
                     {formatCurrency(auction.currentPrice)}
                   </p>
@@ -433,31 +443,48 @@ export default function AuctionDetailPage() {
                       CHÚC MỪNG BẠN ĐÃ THẮNG!
                     </h3>
 
-                    <div className="bg-white p-3 rounded-lg border border-green-200 text-sm text-muted-foreground mt-3">
-                      <p className="mb-1 flex items-center justify-center gap-1 text-red-600 font-medium">
-                        <AlertCircle className="h-4 w-4" /> Hạn chót thanh toán:
-                      </p>
-                      <p className="font-bold text-foreground text-lg">
-                        {paymentDeadline.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}{" "}
-                        - {paymentDeadline.toLocaleDateString()}
-                      </p>
-                    </div>
+                    {/* Chỉ hiện hạn thanh toán nếu CHƯA có đơn hàng */}
+                    {!hasOrder && (
+                      <div className="bg-white p-3 rounded-lg border border-green-200 text-sm text-muted-foreground mt-3">
+                        <p className="mb-1 flex items-center justify-center gap-1 text-red-600 font-medium">
+                          <AlertCircle className="h-4 w-4" /> Hạn chót thanh
+                          toán:
+                        </p>
+                        <p className="font-bold text-foreground text-lg">
+                          {paymentDeadline.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          - {paymentDeadline.toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  <BuyProductDialog
-                    product={{
-                      id: auction.product.id,
-                      name: auction.product.name,
-                      price: auction.currentPrice,
-                      status: "in_transaction",
-                      quantity: 1,
-                    }}
-                    fixedPrice={auction.currentPrice}
-                    auctionId={auction.id}
-                  />
+                  {/* LOGIC ẨN NÚT MUA NẾU ĐÃ CÓ ĐƠN */}
+                  {hasOrder ? (
+                    <Button
+                      className="w-full bg-blue-600 hover:bg-blue-700 py-6 text-lg font-bold shadow-md"
+                      asChild
+                    >
+                      <Link href="/orders">
+                        <CheckCircle className="mr-2 h-5 w-5" /> Đơn hàng đã
+                        được tạo
+                      </Link>
+                    </Button>
+                  ) : (
+                    <BuyProductDialog
+                      product={{
+                        id: auction.product.id,
+                        name: auction.product.name,
+                        price: auction.currentPrice,
+                        status: "in_transaction",
+                        quantity: 1, // Đấu giá thường là 1 sản phẩm
+                      }}
+                      fixedPrice={auction.currentPrice}
+                      auctionId={auction.id}
+                    />
+                  )}
                 </div>
               ) : isEnded && !isWinner ? (
                 <Button
@@ -470,7 +497,6 @@ export default function AuctionDetailPage() {
               ) : !isEnded ? (
                 // Đang diễn ra
                 !auction.isJoined ? (
-                  // Chưa tham gia -> Hiện nút Tham gia
                   <div className="space-y-2">
                     <Button
                       onClick={handleJoinAuction}
@@ -491,11 +517,10 @@ export default function AuctionDetailPage() {
                     </p>
                   </div>
                 ) : (
-                  // Đã tham gia -> Hiện form đặt giá
                   <BidForm
                     auctionId={auction.id}
                     currentPrice={auction.currentPrice}
-                    onSuccess={onBidSuccess} // Truyền callback refresh
+                    onSuccess={() => fetchData(true)}
                   />
                 )
               ) : null}
