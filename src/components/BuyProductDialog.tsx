@@ -49,8 +49,6 @@ export function BuyProductDialog({
   const [loading, setLoading] = useState(false);
 
   const isAuction = !!auctionId;
-
-  // Nếu là đấu giá -> Bắt buộc dùng Wallet. Nếu mua thường -> Mặc định COD
   const [paymentMethod, setPaymentMethod] = useState(
     isAuction ? "wallet" : "cod"
   );
@@ -75,12 +73,12 @@ export function BuyProductDialog({
     }
 
     if (!isAuction && (buyQuantity < 1 || buyQuantity > product.quantity)) {
-      alert(`Vui lòng nhập số lượng hợp lệ (1 - ${product.quantity})`);
+      alert(`Please enter a valid quantity (1 - ${product.quantity})`);
       return;
     }
 
     if (paymentMethod === "wallet" && !isBalanceEnough) {
-      alert("Số dư ví không đủ. Vui lòng nạp thêm tiền.");
+      alert("Insufficient wallet balance. Please deposit more funds.");
       return;
     }
 
@@ -100,10 +98,10 @@ export function BuyProductDialog({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Có lỗi xảy ra.");
+        throw new Error(data.error || "Error occurred.");
       }
 
-      alert("Thanh toán thành công! Đơn hàng đã được tạo.");
+      alert("Payment successful! Order created.");
       setIsOpen(false);
       router.push("/orders");
     } catch (error: any) {
@@ -118,7 +116,7 @@ export function BuyProductDialog({
   if (!isAvailable && !isAuction) {
     return (
       <Button disabled variant="secondary" className="w-full md:w-auto">
-        Hết hàng / Ngừng bán
+        Out of Stock / Stopped
       </Button>
     );
   }
@@ -137,23 +135,23 @@ export function BuyProductDialog({
           ) : (
             <ShoppingCart className="mr-2 h-5 w-5" />
           )}
-          {isAuction ? "Thanh toán & Nhận giải" : "Mua ngay"}
+          {isAuction ? "Pay & Claim Reward" : "Buy Now"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>
-            {isAuction ? "Xác nhận nhận giải" : "Xác nhận mua hàng"}
+            {isAuction ? "Confirm Reward Claim" : "Confirm Purchase"}
           </DialogTitle>
           <DialogDescription>
-            Sản phẩm: <strong>{product.name}</strong>
+            Product: <strong>{product.name}</strong>
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4 space-y-4">
           {!isAuction && (
             <div className="flex items-center justify-between border p-3 rounded-md bg-muted/20">
-              <Label>Số lượng mua (Kho còn {product.quantity}):</Label>
+              <Label>Quantity (Stock: {product.quantity}):</Label>
               <Input
                 type="number"
                 min="1"
@@ -169,20 +167,18 @@ export function BuyProductDialog({
           )}
 
           <div className="text-right font-bold text-lg text-primary">
-            {isAuction ? "Giá thắng cuộc: " : "Tổng tiền: "}
+            {isAuction ? "Winning Price: " : "Total Amount: "}
             {formatCurrency(totalAmount)}
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-medium">Phương thức thanh toán:</h4>
+            <h4 className="text-sm font-medium">Payment Method:</h4>
 
-            {/* Cảnh báo nếu là đấu giá */}
             {isAuction && (
               <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-md text-xs flex gap-2">
                 <Info className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
-                  Quy định đấu giá: Bắt buộc thanh toán qua Ví để đảm bảo giao
-                  dịch.
+                  Auction Rule: Wallet payment mandatory for security.
                 </span>
               </div>
             )}
@@ -192,7 +188,6 @@ export function BuyProductDialog({
               onValueChange={setPaymentMethod}
               className="gap-3"
             >
-              {/* Chỉ hiện COD nếu KHÔNG PHẢI Đấu Giá */}
               {!isAuction && (
                 <div className="flex items-center space-x-3 border p-3 rounded-md cursor-pointer hover:bg-accent">
                   <RadioGroupItem value="cod" id="cod" />
@@ -202,13 +197,12 @@ export function BuyProductDialog({
                   >
                     <Truck className="mr-2 h-4 w-4 text-green-600" />
                     <div className="flex flex-col">
-                      <span>Thanh toán khi nhận hàng (COD)</span>
+                      <span>Cash on Delivery (COD)</span>
                     </div>
                   </Label>
                 </div>
               )}
 
-              {/* Wallet */}
               <div
                 className={`flex items-center space-x-3 border p-3 rounded-md cursor-pointer ${
                   isBalanceEnough ? "hover:bg-accent" : "opacity-60 bg-gray-50"
@@ -225,18 +219,18 @@ export function BuyProductDialog({
                 >
                   <Wallet className="mr-2 h-4 w-4 text-orange-600" />
                   <div className="flex flex-col flex-1">
-                    <span>Ví điện tử</span>
+                    <span>E-Wallet</span>
                     <span
                       className={`text-xs ${
                         isBalanceEnough ? "text-green-600" : "text-red-600"
                       } font-medium`}
                     >
-                      Số dư: {formatCurrency(userBalance)}
+                      Balance: {formatCurrency(userBalance)}
                     </span>
                   </div>
                   {!isBalanceEnough && (
                     <span className="text-[10px] text-red-500 font-bold ml-2">
-                      Không đủ
+                      Insufficient
                     </span>
                   )}
                 </Label>
@@ -251,7 +245,7 @@ export function BuyProductDialog({
             onClick={() => setIsOpen(false)}
             disabled={loading}
           >
-            Hủy
+            Cancel
           </Button>
           <Button
             onClick={handleBuy}
@@ -260,7 +254,7 @@ export function BuyProductDialog({
             }
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Xác nhận
+            Confirm
           </Button>
         </DialogFooter>
       </DialogContent>

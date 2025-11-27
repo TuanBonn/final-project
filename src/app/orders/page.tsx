@@ -37,8 +37,8 @@ interface Order {
   created_at: string;
   quantity: number;
   shipping_address: any;
-  group_buy_id?: string | null; // Thêm
-  auction_id?: string | null; // Thêm
+  group_buy_id?: string | null;
+  auction_id?: string | null;
   product: { name: string; image_urls: string[] | null } | null;
   seller: { username: string; full_name: string } | null;
   buyer: { username: string; full_name: string } | null;
@@ -90,7 +90,7 @@ export default function OrdersPage() {
   }, [fetchOrders]);
 
   const handleAction = async (orderId: string, action: string) => {
-    if (!confirm("Bạn có chắc chắn muốn thực hiện hành động này?")) return;
+    if (!confirm("Are you sure you want to perform this action?")) return;
     setProcessingId(orderId);
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -112,13 +112,13 @@ export default function OrdersPage() {
 
   const renderActions = (order: Order) => {
     const isBuyer = type === "buy";
-    const isSpecialOrder = !!order.group_buy_id || !!order.auction_id; // Check đơn đặc biệt
+    const isSpecialOrder = !!order.group_buy_id || !!order.auction_id;
 
     if (isBuyer) {
       if (order.status === "cancelled")
         return (
           <Badge variant="outline" className="bg-muted text-muted-foreground">
-            Đã hủy
+            Cancelled
           </Badge>
         );
 
@@ -127,35 +127,34 @@ export default function OrdersPage() {
         if (isReviewed)
           return (
             <span className="text-sm text-green-600 font-medium flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" /> Đã đánh giá
+              <CheckCircle className="h-3 w-3" /> Reviewed
             </span>
           );
         return (
           <ReviewDialog
             transactionId={order.id}
-            productName={order.product?.name || "Sản phẩm"}
+            productName={order.product?.name || "Product"}
             onSuccess={fetchOrders}
           />
         );
       }
 
       if (order.status === "disputed")
-        return <Badge variant="destructive">Đang khiếu nại</Badge>;
+        return <Badge variant="destructive">Disputing</Badge>;
 
       if (order.status === "initiated" || order.status === "buyer_paid") {
         return (
           <div className="flex flex-col items-end gap-1">
             {order.status === "buyer_paid" && (
               <span className="text-[10px] text-green-600 font-medium">
-                Đã thanh toán
+                Paid
               </span>
             )}
 
-            {/* Logic Ẩn/Hiện nút Hủy */}
             {isSpecialOrder ? (
               <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded border border-orange-200 text-orange-700">
                 <Lock className="h-3 w-3" />
-                {order.group_buy_id ? "Mua Chung" : "Đấu Giá"} (Không thể hủy)
+                {order.group_buy_id ? "Group Buy" : "Auction"} (Cannot cancel)
               </div>
             ) : (
               <Button
@@ -164,7 +163,7 @@ export default function OrdersPage() {
                 onClick={() => handleAction(order.id, "cancel")}
                 disabled={!!processingId}
               >
-                <XCircle className="mr-2 h-4 w-4" /> Hủy đơn
+                <XCircle className="mr-2 h-4 w-4" /> Cancel Order
               </Button>
             )}
           </div>
@@ -180,7 +179,7 @@ export default function OrdersPage() {
               onClick={() => handleAction(order.id, "confirm")}
               disabled={!!processingId}
             >
-              <CheckCircle className="mr-2 h-4 w-4" /> Đã nhận hàng
+              <CheckCircle className="mr-2 h-4 w-4" /> Received
             </Button>
             <Button
               size="sm"
@@ -189,22 +188,22 @@ export default function OrdersPage() {
               onClick={() => handleAction(order.id, "dispute")}
               disabled={!!processingId}
             >
-              <AlertTriangle className="mr-2 h-4 w-4" /> Khiếu nại
+              <AlertTriangle className="mr-2 h-4 w-4" /> Dispute
             </Button>
           </div>
         );
       }
       return (
-        <span className="text-sm text-muted-foreground">Đang xử lý...</span>
+        <span className="text-sm text-muted-foreground">Processing...</span>
       );
     }
 
-    // --- NGƯỜI BÁN ---
+    // --- SELLER ---
     else {
       const AddressButton = (
         <OrderDetailsDialog
           shippingAddress={order.shipping_address}
-          buyerName={order.buyer?.full_name || order.buyer?.username || "Khách"}
+          buyerName={order.buyer?.full_name || order.buyer?.username || "Buyer"}
         />
       );
       const ActionWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -218,7 +217,7 @@ export default function OrdersPage() {
         return (
           <ActionWrapper>
             <Badge variant="outline" className="bg-muted text-muted-foreground">
-              Đã hủy
+              Cancelled
             </Badge>
           </ActionWrapper>
         );
@@ -229,14 +228,14 @@ export default function OrdersPage() {
               variant="outline"
               className="border-green-600 text-green-600 bg-green-50"
             >
-              Giao dịch thành công
+              Transaction Successful
             </Badge>
           </ActionWrapper>
         );
       if (order.status === "disputed")
         return (
           <ActionWrapper>
-            <Badge variant="destructive">Khách khiếu nại</Badge>
+            <Badge variant="destructive">Buyer Disputed</Badge>
           </ActionWrapper>
         );
 
@@ -246,7 +245,7 @@ export default function OrdersPage() {
             <div className="flex flex-col items-end gap-1">
               {order.status === "buyer_paid" && (
                 <span className="text-[10px] text-green-600 font-medium hidden sm:inline-block">
-                  Khách đã thanh toán
+                  Buyer Paid
                 </span>
               )}
               <Button
@@ -254,7 +253,7 @@ export default function OrdersPage() {
                 onClick={() => handleAction(order.id, "ship")}
                 disabled={!!processingId}
               >
-                <Truck className="mr-2 h-4 w-4" /> Xác nhận gửi
+                <Truck className="mr-2 h-4 w-4" /> Confirm Ship
               </Button>
             </div>
           </ActionWrapper>
@@ -265,13 +264,13 @@ export default function OrdersPage() {
         return (
           <ActionWrapper>
             <Badge variant="secondary" className="text-muted-foreground">
-              Đang giao hàng...
+              Shipping...
             </Badge>
           </ActionWrapper>
         );
       return (
         <ActionWrapper>
-          <span className="text-sm text-muted-foreground">Đang xử lý...</span>
+          <span className="text-sm text-muted-foreground">Processing...</span>
         </ActionWrapper>
       );
     }
@@ -279,8 +278,8 @@ export default function OrdersPage() {
 
   const searchPlaceholder =
     type === "buy"
-      ? "Tìm tên SP hoặc người bán..."
-      : "Tìm tên SP hoặc người mua...";
+      ? "Search product or seller..."
+      : "Search product or buyer...";
 
   return (
     <div className="container mx-auto py-8 max-w-4xl px-4">
@@ -288,10 +287,8 @@ export default function OrdersPage() {
         <CardHeader className="px-0 sm:px-6 pb-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <CardTitle className="text-2xl">Quản lý Đơn hàng</CardTitle>
-              <CardDescription>
-                Theo dõi và xử lý đơn hàng của bạn.
-              </CardDescription>
+              <CardTitle className="text-2xl">Order Management</CardTitle>
+              <CardDescription>Track and manage your orders.</CardDescription>
             </div>
 
             <div className="relative w-full md:w-72">
@@ -321,10 +318,10 @@ export default function OrdersPage() {
           >
             <TabsList className="grid w-full grid-cols-2 h-12">
               <TabsTrigger value="buy" className="text-base">
-                Đơn Mua
+                Buying
               </TabsTrigger>
               <TabsTrigger value="sell" className="text-base">
-                Đơn Bán
+                Selling
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -337,7 +334,7 @@ export default function OrdersPage() {
             <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-xl border border-dashed">
               <Package className="h-16 w-16 text-muted-foreground/20 mb-4" />
               <p className="text-muted-foreground font-medium">
-                Không tìm thấy đơn hàng nào.
+                No orders found.
               </p>
             </div>
           ) : (
@@ -365,7 +362,7 @@ export default function OrdersPage() {
                     <div className="flex-1 space-y-1.5 py-0.5">
                       <div className="flex justify-between items-start gap-2">
                         <h3 className="font-semibold text-base line-clamp-2 leading-tight">
-                          {order.product?.name || "Sản phẩm ẩn"}
+                          {order.product?.name || "Hidden Product"}
                         </h3>
                         <Badge
                           variant="outline"
@@ -375,7 +372,6 @@ export default function OrdersPage() {
                         </Badge>
                       </div>
 
-                      {/* BADGE PHÂN LOẠI ĐẶC BIỆT */}
                       {order.group_buy_id && (
                         <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 border-orange-200 w-fit text-[10px] px-1 py-0">
                           Group Buy
@@ -383,19 +379,19 @@ export default function OrdersPage() {
                       )}
                       {order.auction_id && (
                         <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-purple-200 w-fit text-[10px] px-1 py-0">
-                          Đấu Giá
+                          Auction
                         </Badge>
                       )}
 
                       <p className="text-sm text-muted-foreground mt-1">
                         {type === "buy"
                           ? `Shop: ${order.seller?.username}`
-                          : `Khách: ${order.buyer?.username}`}
+                          : `Buyer: ${order.buyer?.username}`}
                       </p>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-2">
                         <span className="bg-muted px-2 py-0.5 rounded">
                           {new Date(order.created_at).toLocaleDateString(
-                            "vi-VN"
+                            "en-GB"
                           )}
                         </span>
                         <span className="uppercase font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">

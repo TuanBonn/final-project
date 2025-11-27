@@ -1,3 +1,4 @@
+// src/app/sell/[id]/edit/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge"; // <-- Import Badge
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -32,14 +33,13 @@ export default function EditProductPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Form Data
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     price: "",
     quantity: "",
     condition: "new",
-    status: "available", // Vẫn giữ để hiển thị, nhưng không cho sửa
+    status: "available",
     brand_id: "",
   });
 
@@ -50,7 +50,7 @@ export default function EditProductPage() {
     const fetchData = async () => {
       try {
         const res = await fetch(`/api/products/${id}`);
-        if (!res.ok) throw new Error("Không thể tải sản phẩm.");
+        if (!res.ok) throw new Error("Could not load product.");
         const data = await res.json();
         const p = data.product;
 
@@ -66,7 +66,7 @@ export default function EditProductPage() {
 
         setCurrentImageUrls(p.image_urls || []);
       } catch (error) {
-        alert("Lỗi tải dữ liệu sản phẩm.");
+        alert("Error loading product data.");
         router.push("/my-products");
       } finally {
         setLoading(false);
@@ -89,7 +89,6 @@ export default function EditProductPage() {
 
       const finalImageUrls = [...currentImageUrls, ...uploadedUrls];
 
-      // Không gửi 'status' lên nữa, để Backend tự xử lý theo quantity
       const res = await fetch(`/api/products/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -100,7 +99,6 @@ export default function EditProductPage() {
           quantity: formData.quantity,
           condition: formData.condition,
           imageUrls: finalImageUrls,
-          // status: formData.status, <-- ĐÃ BỎ DÒNG NÀY
         }),
       });
 
@@ -109,7 +107,7 @@ export default function EditProductPage() {
         throw new Error(err.error);
       }
 
-      alert("Cập nhật thành công!");
+      alert("Update successful!");
       router.push("/my-products");
     } catch (error: any) {
       alert(error.message);
@@ -119,7 +117,7 @@ export default function EditProductPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Bạn có chắc chắn muốn xóa sản phẩm này?")) return;
+    if (!confirm("Are you sure you want to delete this product?")) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
@@ -144,25 +142,25 @@ export default function EditProductPage() {
   return (
     <div className="container mx-auto py-8 max-w-3xl px-4">
       <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back
       </Button>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Chỉnh sửa sản phẩm</CardTitle>
+          <CardTitle>Edit Product</CardTitle>
           <Button
             variant="destructive"
             size="sm"
             onClick={handleDelete}
             disabled={saving}
           >
-            <Trash2 className="mr-2 h-4 w-4" /> Xóa sản phẩm
+            <Trash2 className="mr-2 h-4 w-4" /> Delete Product
           </Button>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label>Tên sản phẩm</Label>
+              <Label>Product Name</Label>
               <Input
                 value={formData.name}
                 onChange={(e) =>
@@ -173,7 +171,7 @@ export default function EditProductPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Hình ảnh</Label>
+              <Label>Images</Label>
               <div className="flex flex-wrap gap-4 mb-4">
                 {currentImageUrls.map((url, idx) => (
                   <div
@@ -204,7 +202,7 @@ export default function EditProductPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Giá (VNĐ)</Label>
+                <Label>Price (VND)</Label>
                 <Input
                   type="number"
                   value={formData.price}
@@ -215,7 +213,7 @@ export default function EditProductPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Số lượng kho</Label>
+                <Label>Stock Quantity</Label>
                 <Input
                   type="number"
                   value={formData.quantity}
@@ -229,7 +227,7 @@ export default function EditProductPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tình trạng</Label>
+                <Label>Condition</Label>
                 <Select
                   value={formData.condition}
                   onValueChange={(val) =>
@@ -240,47 +238,44 @@ export default function EditProductPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="new">Mới 100%</SelectItem>
-                    <SelectItem value="like_new">Như mới (Like New)</SelectItem>
-                    <SelectItem value="used">Đã qua sử dụng</SelectItem>
-                    <SelectItem value="custom">Hàng Custom</SelectItem>
+                    <SelectItem value="new">New 100%</SelectItem>
+                    <SelectItem value="like_new">Like New</SelectItem>
+                    <SelectItem value="used">Used</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* === SỬA: CHỈ HIỂN THỊ TRẠNG THÁI (KHÔNG CHO SỬA) === */}
               <div className="space-y-2">
-                <Label>Trạng thái hiện tại</Label>
+                <Label>Current Status</Label>
                 <div className="flex items-center h-10">
                   {formData.status === "hidden" ? (
                     <Badge variant="destructive" className="bg-red-600">
-                      Bị Admin Ẩn (Khóa)
+                      Hidden by Admin (Locked)
                     </Badge>
                   ) : formData.status === "sold" || formData.quantity == "0" ? (
-                    <Badge variant="secondary">Hết hàng / Ẩn</Badge>
+                    <Badge variant="secondary">Out of Stock / Hidden</Badge>
                   ) : (
                     <Badge variant="default" className="bg-green-600">
-                      Đang bán
+                      Active
                     </Badge>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Cảnh báo nếu đang bị Admin ẩn */}
             {formData.status === "hidden" && (
               <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-md text-sm flex items-start gap-2">
                 <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                 <p>
-                  Sản phẩm này đang bị Admin ẩn vì lý do vi phạm hoặc kiểm
-                  duyệt. Bạn có thể sửa nội dung nhưng sản phẩm sẽ không hiển
-                  thị cho đến khi Admin mở lại.
+                  This product is hidden by Admin due to violation. You can edit
+                  the content but it will remain hidden until Admin unhides it.
                 </p>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label>Mô tả chi tiết</Label>
+              <Label>Detailed Description</Label>
               <Textarea
                 className="h-32"
                 value={formData.description}
@@ -292,7 +287,7 @@ export default function EditProductPage() {
 
             <Button type="submit" className="w-full" disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Lưu thay đổi
+              Save Changes
             </Button>
           </form>
         </CardContent>

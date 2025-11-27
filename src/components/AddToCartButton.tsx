@@ -21,7 +21,7 @@ interface AddToCartButtonProps {
     price: number;
     image_urls: string[] | null;
     seller: { username: string | null };
-    quantity: number; // Nhận thêm tồn kho
+    quantity: number;
   };
   disabled?: boolean;
 }
@@ -31,13 +31,12 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
-  // Fallback an toàn: nếu product.quantity thiếu, mặc định là 1 (hoặc số lớn nào đó)
   const maxStock = product.quantity ?? 1;
 
   const handleAddToCart = () => {
     if (quantity < 1) return;
     if (quantity > maxStock) {
-      alert(`Kho chỉ còn ${maxStock} sản phẩm.`);
+      alert(`Only ${maxStock} items left in stock.`);
       return;
     }
 
@@ -48,7 +47,7 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
       image: product.image_urls?.[0] || null,
       sellerName: product.seller.username || "Shop",
       quantity: quantity,
-      maxQuantity: maxStock, // Sử dụng maxStock an toàn
+      maxQuantity: maxStock,
     });
     setIsOpen(false);
   };
@@ -59,25 +58,25 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
         variant="secondary"
         className="w-full border-primary/20 border text-primary hover:bg-primary/10"
         onClick={() => {
-          setQuantity(1); // Reset về 1 khi mở
+          setQuantity(1);
           setIsOpen(true);
         }}
         disabled={disabled}
       >
         <ShoppingCart className="mr-2 h-5 w-5" />
-        Thêm vào giỏ
+        Add to Cart
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Thêm vào giỏ hàng</DialogTitle>
+            <DialogTitle>Add to Cart</DialogTitle>
           </DialogHeader>
 
           <div className="py-4 flex items-center justify-between">
             <div className="text-sm">
               <p className="font-medium">{product.name}</p>
-              <p className="text-muted-foreground">Kho còn: {maxStock}</p>
+              <p className="text-muted-foreground">Stock: {maxStock}</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -91,14 +90,13 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
               </Button>
               <Input
                 type="number"
-                value={isNaN(quantity) ? "" : quantity} // Handle NaN visual
+                value={isNaN(quantity) ? "" : quantity}
                 min={1}
                 max={maxStock}
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
-                  // Cho phép xóa rỗng để gõ lại, nhưng khi blur hoặc submit phải check
                   if (e.target.value === "") {
-                    // @ts-ignore allow empty for UX
+                    // @ts-ignore
                     setQuantity("");
                     return;
                   }
@@ -110,7 +108,6 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                // Sửa lỗi NaN ở đây: Dùng maxStock thay vì product.quantity trực tiếp
                 onClick={() =>
                   setQuantity((prev) => {
                     const current = typeof prev === "number" ? prev : 1;
@@ -125,9 +122,9 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsOpen(false)}>
-              Hủy
+              Cancel
             </Button>
-            <Button onClick={handleAddToCart}>Xác nhận</Button>
+            <Button onClick={handleAddToCart}>Confirm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

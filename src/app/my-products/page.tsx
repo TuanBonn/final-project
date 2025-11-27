@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Edit, Package, Eye, Plus } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
@@ -24,11 +24,9 @@ export default function MyProductsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  // Hàm fetch data
   const fetchMyProducts = useCallback(async () => {
     setLoading(true);
     try {
-      // Gọi API ta vừa tạo
       const params = new URLSearchParams();
       if (search) params.append("search", search);
 
@@ -36,13 +34,12 @@ export default function MyProductsPage() {
       const data = await res.json();
       setProducts(data.products || []);
     } catch (error) {
-      console.error("Lỗi tải sản phẩm:", error);
+      console.error("Error fetching products:", error);
     } finally {
       setLoading(false);
     }
   }, [search]);
 
-  // Debounce search: Đợi 500ms sau khi gõ xong mới tìm
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchMyProducts();
@@ -62,14 +59,14 @@ export default function MyProductsPage() {
     <div className="container mx-auto py-8 max-w-5xl px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Kho hàng của tôi</h1>
+          <h1 className="text-3xl font-bold">My Inventory</h1>
           <p className="text-muted-foreground">
-            Quản lý, chỉnh sửa và theo dõi trạng thái sản phẩm.
+            Manage, edit and track product status.
           </p>
         </div>
         <Button asChild className="bg-orange-600 hover:bg-orange-700">
           <Link href="/sell">
-            <Plus className="mr-2 h-4 w-4" /> Đăng bán mới
+            <Plus className="mr-2 h-4 w-4" /> List New Item
           </Link>
         </Button>
       </div>
@@ -79,7 +76,7 @@ export default function MyProductsPage() {
           <div className="relative w-full max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Tìm kiếm theo tên sản phẩm..."
+              placeholder="Search by product name..."
               className="pl-10"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -94,9 +91,7 @@ export default function MyProductsPage() {
           ) : products.length === 0 ? (
             <div className="text-center py-20 bg-muted/20 rounded-xl border border-dashed">
               <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground">
-                Không tìm thấy sản phẩm nào.
-              </p>
+              <p className="text-muted-foreground">No products found.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
@@ -105,7 +100,6 @@ export default function MyProductsPage() {
                   key={product.id}
                   className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-card group"
                 >
-                  {/* Ảnh */}
                   <div className="relative w-20 h-20 shrink-0 bg-muted rounded-md overflow-hidden border">
                     {product.image_urls?.[0] ? (
                       <Image
@@ -121,7 +115,6 @@ export default function MyProductsPage() {
                     )}
                   </div>
 
-                  {/* Thông tin */}
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <h3
@@ -130,11 +123,10 @@ export default function MyProductsPage() {
                       >
                         {product.name}
                       </h3>
-                      {/* Badge Status - ĐÃ SỬA LOGIC HIỂN THỊ */}
                       <Badge
                         variant={
                           product.quantity === 0
-                            ? "secondary" // Nếu hết hàng -> Màu xám
+                            ? "secondary"
                             : product.status === "available"
                             ? "default"
                             : product.status === "auction"
@@ -144,11 +136,11 @@ export default function MyProductsPage() {
                         className="shrink-0 text-[10px] uppercase"
                       >
                         {product.quantity === 0
-                          ? "Sold" // Hiển thị chữ Sold
+                          ? "Sold"
                           : product.status === "available"
-                          ? "Đang bán"
+                          ? "Active"
                           : product.status === "sold"
-                          ? "Đã ẩn"
+                          ? "Hidden"
                           : product.status}
                       </Badge>
                     </div>
@@ -165,7 +157,7 @@ export default function MyProductsPage() {
                             : ""
                         }
                       >
-                        Kho: {product.quantity}
+                        Stock: {product.quantity}
                       </span>
                       <span>•</span>
                       <span className="capitalize">
@@ -174,12 +166,11 @@ export default function MyProductsPage() {
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      Đăng ngày:{" "}
+                      Posted:{" "}
                       {new Date(product.created_at).toLocaleDateString("vi-VN")}
                     </p>
                   </div>
 
-                  {/* Hành động */}
                   <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                     <Button
                       variant="outline"
@@ -188,7 +179,7 @@ export default function MyProductsPage() {
                       className="flex-1"
                     >
                       <Link href={`/products/${product.id}`}>
-                        <Eye className="mr-2 h-3 w-3" /> Xem
+                        <Eye className="mr-2 h-3 w-3" /> View
                       </Link>
                     </Button>
 
@@ -198,7 +189,7 @@ export default function MyProductsPage() {
                       disabled={product.status === "auction"}
                       onClick={() => router.push(`/sell/${product.id}/edit`)}
                     >
-                      <Edit className="mr-2 h-3 w-3" /> Sửa
+                      <Edit className="mr-2 h-3 w-3" /> Edit
                     </Button>
                   </div>
                 </div>

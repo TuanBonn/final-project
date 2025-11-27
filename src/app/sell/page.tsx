@@ -1,3 +1,4 @@
+// src/app/sell/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -61,14 +62,14 @@ const formatCurrencyForInput = (value: string | number): string => {
 };
 
 const productSchema = z.object({
-  name: z.string().min(5, { message: "Tên phải ít nhất 5 ký tự." }),
+  name: z.string().min(5, { message: "Name must be at least 5 characters." }),
   description: z.string().optional(),
-  price: z.string().min(1, { message: "Vui lòng nhập giá." }),
-  brand_id: z.string({ required_error: "Vui lòng chọn hãng xe." }),
+  price: z.string().min(1, { message: "Please enter price." }),
+  brand_id: z.string({ required_error: "Please select a brand." }),
   condition: z.enum(["new", "used", "like_new", "custom"], {
-    required_error: "Vui lòng chọn tình trạng.",
+    required_error: "Please select condition.",
   }),
-  quantity: z.string().min(1, { message: "Nhập số lượng." }), // Thêm validate quantity
+  quantity: z.string().min(1, { message: "Enter quantity." }),
 });
 type ProductFormValues = z.infer<typeof productSchema>;
 
@@ -85,7 +86,7 @@ export default function SellPage() {
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
-    defaultValues: { name: "", description: "", price: "0", quantity: "1" }, // Default quantity = 1
+    defaultValues: { name: "", description: "", price: "0", quantity: "1" },
   });
 
   useEffect(() => {
@@ -110,13 +111,14 @@ export default function SellPage() {
     setServerError(null);
 
     if (!user) {
-      setServerError("Bạn cần đăng nhập.");
+      setServerError("You need to login.");
       setIsSubmitting(false);
       return;
     }
 
     try {
-      if (selectedFiles.length === 0) throw new Error("Chọn ít nhất 1 ảnh.");
+      if (selectedFiles.length === 0)
+        throw new Error("Select at least 1 image.");
 
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
@@ -135,12 +137,12 @@ export default function SellPage() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Đăng bán thất bại.");
+      if (!response.ok) throw new Error(data.error || "Listing failed.");
 
-      alert("Đăng bán thành công!");
+      alert("Listed successfully!");
       router.push("/");
     } catch (err: unknown) {
-      setServerError(err instanceof Error ? err.message : "Lỗi.");
+      setServerError(err instanceof Error ? err.message : "Error.");
     } finally {
       setIsSubmitting(false);
     }
@@ -150,8 +152,8 @@ export default function SellPage() {
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Đăng bán sản phẩm</CardTitle>
-          <CardDescription>Điền thông tin chi tiết món hàng.</CardDescription>
+          <CardTitle>List a Product</CardTitle>
+          <CardDescription>Enter item details.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -161,9 +163,9 @@ export default function SellPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tên sản phẩm *</FormLabel>
+                    <FormLabel>Product Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ví dụ: Tomica..." {...field} />
+                      <Input placeholder="e.g. Tomica..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -176,7 +178,7 @@ export default function SellPage() {
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Giá bán (VND) *</FormLabel>
+                      <FormLabel>Price (VND) *</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -193,13 +195,12 @@ export default function SellPage() {
                   )}
                 />
 
-                {/* Ô nhập SỐ LƯỢNG */}
                 <FormField
                   control={form.control}
                   name="quantity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Số lượng *</FormLabel>
+                      <FormLabel>Quantity *</FormLabel>
                       <FormControl>
                         <Input type="number" min="1" {...field} />
                       </FormControl>
@@ -214,7 +215,7 @@ export default function SellPage() {
                 name="brand_id"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Hãng xe *</FormLabel>
+                    <FormLabel>Brand *</FormLabel>
                     <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -228,16 +229,16 @@ export default function SellPage() {
                           >
                             {field.value
                               ? brands.find((b) => b.id === field.value)?.name
-                              : "Chọn hãng xe..."}
+                              : "Select brand..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0">
                         <Command>
-                          <CommandInput placeholder="Tìm hãng..." />
+                          <CommandInput placeholder="Search brand..." />
                           <CommandList>
-                            <CommandEmpty>Không tìm thấy.</CommandEmpty>
+                            <CommandEmpty>Not found.</CommandEmpty>
                             <CommandGroup>
                               {brands.map((b) => (
                                 <CommandItem
@@ -274,21 +275,21 @@ export default function SellPage() {
                 name="condition"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tình trạng *</FormLabel>
+                    <FormLabel>Condition *</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Chọn tình trạng" />
+                          <SelectValue placeholder="Select condition" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="new">Mới</SelectItem>
-                        <SelectItem value="like_new">Như mới</SelectItem>
-                        <SelectItem value="used">Đã dùng</SelectItem>
-                        <SelectItem value="custom">Độ chế</SelectItem>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="like_new">Like New</SelectItem>
+                        <SelectItem value="used">Used</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -301,9 +302,12 @@ export default function SellPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mô tả</FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Mô tả chi tiết..." {...field} />
+                      <Textarea
+                        placeholder="Detailed description..."
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -311,11 +315,13 @@ export default function SellPage() {
               />
 
               <FormItem>
-                <FormLabel>Hình ảnh *</FormLabel>
+                <FormLabel>Images *</FormLabel>
                 <FormControl>
                   <ImageUploadPreview onFilesChange={setSelectedFiles} />
                 </FormControl>
-                <FormDescription>Bạn có thể chọn nhiều ảnh.</FormDescription>
+                <FormDescription>
+                  You can select multiple images.
+                </FormDescription>
               </FormItem>
 
               {serverError && (
@@ -326,7 +332,7 @@ export default function SellPage() {
                 {isSubmitting ? (
                   <Loader2 className="animate-spin mr-2" />
                 ) : (
-                  "Đăng bán"
+                  "List Item"
                 )}
               </Button>
             </form>

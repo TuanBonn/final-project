@@ -1,15 +1,12 @@
 // src/app/products/[id]/page.tsx
 import { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CheckCircle, ArrowLeft, ShieldCheck } from "lucide-react";
+import { CheckCircle, ShieldCheck } from "lucide-react";
 import { BuyProductDialog } from "@/components/BuyProductDialog";
 import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { ChatButton } from "@/components/ChatButton";
@@ -48,10 +45,8 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: productId } = await params;
-
   const supabase = getSupabaseAdmin();
 
-  // Lấy thêm trường 'quantity'
   const { data: product, error } = await supabase
     .from("products")
     .select(
@@ -67,7 +62,6 @@ export default async function ProductDetailPage({
     .single();
 
   if (error || !product) {
-    console.error("Error fetching product:", error);
     notFound();
   }
 
@@ -78,7 +72,7 @@ export default async function ProductDetailPage({
       <BackButton />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-        {/* === CỘT TRÁI: GALLERY ẢNH === */}
+        {/* GALLERY */}
         <div>
           <ProductImageGallery
             images={product.image_urls as string[]}
@@ -86,7 +80,7 @@ export default async function ProductDetailPage({
           />
         </div>
 
-        {/* === CỘT PHẢI: THÔNG TIN === */}
+        {/* INFO */}
         <div className="flex flex-col space-y-6">
           <div>
             <div className="flex items-center justify-between">
@@ -95,7 +89,7 @@ export default async function ProductDetailPage({
               </h1>
               {!isAvailable && (
                 <Badge variant="destructive" className="text-sm px-3 py-1">
-                  Hết hàng / Ngừng bán
+                  Out of Stock / Unavailable
                 </Badge>
               )}
             </div>
@@ -113,25 +107,24 @@ export default async function ProductDetailPage({
 
             <div className="text-sm text-muted-foreground space-y-1">
               <p>
-                Hãng xe:{" "}
+                Brand:{" "}
                 <span className="font-medium text-foreground">
-                  {product.brand?.name || "Khác"}
+                  {product.brand?.name || "Other"}
                 </span>
               </p>
               <p>
-                Đăng ngày:{" "}
-                {new Date(product.created_at).toLocaleDateString("vi-VN")}
+                Posted on:{" "}
+                {new Date(product.created_at).toLocaleDateString("en-GB")}
               </p>
-              {/* Hiển thị tồn kho */}
               <p className="text-orange-600 font-medium">
-                Kho: Còn {product.quantity} sản phẩm
+                Stock: {product.quantity} items left
               </p>
             </div>
           </div>
 
           <Separator />
 
-          {/* Thông tin người bán */}
+          {/* Seller Info */}
           <div className="bg-muted/30 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-4">
               <Avatar className="h-12 w-12 border-2 border-background">
@@ -155,38 +148,36 @@ export default async function ProductDetailPage({
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Tham gia:{" "}
+                  Joined:{" "}
                   {new Date(product.seller.created_at).toLocaleDateString(
-                    "vi-VN"
+                    "en-GB"
                   )}
                 </p>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1 text-sm font-medium justify-end">
-                  <ShieldCheck className="h-4 w-4 text-blue-600" /> Uy tín:{" "}
+                  <ShieldCheck className="h-4 w-4 text-blue-600" /> Reputation:{" "}
                   {product.seller.reputation_score}
                 </div>
                 <Button variant="link" size="sm" className="px-0 h-auto mt-1">
-                  Xem trang cá nhân
+                  View Profile
                 </Button>
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <h3 className="font-semibold text-lg">Mô tả sản phẩm</h3>
+            <h3 className="font-semibold text-lg">Product Description</h3>
             <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
-              {product.description ||
-                "Người bán không cung cấp mô tả chi tiết."}
+              {product.description || "No description provided."}
             </p>
           </div>
 
           <Separator />
 
-          {/* === KHU VỰC HÀNH ĐỘNG === */}
+          {/* Actions */}
           <div className="pt-2 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              {/* Truyền quantity vào BuyProductDialog */}
               <BuyProductDialog
                 product={{
                   id: product.id,
@@ -197,7 +188,6 @@ export default async function ProductDetailPage({
                 }}
               />
 
-              {/* === ĐÃ SỬA: Thêm quantity vào đây === */}
               <AddToCartButton
                 product={{
                   id: product.id,
@@ -205,13 +195,12 @@ export default async function ProductDetailPage({
                   price: Number(product.price),
                   image_urls: product.image_urls as string[],
                   seller: { username: product.seller.username },
-                  quantity: product.quantity, // <-- DÒNG QUAN TRỌNG ĐÃ THÊM
+                  quantity: product.quantity,
                 }}
                 disabled={!isAvailable}
               />
             </div>
 
-            {/* Nút Chat */}
             <ChatButton sellerId={product.seller.id} />
           </div>
         </div>
