@@ -1,6 +1,5 @@
-// src/app/api/admin/products/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
 
@@ -31,90 +30,71 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === GET: Lấy chi tiết sản phẩm (MỚI THÊM) ===
-export async function GET(
-  request: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  // 1. Check quyền Admin
-  if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
-  }
-
-  const { id } = await ctx.params;
-  const supabase = getSupabaseAdmin();
-
-  try {
-    const { data: product, error } = await supabase
-      .from("products")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error || !product) {
-      return NextResponse.json(
-        { error: "Sản phẩm không tồn tại" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ product }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// === PATCH: Sửa / Khôi phục / Gỡ ẩn sản phẩm ===
 export async function PATCH(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  // 1. Check quyền Admin
   if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
+    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
   }
 
   const { id } = await ctx.params;
   const supabase = getSupabaseAdmin();
 
   try {
-    const body = await request.json();
+    const { status } = await request.json(); // Admin gửi: 'hidden' hoặc 'available' (để khôi phục)
 
-    // 2. Kiểm tra sản phẩm hiện tại
-    const { data: currentProduct, error: fetchError } = await supabase
+    // 1. Lấy thông tin hiện tại để check số lượng (nếu cần khôi phục)
+    const { data: product } = await supabase
       .from("products")
-      .select("status")
+      .select("quantity")
       .eq("id", id)
       .single();
 
-    if (fetchError || !currentProduct) {
-      return NextResponse.json(
-        { error: "Sản phẩm không tồn tại" },
-        { status: 404 }
-      );
+    if (!product)
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+
+    let newStatus = status;
+
+    // LOGIC KHÔI PHỤC THÔNG MINH
+    if (status === "available") {
+      // Nếu admin muốn khôi phục, kiểm tra kho:
+      if (product.quantity > 0) {
+        newStatus = "available";
+      } else {
+        newStatus = "sold"; // Hết hàng thì chỉ về Sold chứ không Available
+      }
     }
 
-    // 3. CHẶN SỬA/KHÔI PHỤC NẾU LÀ 'AUCTION'
-    if (currentProduct.status === "auction") {
-      return NextResponse.json(
-        {
-          error:
-            "Không thể chỉnh sửa hay khôi phục sản phẩm đang thuộc biên chế Đấu giá (Locked).",
-        },
-        { status: 403 }
-      );
-    }
-
-    // 4. Nếu không phải auction, cho phép update (VD: set status = 'available' hoặc sửa tên, giá...)
-    const { error } = await supabase.from("products").update(body).eq("id", id);
+    const { error } = await supabase
+      .from("products")
+      .update({ status: newStatus })
+      .eq("id", id);
 
     if (error) throw error;
 
     return NextResponse.json(
-      { message: "Cập nhật thành công" },
+      { message: "Cập nhật trạng thái thành công", status: newStatus },
       { status: 200 }
     );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+}
+
+// GET (Giữ nguyên để lấy info nếu cần)
+export async function GET(
+  request: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const { id } = await ctx.params;
+  if (!(await verifyAdmin(request)))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const supabase = getSupabaseAdmin();
+  const { data: product } = await supabase
+    .from("products")
+    .select("*, brand:brands(name)")
+    .eq("id", id)
+    .single();
+  return NextResponse.json({ product }, { status: 200 });
 }

@@ -32,9 +32,9 @@ enum ProductCondition {
 
 enum ProductStatus {
   available
-  in_transaction
   sold
   auction
+  hidden
   @@map("product_status")
 }
 

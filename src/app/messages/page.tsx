@@ -1,4 +1,3 @@
-// src/app/messages/page.tsx
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -8,9 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// === SỬA LỖI: Thêm ArrowLeft vào import ===
-import { Loader2, Send, User, MessageSquare, ArrowLeft } from "lucide-react";
-// =========================================
+import {
+  Loader2,
+  Send,
+  User,
+  MessageSquare,
+  ArrowLeft,
+  Search,
+} from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -46,6 +50,11 @@ export default function MessagesPage() {
   const router = useRouter();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [filteredConversations, setFilteredConversations] = useState<
+    Conversation[]
+  >([]);
+  const [searchQuery, setSearchQuery] = useState(""); // <-- State tìm kiếm
+
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -66,6 +75,7 @@ export default function MessagesPage() {
       const data = await res.json();
       if (data.conversations) {
         setConversations(data.conversations);
+        setFilteredConversations(data.conversations); // Init filtered list
       }
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -77,6 +87,21 @@ export default function MessagesPage() {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  // Logic lọc danh sách khi search thay đổi
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredConversations(conversations);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = conversations.filter(
+      (conv) => conv.partner.username?.toLowerCase().includes(query)
+      // Bạn có thể thêm logic tìm theo fullName nếu API trả về fullName trong partner
+    );
+    setFilteredConversations(filtered);
+  }, [searchQuery, conversations]);
 
   const fetchMessages = useCallback(async (convId: string) => {
     setLoadingMsg(true);
@@ -185,23 +210,37 @@ export default function MessagesPage() {
             activeConvId ? "hidden md:flex" : "flex"
           }`}
         >
-          <CardHeader className="py-4 border-b bg-muted/20">
+          <CardHeader className="py-4 border-b bg-muted/20 space-y-3">
             <CardTitle className="flex items-center gap-2 text-lg">
               <MessageSquare className="h-5 w-5" /> Tin nhắn
             </CardTitle>
+
+            {/* THANH TÌM KIẾM MỚI */}
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm người dùng..."
+                className="pl-8 h-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </CardHeader>
+
           <ScrollArea className="flex-1">
             <div className="flex flex-col p-2 gap-1">
               {loadingConv ? (
                 <div className="flex justify-center p-4">
                   <Loader2 className="animate-spin" />
                 </div>
-              ) : conversations.length === 0 ? (
+              ) : filteredConversations.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground p-4">
-                  Chưa có tin nhắn nào.
+                  {searchQuery
+                    ? "Không tìm thấy kết quả."
+                    : "Chưa có tin nhắn nào."}
                 </p>
               ) : (
-                conversations.map((conv) => (
+                filteredConversations.map((conv) => (
                   <button
                     key={conv.id}
                     onClick={() => handleSelectConversation(conv.id)}

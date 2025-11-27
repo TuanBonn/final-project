@@ -1,4 +1,3 @@
-// src/app/api/products/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -39,9 +38,9 @@ async function getUserId(request: NextRequest): Promise<string | null> {
 // === GET: Lấy chi tiết ===
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  const { id } = await ctx.params;
   const userId = await getUserId(request);
 
   if (!userId)
@@ -76,12 +75,12 @@ export async function GET(
   }
 }
 
-// === PATCH: Cập nhật sản phẩm (LOGIC QUAN TRỌNG Ở ĐÂY) ===
+// === PATCH: Cập nhật sản phẩm ===
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  const { id } = await ctx.params;
   const userId = await getUserId(request);
 
   if (!userId)
@@ -91,11 +90,10 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    // Destructure các trường có thể update
     const { name, description, price, quantity, condition, imageUrls, status } =
       body;
 
-    // 1. Lấy sản phẩm hiện tại để check quyền và lấy số lượng cũ
+    // 1. Lấy thông tin hiện tại
     const { data: existingProduct } = await supabase
       .from("products")
       .select("seller_id, status, quantity")
@@ -106,11 +104,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (existingProduct.seller_id !== userId)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (existingProduct.status === "auction")
+
+    // Nếu đang đấu giá -> Không cho sửa
+    if (existingProduct.status === "auction") {
       return NextResponse.json(
         { error: "Hàng đấu giá không được sửa." },
         { status: 400 }
       );
+    }
 
     // 2. Chuẩn bị dữ liệu update
     const updateData: any = {};
@@ -120,33 +121,35 @@ export async function PATCH(
     if (condition) updateData.condition = condition;
     if (imageUrls) updateData.image_urls = imageUrls;
 
-    // Logic đặc biệt cho Status và Quantity
     let newQuantity = existingProduct.quantity;
     if (quantity !== undefined) {
       newQuantity = Number(quantity);
       updateData.quantity = newQuantity;
     }
 
-    // Ưu tiên logic tự động, sau đó mới xét đến status người dùng gửi
-    let newStatus = status || existingProduct.status;
+    // === LOGIC TRẠNG THÁI (QUAN TRỌNG) ===
 
-    // === LOGIC TỰ ĐỘNG CHUYỂN TRẠNG THÁI ===
-    if (newQuantity === 0) {
-      // Hết hàng -> Bắt buộc ẩn (Sold)
-      newStatus = "sold";
-    } else if (newQuantity > 0) {
-      // Còn hàng
-      if (existingProduct.quantity === 0) {
-        // Nếu đang từ 0 lên >0 -> Tự động mở lại (Available)
-        newStatus = "available";
-      }
-      // Nếu người dùng CHỦ ĐỘNG gửi status='available' -> OK
-      // Nếu người dùng CHỦ ĐỘNG gửi status='sold' -> OK (ẩn hàng còn kho)
+    // A. Nếu sản phẩm ĐANG BỊ ADMIN ẨN (Hidden) -> Giữ nguyên 'hidden'
+    // Bất kể seller có set số lượng bao nhiêu hay cố tình gửi status='available'
+    if (existingProduct.status === "hidden") {
+      updateData.status = "hidden";
     }
 
-    // Gán status cuối cùng
-    updateData.status = newStatus;
-    // ========================================
+    // B. Nếu sản phẩm KHÔNG BỊ ẨN -> Chạy logic tự động bình thường
+    else {
+      if (newQuantity === 0) {
+        // Hết hàng -> Tự động Sold
+        updateData.status = "sold";
+      } else {
+        // Có hàng -> Tự động Available (hoặc giữ nguyên nếu đang là available)
+        // (Trừ khi seller cố tình muốn set 'sold' để ẩn tạm thời)
+        if (status === "sold") {
+          updateData.status = "sold";
+        } else {
+          updateData.status = "available";
+        }
+      }
+    }
 
     const { error: updateError } = await supabase
       .from("products")
@@ -156,7 +159,13 @@ export async function PATCH(
     if (updateError) throw updateError;
 
     return NextResponse.json(
-      { message: "Cập nhật thành công!", status: newStatus },
+      {
+        message:
+          existingProduct.status === "hidden"
+            ? "Cập nhật thông tin thành công (Sản phẩm vẫn đang bị Admin ẩn)."
+            : "Cập nhật thành công!",
+        status: updateData.status,
+      },
       { status: 200 }
     );
   } catch (error: any) {
@@ -164,12 +173,12 @@ export async function PATCH(
   }
 }
 
-// === DELETE: Xóa sản phẩm ===
+// === DELETE: Xóa sản phẩm (Giữ nguyên) ===
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  const { id } = await ctx.params;
   const userId = await getUserId(request);
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -197,7 +206,6 @@ export async function DELETE(
 
     if (error) {
       if (error.code === "23503") {
-        // Foreign key constraint -> Chuyển sang sold
         await supabase.from("products").update({ status: "sold" }).eq("id", id);
         return NextResponse.json(
           {

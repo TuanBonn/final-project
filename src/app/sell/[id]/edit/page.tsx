@@ -1,4 +1,3 @@
-// src/app/sell/[id]/edit/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge"; // <-- Import Badge
 import {
   Select,
   SelectContent,
@@ -15,7 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, ArrowLeft, Save, Trash2, X } from "lucide-react";
+import {
+  Loader2,
+  ArrowLeft,
+  Save,
+  Trash2,
+  X,
+  AlertTriangle,
+} from "lucide-react";
 import { uploadFileViaApi } from "@/lib/storageUtils";
 import { ImageUploadPreview } from "@/components/ImageUploadPreview";
 
@@ -32,21 +39,18 @@ export default function EditProductPage() {
     price: "",
     quantity: "",
     condition: "new",
-    status: "available",
+    status: "available", // Vẫn giữ để hiển thị, nhưng không cho sửa
     brand_id: "",
   });
 
-  // Ảnh: Kết hợp ảnh cũ (URL string) và ảnh mới (File)
   const [currentImageUrls, setCurrentImageUrls] = useState<string[]>([]);
   const [newFiles, setNewFiles] = useState<File[]>([]);
 
-  // 1. Fetch dữ liệu cũ
   useEffect(() => {
     const fetchData = async () => {
       try {
         const res = await fetch(`/api/products/${id}`);
-        if (!res.ok)
-          throw new Error("Không thể tải sản phẩm hoặc bạn không có quyền.");
+        if (!res.ok) throw new Error("Không thể tải sản phẩm.");
         const data = await res.json();
         const p = data.product;
 
@@ -63,7 +67,7 @@ export default function EditProductPage() {
         setCurrentImageUrls(p.image_urls || []);
       } catch (error) {
         alert("Lỗi tải dữ liệu sản phẩm.");
-        router.push("/my-products"); // Quay về kho nếu lỗi
+        router.push("/my-products");
       } finally {
         setLoading(false);
       }
@@ -72,23 +76,20 @@ export default function EditProductPage() {
     fetchData();
   }, [id, router]);
 
-  // 2. Xử lý Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
 
     try {
-      // A. Upload ảnh mới (nếu có)
       const uploadedUrls = [];
       for (const file of newFiles) {
         const url = await uploadFileViaApi("products", file);
         if (url) uploadedUrls.push(url);
       }
 
-      // B. Gộp ảnh cũ (chưa bị xóa) + ảnh mới
       const finalImageUrls = [...currentImageUrls, ...uploadedUrls];
 
-      // C. Gọi API Update
+      // Không gửi 'status' lên nữa, để Backend tự xử lý theo quantity
       const res = await fetch(`/api/products/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -98,8 +99,8 @@ export default function EditProductPage() {
           price: formData.price,
           quantity: formData.quantity,
           condition: formData.condition,
-          status: formData.status,
           imageUrls: finalImageUrls,
+          // status: formData.status, <-- ĐÃ BỎ DÒNG NÀY
         }),
       });
 
@@ -109,9 +110,7 @@ export default function EditProductPage() {
       }
 
       alert("Cập nhật thành công!");
-      // === SỬA ĐỔI: Quay về trang Kho hàng của tôi ===
       router.push("/my-products");
-      // ==============================================
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -119,25 +118,15 @@ export default function EditProductPage() {
     }
   };
 
-  // 3. Xóa sản phẩm
   const handleDelete = async () => {
-    if (
-      !confirm(
-        "Bạn có chắc chắn muốn xóa sản phẩm này? Hành động này không thể hoàn tác."
-      )
-    )
-      return;
-
+    if (!confirm("Bạn có chắc chắn muốn xóa sản phẩm này?")) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-
       alert(data.message);
-      // === SỬA ĐỔI: Quay về trang Kho hàng của tôi ===
       router.push("/my-products");
-      // ==============================================
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -172,7 +161,6 @@ export default function EditProductPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Tên */}
             <div className="space-y-2">
               <Label>Tên sản phẩm</Label>
               <Input
@@ -184,14 +172,8 @@ export default function EditProductPage() {
               />
             </div>
 
-            {/* Ảnh */}
             <div className="space-y-2">
               <Label>Hình ảnh</Label>
-              <p className="text-xs text-muted-foreground">
-                Bạn có thể xóa ảnh cũ và thêm ảnh mới.
-              </p>
-
-              {/* Component Preview cho ảnh cũ */}
               <div className="flex flex-wrap gap-4 mb-4">
                 {currentImageUrls.map((url, idx) => (
                   <div
@@ -217,12 +199,9 @@ export default function EditProductPage() {
                   </div>
                 ))}
               </div>
-
-              {/* Component Upload cho ảnh mới */}
               <ImageUploadPreview onFilesChange={setNewFiles} maxFiles={5} />
             </div>
 
-            {/* Giá & Kho */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Giá (VNĐ)</Label>
@@ -248,7 +227,6 @@ export default function EditProductPage() {
               </div>
             </div>
 
-            {/* Tình trạng & Trạng thái */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tình trạng</Label>
@@ -269,26 +247,38 @@ export default function EditProductPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* === SỬA: CHỈ HIỂN THỊ TRẠNG THÁI (KHÔNG CHO SỬA) === */}
               <div className="space-y-2">
-                <Label>Trạng thái hiển thị</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(val) =>
-                    setFormData({ ...formData, status: val })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="available">Đang bán</SelectItem>
-                    <SelectItem value="sold">Tạm ẩn / Đã bán</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Trạng thái hiện tại</Label>
+                <div className="flex items-center h-10">
+                  {formData.status === "hidden" ? (
+                    <Badge variant="destructive" className="bg-red-600">
+                      Bị Admin Ẩn (Khóa)
+                    </Badge>
+                  ) : formData.status === "sold" || formData.quantity == "0" ? (
+                    <Badge variant="secondary">Hết hàng / Ẩn</Badge>
+                  ) : (
+                    <Badge variant="default" className="bg-green-600">
+                      Đang bán
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Mô tả */}
+            {/* Cảnh báo nếu đang bị Admin ẩn */}
+            {formData.status === "hidden" && (
+              <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-md text-sm flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                <p>
+                  Sản phẩm này đang bị Admin ẩn vì lý do vi phạm hoặc kiểm
+                  duyệt. Bạn có thể sửa nội dung nhưng sản phẩm sẽ không hiển
+                  thị cho đến khi Admin mở lại.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Mô tả chi tiết</Label>
               <Textarea
