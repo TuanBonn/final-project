@@ -39,35 +39,52 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-// Kiểu Brand (nhận props từ page)
 type BrandRow = {
   id: string;
   name: string;
 };
 
 interface BrandActionsProps {
-  brand?: BrandRow; // Optional: Nếu không có brand -> là nút "Tạo mới"
-  onActionSuccess: () => void; // "Bộ đàm"
+  brand?: BrandRow;
+  onActionSuccess: () => void;
 }
 
 export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // State cho 2 loại dialog
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  // State cho tên (dùng cho cả Edit và Create)
   const [name, setName] = useState(brand?.name || "");
 
-  const isCreating = !brand; // Check xem đây là mode Create hay Edit
+  const isCreating = !brand;
 
-  // Hàm gọi API (Create/Edit)
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
+
+    const trimmedName = name.trim();
+
+    // === VALIDATION CLIENT-SIDE ===
+    if (trimmedName.length === 0) {
+      setError("Brand name is required.");
+      return;
+    }
+    if (trimmedName.length > 12) {
+      setError("Max length is 12 characters.");
+      return;
+    }
+    const alphanumericRegex = /^[a-zA-Z0-9]+$/;
+    if (!alphanumericRegex.test(trimmedName)) {
+      setError(
+        "Only letters and numbers allowed (No spaces or special chars)."
+      );
+      return;
+    }
+    // ==============================
+
+    setIsLoading(true);
     try {
       const url = isCreating
         ? "/api/admin/brands"
@@ -77,23 +94,22 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
       const response = await fetch(url, {
         method: method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name }),
+        body: JSON.stringify({ name: trimmedName }),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Hành động thất bại.");
+      if (!response.ok) throw new Error(data.error || "Action failed.");
 
-      onActionSuccess(); // Báo cáo
-      setIsEditOpen(false); // Đóng dialog
-      if (isCreating) setName(""); // Reset form nếu là tạo mới
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+      onActionSuccess();
+      setIsEditOpen(false);
+      if (isCreating) setName("");
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Hàm gọi API (Delete)
   const handleDelete = async () => {
     if (isCreating) return;
     setIsLoading(true);
@@ -103,49 +119,54 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
         method: "DELETE",
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Xóa thất bại.");
-      onActionSuccess(); // Báo cáo
-      setIsDeleteOpen(false); // Đóng dialog
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+      if (!response.ok) throw new Error(data.error || "Delete failed.");
+      onActionSuccess();
+      setIsDeleteOpen(false);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Nếu là nút "Tạo mới" (không có prop 'brand')
+  // Render nút Create (cho trang chính)
   if (isCreating) {
     return (
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogTrigger asChild>
           <Button>
             <PackagePlus className="mr-2 h-4 w-4" />
-            Thêm Brand mới
+            Add New Brand
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={handleSave}>
             <DialogHeader>
-              <DialogTitle>Thêm Brand mới</DialogTitle>
+              <DialogTitle>Add New Brand</DialogTitle>
               <DialogDescription>
-                Nhập tên brand. (Ví dụ: "MiniGT", "Tomica"...)
+                Enter brand name. Max 12 characters, alphanumeric only.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">
-                  Tên Brand
+                  Name
                 </Label>
                 <Input
                   id="name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setError(null); // Clear error on typing
+                  }}
                   className="col-span-3"
+                  placeholder="e.g. MiniGT"
+                  maxLength={12} // HTML restrict
                   required
                 />
               </div>
               {error && (
-                <p className="col-span-4 text-red-600 text-sm text-center">
+                <p className="col-span-4 text-red-600 text-sm text-center font-medium">
                   {error}
                 </p>
               )}
@@ -153,7 +174,7 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
             <DialogFooter>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Lưu
+                Save
               </Button>
             </DialogFooter>
           </form>
@@ -162,31 +183,38 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
     );
   }
 
-  // Nếu là nút "Actions" (có prop 'brand')
+  // Render Actions cho từng dòng
   return (
     <>
-      {/* Dialog Sửa */}
+      {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={handleSave}>
             <DialogHeader>
-              <DialogTitle>Sửa tên Brand</DialogTitle>
+              <DialogTitle>Edit Brand</DialogTitle>
+              <DialogDescription>
+                Max 12 characters, alphanumeric only.
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name-edit" className="text-right">
-                  Tên Brand
+                  Name
                 </Label>
                 <Input
                   id="name-edit"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setError(null);
+                  }}
                   className="col-span-3"
+                  maxLength={12}
                   required
                 />
               </div>
               {error && (
-                <p className="col-span-4 text-red-600 text-sm text-center">
+                <p className="col-span-4 text-red-600 text-sm text-center font-medium">
                   {error}
                 </p>
               )}
@@ -194,25 +222,24 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
             <DialogFooter>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Lưu thay đổi
+                Save Changes
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Xóa */}
+      {/* Delete Alert */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sếp chắc chưa?</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                Hành động này sẽ xóa vĩnh viễn brand:
-                <strong className="mx-1">{brand.name}</strong>.
-                <p className="mt-2 text-yellow-600">
-                  Lưu ý: Các sản phẩm đang dùng brand này sẽ bị set brand về
-                  "Không có".
+                This action will permanently delete brand:
+                <strong className="mx-1 text-foreground">{brand.name}</strong>.
+                <p className="mt-2 text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-200 text-xs">
+                  Warning: Products using this brand will be set to "No Brand".
                 </p>
                 {error && (
                   <p className="text-red-600 mt-2 font-medium">{error}</p>
@@ -221,20 +248,20 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Hủy</AlertDialogCancel>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isLoading}
               className="bg-red-600 hover:bg-red-700"
             >
               {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Vẫn Xóa
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Nút 3 chấm */}
+      {/* Menu Button */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
@@ -254,7 +281,7 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
             }}
           >
             <Edit className="mr-2 h-4 w-4" />
-            Sửa tên
+            Edit Name
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
@@ -264,7 +291,7 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
             className="text-red-600 focus:text-red-600"
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Xóa Brand
+            Delete Brand
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

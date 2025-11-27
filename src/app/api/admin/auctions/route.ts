@@ -37,20 +37,20 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === GET ===
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
+    if (!supabaseAdmin) throw new Error("Admin Client Error");
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
+    const search = searchParams.get("search"); // <--- Lấy param search
 
-    // Query lấy thông tin đấu giá + sản phẩm + người bán + số lượt bid
+    // Query cơ bản
     let query = supabaseAdmin
       .from("auctions")
       .select(
@@ -68,6 +68,38 @@ export async function GET(request: NextRequest) {
       )
       .order("created_at", { ascending: false });
 
+    // === LOGIC TÌM KIẾM ===
+    if (search) {
+      // 1. Tìm Product ID có tên khớp
+      const { data: products } = await supabaseAdmin
+        .from("products")
+        .select("id")
+        .ilike("name", `%${search}%`);
+
+      // 2. Tìm Seller ID có username khớp
+      const { data: sellers } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .ilike("username", `%${search}%`);
+
+      const productIds = products?.map((p) => p.id) || [];
+      const sellerIds = sellers?.map((u) => u.id) || [];
+
+      const conditions = [];
+      if (productIds.length > 0)
+        conditions.push(`product_id.in.(${productIds.join(",")})`);
+      if (sellerIds.length > 0)
+        conditions.push(`seller_id.in.(${sellerIds.join(",")})`);
+
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(","));
+      } else {
+        // Search không ra kết quả nào -> Trả về rỗng bằng cách query ID không tồn tại
+        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
+      }
+    }
+    // ======================
+
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
@@ -76,7 +108,7 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Format lại dữ liệu (lấy count ra ngoài)
+    // Format data
     const formattedAuctions = auctions?.map((auction: any) => ({
       ...auction,
       bid_count: auction.bids?.[0]?.count || 0,
@@ -88,7 +120,7 @@ export async function GET(request: NextRequest) {
     );
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Lỗi server." },
+      { error: error.message || "Server Error" },
       { status: 500 }
     );
   }

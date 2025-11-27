@@ -11,7 +11,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
 const COOKIE_NAME = "auth-token";
 
-// Hàm setup Admin Client & Verify Admin (như cũ)
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -35,12 +34,12 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
 
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
+    if (!supabaseAdmin) throw new Error("Admin Client Error");
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search");
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         id, title, content, created_at,
-        author:users ( username ),
+        author:users!author_id ( username ),
         likes:forum_post_likes ( count ),
         comments:comments ( count )
       `
@@ -58,14 +57,14 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false });
 
     if (search) {
-      // Tìm theo tiêu đề hoặc nội dung
+      // Search by title OR content
       query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
     }
 
     const { data, error } = await query;
     if (error) throw error;
 
-    // Format data để flatten count
+    // Flatten counts
     const posts = data?.map((p: any) => ({
       ...p,
       like_count: p.likes?.[0]?.count || 0,

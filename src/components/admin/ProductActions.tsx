@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, EyeOff, Eye, Loader2, Lock } from "lucide-react";
+import { MoreHorizontal, EyeOff, Eye, Loader2, Lock } from "lucide-react"; // <-- Đã xóa Edit
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,12 +21,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+// Đã xóa import Link vì không còn dùng
 
-// Cập nhật type cho status
 type ProductRow = {
   id: string;
   name: string;
-  status: string; // 'available', 'sold', 'auction', 'hidden'
+  status: string;
 };
 
 interface ProductActionsProps {
@@ -45,8 +45,8 @@ export function ProductActions({
   const isHidden = product.status === "hidden";
   const isAuction = product.status === "auction";
 
-  // Nếu đang ẩn -> Hành động là Khôi phục. Ngược lại -> Ẩn.
-  const currentAction = isHidden ? "Khôi phục (Bỏ ẩn)" : "Tạm Ẩn (Admin Hide)";
+  // Dịch action sang tiếng Anh
+  const currentAction = isHidden ? "Restore (Unhide)" : "Hide (Admin Ban)";
   const newStatus = isHidden ? "available" : "hidden";
 
   const callUpdateApi = async (payload: object) => {
@@ -80,23 +80,37 @@ export function ProductActions({
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận hành động</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Action</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn muốn <strong>{currentAction}</strong> sản phẩm "
-              <strong>{product.name}</strong>"?
+              Are you sure you want to <strong>{currentAction}</strong> the
+              product "<strong>{product.name}</strong>"?
               <br />
-              {isHidden
-                ? "Sản phẩm sẽ được hiển thị lại (nếu còn hàng)."
-                : "Sản phẩm sẽ biến mất khỏi sàn. Người bán không thể tự mở lại."}
+              <span className="mt-2 block text-sm">
+                {isHidden
+                  ? "The product will be visible again (if stock > 0)."
+                  : "The product will be hidden from the marketplace. Seller cannot unhide it."}
+              </span>
+              {error && (
+                <span className="text-red-500 block mt-2">{error}</span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleToggleStatus}
-              className={isHidden ? "bg-green-600" : "bg-red-600"}
+              disabled={isLoading}
+              className={
+                isHidden
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-600 hover:bg-red-700"
+              }
             >
-              {isLoading ? <Loader2 className="animate-spin" /> : "Xác nhận"}
+              {isLoading ? (
+                <Loader2 className="animate-spin mr-2 h-4 w-4" />
+              ) : (
+                "Confirm"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -109,17 +123,23 @@ export function ProductActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Quản trị</DropdownMenuLabel>
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
           <DropdownMenuSeparator />
+
+          {/* Đã xóa phần Edit Details */}
 
           {isAuction ? (
             <DropdownMenuItem disabled>
-              <Lock className="mr-2 h-4 w-4" /> Đang đấu giá (Khóa)
+              <Lock className="mr-2 h-4 w-4" /> Auction Active (Locked)
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem
               onClick={() => setAlertOpen(true)}
-              className={isHidden ? "text-green-600" : "text-red-600"}
+              className={
+                isHidden
+                  ? "text-green-600 focus:text-green-600"
+                  : "text-red-600 focus:text-red-600"
+              }
             >
               {isHidden ? (
                 <Eye className="mr-2 h-4 w-4" />

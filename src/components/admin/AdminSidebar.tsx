@@ -1,4 +1,3 @@
-// src/components/admin/AdminSidebar.tsx
 "use client";
 
 import Link from "next/link";
@@ -16,9 +15,10 @@ import {
   CreditCard,
   MessageSquare,
   ShoppingBag,
+  Landmark, // Icon cho System Wallet
 } from "lucide-react";
 
-// Danh sách các link trong sidebar
+// Danh sách các link trong sidebar (Tiếng Anh)
 const navItems = [
   {
     href: "/admin",
@@ -27,39 +27,52 @@ const navItems = [
   },
   {
     href: "/admin/users",
-    label: "Quản lý Users",
+    label: "User Management",
     icon: Users,
   },
-  { href: "/admin/posts", label: "Quản lý Bài viết", icon: MessageSquare },
+  {
+    href: "/admin/posts",
+    label: "Post Management",
+    icon: MessageSquare,
+  },
   {
     href: "/admin/transactions",
-    label: "Quản lý Giao dịch",
+    label: "Transactions",
     icon: Receipt,
   },
-  { href: "/admin/group-buys", label: "Quản lý Mua chung", icon: ShoppingBag },
+  {
+    href: "/admin/group-buys",
+    label: "Group Buys",
+    icon: ShoppingBag,
+  },
+  {
+    href: "/admin/system-wallet",
+    label: "System Wallet", // Ví hệ thống
+    icon: Landmark,
+  },
   {
     href: "/admin/payments",
-    label: "Lịch sử Thanh toán",
+    label: "Payment History",
     icon: CreditCard,
   },
   {
     href: "/admin/auctions",
-    label: "Quản lý Đấu giá",
+    label: "Auctions",
     icon: Gavel,
   },
   {
     href: "/admin/products",
-    label: "Quản lý Sản phẩm",
+    label: "Product Management",
     icon: Package,
   },
   {
     href: "/admin/brands",
-    label: "Quản lý Brands",
+    label: "Brand Management",
     icon: Library,
   },
   {
     href: "/admin/settings",
-    label: "Cài đặt Chung",
+    label: "System Settings",
     icon: Settings,
   },
 ];
@@ -68,23 +81,37 @@ export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 flex-col border-r bg-muted/30 p-4 md:flex">
-      <nav className="flex flex-col gap-2">
+    <aside className="hidden w-64 flex-col border-r bg-muted/30 p-4 md:flex h-full">
+      <div className="mb-4 px-4 text-lg font-bold tracking-tight text-primary/80">
+        Admin Panel
+      </div>
+      <nav className="flex flex-col gap-1 overflow-y-auto flex-1">
         {navItems.map((item) => {
-          // Sửa logic active (để highlight đúng)
+          // Logic active:
+          // - Nếu href là "/admin" (Dashboard) -> Phải khớp chính xác
+          // - Các mục khác -> Chỉ cần bắt đầu bằng href (để active cả trang con)
           const isActive =
             item.href === "/admin"
               ? pathname === item.href
               : pathname.startsWith(item.href);
+
           return (
             <Button
-              key={item.label}
+              key={item.href}
               asChild
               variant={isActive ? "secondary" : "ghost"}
-              className="justify-start"
+              className={cn(
+                "justify-start transition-colors",
+                isActive && "bg-secondary font-medium text-primary"
+              )}
             >
               <Link href={item.href}>
-                <item.icon className="mr-2 h-4 w-4" />
+                <item.icon
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
                 {item.label}
               </Link>
             </Button>

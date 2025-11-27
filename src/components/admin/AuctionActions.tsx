@@ -26,7 +26,7 @@ export function AuctionActions({
   const [isLoading, setIsLoading] = useState(false);
 
   const updateStatus = async (newStatus: AuctionStatus) => {
-    if (!confirm("Bạn có chắc chắn muốn thay đổi trạng thái?")) return;
+    if (!confirm("Are you sure you want to change the status?")) return;
     setIsLoading(true);
     try {
       const res = await fetch(`/api/admin/auctions/${auction.id}`, {
@@ -34,19 +34,26 @@ export function AuctionActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error("Lỗi cập nhật");
+      if (!res.ok) throw new Error("Update failed");
       onActionSuccess();
     } catch (error) {
-      alert("Có lỗi xảy ra");
+      alert("An error occurred");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Nếu đã kết thúc -> Khóa nút (Disabled)
+  const isEnded = auction.status === "ended";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
+        <Button
+          variant="ghost"
+          className="h-8 w-8 p-0"
+          disabled={isLoading || isEnded} // <--- KHÓA TẠI ĐÂY
+        >
           {isLoading ? (
             <Loader2 className="animate-spin h-4 w-4" />
           ) : (
@@ -54,25 +61,28 @@ export function AuctionActions({
           )}
         </Button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+        <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        {auction.status !== "cancelled" && auction.status !== "ended" && (
+        {/* Chỉ hiện Cancel nếu chưa cancel */}
+        {auction.status !== "cancelled" && (
           <DropdownMenuItem
             onClick={() => updateStatus("cancelled")}
             className="text-red-600"
           >
-            <Ban className="mr-2 h-4 w-4" /> Hủy phiên đấu giá
+            <Ban className="mr-2 h-4 w-4" /> Cancel Auction
           </DropdownMenuItem>
         )}
 
+        {/* Cho phép khôi phục nếu đã Cancel */}
         {auction.status === "cancelled" && (
           <DropdownMenuItem
             onClick={() => updateStatus("active")}
             className="text-blue-600"
           >
-            <CheckCircle className="mr-2 h-4 w-4" /> Khôi phục (Active)
+            <CheckCircle className="mr-2 h-4 w-4" /> Restore (Set Active)
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

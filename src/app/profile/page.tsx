@@ -28,12 +28,14 @@ import {
   KeyRound,
   Package,
   HelpCircle,
+  Gem,
+  Search, // <-- Thêm Icon Search
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { Separator } from "@/components/ui/separator";
 import { uploadFileViaApi } from "@/lib/storageUtils";
-// import { createClient } from "@supabase/supabase-js"; // <-- XÓA DÒNG NÀY (Không cần nữa)
 import { ProductCard } from "@/components/ProductCard";
+import { UpgradeAccount } from "@/components/UpgradeAccount";
 
 interface ShippingInfo {
   fullName: string;
@@ -71,7 +73,6 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- States cho Profile ---
   const [basicInfo, setBasicInfo] = useState<BasicInfo>({
     username: "",
     email: "",
@@ -90,7 +91,6 @@ export default function ProfilePage() {
     accountName: "",
   });
 
-  // --- States cho Đổi mật khẩu ---
   const [passwords, setPasswords] = useState({
     current: "",
     new: "",
@@ -98,11 +98,13 @@ export default function ProfilePage() {
   });
   const [passLoading, setPassLoading] = useState(false);
 
-  // --- States cho Sản phẩm của User ---
   const [userProducts, setUserProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
-  // 1. Load thông tin User
+  // === STATE MỚI CHO TÌM KIẾM ===
+  const [searchTerm, setSearchTerm] = useState("");
+  // ==============================
+
   useEffect(() => {
     if (user) {
       setBasicInfo({
@@ -113,17 +115,13 @@ export default function ProfilePage() {
       });
       if (user.shipping_info) setShippingInfo(user.shipping_info);
       if (user.bank_info) setBankInfo(user.bank_info);
-
-      // Fetch sản phẩm
       fetchUserProducts();
     }
   }, [user]);
 
-  // 2. Hàm lấy sản phẩm (GỌI API SERVER)
   const fetchUserProducts = async () => {
     setLoadingProducts(true);
     try {
-      // Gọi API thay vì dùng supabase client trực tiếp
       const res = await fetch("/api/profile/products");
       const data = await res.json();
 
@@ -140,7 +138,6 @@ export default function ProfilePage() {
     }
   };
 
-  // 3. Xử lý Upload Avatar
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -164,7 +161,6 @@ export default function ProfilePage() {
     }
   };
 
-  // 4. Xử lý Lưu thông tin
   const handleUpdateProfile = async () => {
     setLoading(true);
     try {
@@ -198,7 +194,6 @@ export default function ProfilePage() {
     }
   };
 
-  // 5. Xử lý Đổi Mật Khẩu
   const handleChangePassword = async () => {
     if (passwords.new !== passwords.confirm) {
       alert("Mật khẩu xác nhận không khớp!");
@@ -232,6 +227,18 @@ export default function ProfilePage() {
     }
   };
 
+  // === LOGIC LỌC SẢN PHẨM ===
+  // 1. Chỉ lấy status 'available' hoặc 'auction' (nếu muốn hiện đấu giá đang chạy)
+  // 2. Lọc theo từ khóa tìm kiếm
+  const displayedProducts = userProducts.filter((prod) => {
+    const isAvailable = prod.status === "available"; // Yêu cầu của bạn: Chỉ available
+    const matchesSearch = prod.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    return isAvailable && matchesSearch;
+  });
+  // ==========================
+
   if (!user) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -245,7 +252,7 @@ export default function ProfilePage() {
       <h1 className="text-3xl font-bold mb-6">Hồ sơ cá nhân</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* === CỘT TRÁI: PREVIEW PROFILE === */}
+        {/* CỘT TRÁI */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="border shadow-md overflow-hidden text-center h-full">
             <div className="mt-8 mb-4 flex justify-center relative group">
@@ -258,7 +265,6 @@ export default function ProfilePage() {
                   {getInitials(basicInfo.fullName || user.full_name)}
                 </AvatarFallback>
               </Avatar>
-
               <div
                 className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
@@ -266,7 +272,6 @@ export default function ProfilePage() {
                 <Camera className="text-white h-8 w-8" />
               </div>
             </div>
-
             <CardContent className="pb-6 px-6">
               <div className="mb-4">
                 <h2 className="text-2xl font-bold text-foreground">
@@ -276,13 +281,9 @@ export default function ProfilePage() {
                   @{basicInfo.username || user.username}
                 </p>
               </div>
-
               <div className="flex justify-center items-center gap-2 mb-6 flex-wrap">
                 {user.is_verified && (
-                  <Badge
-                    variant="default"
-                    className="bg-green-600 hover:bg-green-700 py-0.5 px-2 text-[10px] font-bold uppercase tracking-wider gap-1"
-                  >
+                  <Badge className="bg-green-600 hover:bg-green-700 py-0.5 px-2 text-[10px] font-bold uppercase tracking-wider gap-1">
                     <ShieldCheck className="h-3 w-3" /> Verified
                   </Badge>
                 )}
@@ -292,8 +293,12 @@ export default function ProfilePage() {
                 >
                   Uy tín: {user.reputation_score}
                 </Badge>
+                {user.role === "dealer" && (
+                  <Badge className="bg-purple-600 hover:bg-purple-700 py-0.5 px-2 text-[10px]">
+                    Dealer
+                  </Badge>
+                )}
               </div>
-
               <Separator className="my-4" />
               <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
                 Đây là giao diện công khai của bạn trên sàn.
@@ -302,10 +307,10 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        {/* === CỘT PHẢI: CÀI ĐẶT === */}
+        {/* CỘT PHẢI */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-4 h-12">
+            <TabsList className="grid w-full grid-cols-5 mb-4 h-12">
               <TabsTrigger value="general">
                 <User className="w-4 h-4 md:mr-2" />{" "}
                 <span className="hidden md:inline">Cơ bản</span>
@@ -322,9 +327,12 @@ export default function ProfilePage() {
                 <KeyRound className="w-4 h-4 md:mr-2" />{" "}
                 <span className="hidden md:inline">Bảo mật</span>
               </TabsTrigger>
+              <TabsTrigger value="upgrade">
+                <Gem className="w-4 h-4 md:mr-2" />{" "}
+                <span className="hidden md:inline">Nâng cấp</span>
+              </TabsTrigger>
             </TabsList>
 
-            {/* TAB 1: CƠ BẢN */}
             <TabsContent value="general">
               <Card>
                 <CardHeader>
@@ -420,7 +428,6 @@ export default function ProfilePage() {
               </Card>
             </TabsContent>
 
-            {/* TAB 2: GIAO HÀNG */}
             <TabsContent value="shipping">
               <Card>
                 <CardHeader>
@@ -498,7 +505,6 @@ export default function ProfilePage() {
               </Card>
             </TabsContent>
 
-            {/* TAB 3: NGÂN HÀNG */}
             <TabsContent value="banking">
               <Card>
                 <CardHeader>
@@ -563,7 +569,6 @@ export default function ProfilePage() {
               </Card>
             </TabsContent>
 
-            {/* TAB 4: BẢO MẬT */}
             <TabsContent value="security">
               <Card>
                 <CardHeader>
@@ -613,7 +618,6 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <Button
                       variant="ghost"
@@ -624,7 +628,6 @@ export default function ProfilePage() {
                     >
                       <HelpCircle className="mr-2 h-4 w-4" /> Quên mật khẩu?
                     </Button>
-
                     <Button
                       onClick={handleChangePassword}
                       disabled={passLoading}
@@ -633,10 +636,24 @@ export default function ProfilePage() {
                         <Loader2 className="animate-spin mr-2 h-4 w-4" />
                       ) : (
                         <KeyRound className="mr-2 h-4 w-4" />
-                      )}
+                      )}{" "}
                       Đổi mật khẩu
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="upgrade">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Hạng thành viên & Xác thực</CardTitle>
+                  <CardDescription>
+                    Nâng cấp tài khoản để nhận nhiều quyền lợi hơn.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <UpgradeAccount />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -644,26 +661,42 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* === PHẦN MỚI: SẢN PHẨM CỦA TÔI === */}
+      {/* === PHẦN SẢN PHẨM CỦA TÔI (ĐÃ SỬA) === */}
       <div className="mt-12">
-        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-          <Package className="h-6 w-6 text-primary" /> Sản phẩm đang bán của tôi
-        </h2>
+        <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-6 gap-4">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Package className="h-6 w-6 text-primary" /> Sản phẩm đang bán của
+            tôi
+          </h2>
+
+          {/* THANH TÌM KIẾM */}
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Tìm sản phẩm của bạn..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
 
         {loadingProducts ? (
           <div className="flex justify-center py-10">
             <Loader2 className="animate-spin h-8 w-8 text-muted-foreground" />
           </div>
-        ) : userProducts.length > 0 ? (
+        ) : displayedProducts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {userProducts.map((prod) => (
+            {displayedProducts.map((prod) => (
               <ProductCard key={prod.id} product={prod} />
             ))}
           </div>
         ) : (
           <div className="text-center py-12 bg-muted/30 rounded-lg border border-dashed">
             <p className="text-muted-foreground">
-              Bạn chưa đăng bán sản phẩm nào.
+              {searchTerm
+                ? "Không tìm thấy sản phẩm nào khớp."
+                : "Bạn chưa có sản phẩm nào đang bán."}
             </p>
             <Button
               variant="link"

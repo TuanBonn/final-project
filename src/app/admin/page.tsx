@@ -1,4 +1,3 @@
-// src/app/admin/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -22,7 +21,7 @@ interface DashboardStats {
   auctionCount: number;
 }
 
-// Hàm format tiền
+// Hàm format tiền (Giữ vi-VN để có dấu chấm phân cách hàng nghìn dễ nhìn)
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -30,6 +29,7 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+// --- QUAN TRỌNG: PHẢI CÓ EXPORT DEFAULT FUNCTION ---
 export default function AdminHomePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,11 +41,11 @@ export default function AdminHomePage() {
         setLoading(true);
         setError(null);
         const res = await fetch("/api/admin/stats");
-        if (!res.ok) throw new Error("Không thể tải số liệu");
+        if (!res.ok) throw new Error("Failed to load statistics");
         const data = await res.json();
         setStats(data.stats);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+        setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setLoading(false);
       }
@@ -55,7 +55,7 @@ export default function AdminHomePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight">Dashboard Tổng quan</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
 
       {error && (
         <div className="p-4 bg-destructive/10 text-destructive rounded-lg flex items-center">
@@ -68,9 +68,7 @@ export default function AdminHomePage() {
         {/* Card 1: Users */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Tổng Người dùng
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -79,9 +77,7 @@ export default function AdminHomePage() {
             ) : (
               <div className="text-2xl font-bold">{stats?.userCount}</div>
             )}
-            <p className="text-xs text-muted-foreground">
-              Tài khoản đã đăng ký
-            </p>
+            <p className="text-xs text-muted-foreground">Registered accounts</p>
           </CardContent>
         </Card>
 
@@ -89,7 +85,7 @@ export default function AdminHomePage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Sản phẩm Sẵn sàng
+              Active Products
             </CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -100,7 +96,7 @@ export default function AdminHomePage() {
               <div className="text-2xl font-bold">{stats?.productCount}</div>
             )}
             <p className="text-xs text-muted-foreground">
-              Đang hiển thị trên sàn
+              Listed on marketplace
             </p>
           </CardContent>
         </Card>
@@ -109,7 +105,7 @@ export default function AdminHomePage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Đơn thành công
+              Successful Orders
             </CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -121,14 +117,18 @@ export default function AdminHomePage() {
                 {stats?.transactionCount}
               </div>
             )}
-            <p className="text-xs text-muted-foreground">Giao dịch completed</p>
+            <p className="text-xs text-muted-foreground">
+              Completed transactions
+            </p>
           </CardContent>
         </Card>
 
         {/* Card 4: Revenue */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Doanh thu Sàn</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Platform Revenue
+            </CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -140,16 +140,16 @@ export default function AdminHomePage() {
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Tổng hoa hồng thu được
+              Total commissions & fees collected
             </p>
           </CardContent>
         </Card>
 
-        {/* Card 5: Auctions (Mới thêm) */}
+        {/* Card 5: Auctions */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Đấu giá Đang chạy
+              Active Auctions
             </CardTitle>
             <Gavel className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -160,7 +160,7 @@ export default function AdminHomePage() {
               <div className="text-2xl font-bold">{stats?.auctionCount}</div>
             )}
             <p className="text-xs text-muted-foreground">
-              Phiên status 'active'
+              Auctions currently live
             </p>
           </CardContent>
         </Card>

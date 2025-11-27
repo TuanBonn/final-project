@@ -6,10 +6,9 @@ import {
   MoreHorizontal,
   ShieldAlert,
   ShieldCheck,
-  UserCog,
   Loader2,
   Award,
-  BadgeCheck, // <-- SỬA LỖI 1: Tên đúng là BadgeCheck
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +30,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Kiểu UserRow
 type UserRow = {
   id: string;
   username: string | null;
@@ -40,10 +38,9 @@ type UserRow = {
   is_verified?: boolean;
 };
 
-// Props (thêm "bộ đàm")
 interface UserActionsProps {
   user: UserRow;
-  onActionSuccess: () => void; // "Bộ đàm"
+  onActionSuccess: () => void;
 }
 
 export function UserActions({ user, onActionSuccess }: UserActionsProps) {
@@ -51,9 +48,8 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
   const [alertOpen, setAlertOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentAction = user.status === "active" ? "Ban" : "Bỏ Ban";
+  const currentAction = user.status === "active" ? "Ban" : "Unban";
 
-  // Hàm gọi API (dùng chung)
   const callUpdateApi = async (payload: object) => {
     setIsLoading(true);
     setError(null);
@@ -65,16 +61,16 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Hành động thất bại.");
+      if (!response.ok) throw new Error(data.error || "Action failed.");
 
-      onActionSuccess(); // Báo cáo
+      onActionSuccess();
       return true;
     } catch (err: unknown) {
-      console.error("Lỗi khi update user:", err);
+      console.error("Error updating user:", err);
       if (alertOpen) {
-        setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+        setError(err instanceof Error ? err.message : "Unknown error.");
       } else {
-        alert(err instanceof Error ? err.message : "Lỗi không xác định.");
+        alert(err instanceof Error ? err.message : "Unknown error.");
       }
       return false;
     } finally {
@@ -82,20 +78,17 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
     }
   };
 
-  // Hàm "Ban" / "Bỏ Ban"
   const handleToggleBan = async () => {
     const newStatus = user.status === "active" ? "banned" : "active";
     const success = await callUpdateApi({ status: newStatus });
     if (success) setAlertOpen(false);
   };
 
-  // Hàm "Đổi Role"
   const handleToggleRole = async () => {
     const newRole = user.role === "dealer" ? "user" : "dealer";
     await callUpdateApi({ role: newRole });
   };
 
-  // Hàm "Đổi Verify"
   const handleToggleVerify = async () => {
     const newVerified = !user.is_verified;
     await callUpdateApi({ is_verified: newVerified });
@@ -103,43 +96,50 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
 
   return (
     <>
-      {/* Hộp thoại xác nhận Ban/Bỏ Ban */}
+      {/* Confirmation Dialog for Ban/Unban */}
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sếp chắc chưa?</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                {" "}
-                Sếp sắp {currentAction.toLowerCase()} tài khoản
+                You are about to <strong>{currentAction.toLowerCase()}</strong>{" "}
+                the user
                 <strong> {user.username || user.id}</strong>.
+                <br />
                 {user.status === "active"
-                  ? " User này sẽ không thể đăng nhập được nữa."
-                  : " User này sẽ có thể đăng nhập trở lại."}
+                  ? "This user will no longer be able to sign in."
+                  : "This user will be able to sign in again."}
                 {error && (
-                  <p className="text-red-600 mt-2 font-medium">{error}</p>
+                  <p className="text-red-600 mt-2 font-medium">
+                    Error: {error}
+                  </p>
                 )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Hủy</AlertDialogCancel>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleToggleBan}
               disabled={isLoading}
-              className="bg-red-600 hover:bg-red-700"
+              className={
+                user.status === "active"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-green-600 hover:bg-green-700"
+              }
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                `Ok, ${currentAction}!`
+                `Confirm ${currentAction}`
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Nút 3 chấm */}
+      {/* Dropdown Menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
@@ -151,21 +151,21 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
 
-          {/* 1. Nút "Đổi Role" (User <-> Dealer) */}
+          {/* 1. Change Role */}
           {user.role !== "admin" && (
             <DropdownMenuItem onClick={handleToggleRole} disabled={isLoading}>
               <Award className="mr-2 h-4 w-4" />
               <span>
                 {user.role === "dealer"
-                  ? "Hạ cấp (về User)"
-                  : "Nâng cấp Dealer"}
+                  ? "Demote to User"
+                  : "Promote to Dealer"}
               </span>
             </DropdownMenuItem>
           )}
 
-          {/* 2. Nút "Verify" (True <-> False) */}
+          {/* 2. Toggle Verify */}
           {user.role !== "admin" && (
             <DropdownMenuItem
               onClick={handleToggleVerify}
@@ -176,17 +176,14 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
                   : "text-green-600 focus:text-green-600"
               }
             >
-              {/* === SỬA LỖI 2: Dùng tên đúng === */}
               <BadgeCheck className="mr-2 h-4 w-4" />
-              <span>
-                {user.is_verified ? "Hủy trạng thái Verify" : "Cấp Verify"}
-              </span>
+              <span>{user.is_verified ? "Revoke Verify" : "Grant Verify"}</span>
             </DropdownMenuItem>
           )}
 
           <DropdownMenuSeparator />
 
-          {/* 3. Nút Ban / Bỏ Ban (Giữ nguyên) */}
+          {/* 3. Ban/Unban */}
           <DropdownMenuItem
             onClick={() => {
               setError(null);
@@ -204,7 +201,7 @@ export function UserActions({ user, onActionSuccess }: UserActionsProps) {
             ) : (
               <ShieldCheck className="mr-2 h-4 w-4" />
             )}
-            <span>{currentAction} tài khoản</span>
+            <span>{currentAction} User</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

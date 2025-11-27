@@ -61,18 +61,20 @@ const formatCurrency = (amount: number) =>
     amount
   );
 
-// Helper xác định loại giao dịch là TRỪ TIỀN
+// Helper xác định loại giao dịch là TRỪ TIỀN (SỬA LẠI Ở ĐÂY)
 const isNegativeTransaction = (type: string) => {
   return (
     type === "withdrawal" ||
-    type === "group_buy_order" || // Trừ tiền đặt cọc
+    type === "group_buy_order" ||
     type.includes("fee") ||
     type === "auction_bid_fee" ||
-    type === "transaction_commission"
+    type === "transaction_commission" ||
+    type === "dealer_subscription" || // <--- ĐÃ THÊM: Phí Dealer là trừ tiền
+    type === "verification_fee" // <--- ĐÃ THÊM: Phí Verify là trừ tiền
   );
 };
 
-// Helper lấy Label
+// Helper lấy Label (SỬA LẠI Ở ĐÂY)
 const getPaymentLabel = (type: string) => {
   switch (type) {
     case "deposit":
@@ -91,6 +93,12 @@ const getPaymentLabel = (type: string) => {
       return "Phí tham gia đấu giá";
     case "transaction_commission":
       return "Phí sàn (Hoa hồng)";
+    // === THÊM NHÃN TIẾNG VIỆT ===
+    case "dealer_subscription":
+      return "Nâng cấp Dealer";
+    case "verification_fee":
+      return "Phí xác thực tài khoản";
+    // ============================
     default:
       return type.replace(/_/g, " ");
   }

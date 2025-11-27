@@ -34,15 +34,16 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
 
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
+    if (!supabaseAdmin) throw new Error("Admin Client Error");
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
+    const search = searchParams.get("search"); // <--- Lấy search param
 
     let query = supabaseAdmin
       .from("platform_payments")
@@ -60,6 +61,26 @@ export async function GET(request: NextRequest) {
       )
       .order("created_at", { ascending: false });
 
+    // === LOGIC TÌM KIẾM ===
+    if (search) {
+      // 1. Tìm user có username hoặc email trùng khớp
+      const { data: foundUsers } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .or(`username.ilike.%${search}%,email.ilike.%${search}%`);
+
+      const userIds = foundUsers?.map((u) => u.id) || [];
+
+      if (userIds.length > 0) {
+        // 2. Lọc payment theo danh sách user_id tìm được
+        query = query.in("user_id", userIds);
+      } else {
+        // Không tìm thấy user nào -> Trả về rỗng
+        return NextResponse.json({ payments: [] }, { status: 200 });
+      }
+    }
+    // ======================
+
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
@@ -71,7 +92,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ payments: payments || [] }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Lỗi server." },
+      { error: error.message || "Server Error" },
       { status: 500 }
     );
   }

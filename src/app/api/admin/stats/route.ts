@@ -6,7 +6,6 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-// --- Cấu hình ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -64,23 +63,42 @@ export async function GET(request: NextRequest) {
       .select("*", { count: "exact", head: true })
       .eq("status", "completed");
 
-    // 4. Tính tổng doanh thu
-    const { data: revenueData } = await supabaseAdmin
-      .from("transactions")
-      .select("platform_commission")
-      .eq("status", "completed");
-
-    const totalRevenue =
-      revenueData?.reduce(
-        (acc, item) => acc + Number(item.platform_commission || 0),
-        0
-      ) || 0;
-
-    // 5. Đếm phiên đấu giá đang chạy (Mới thêm)
+    // 4. Đếm Đấu giá active
     const { count: auctionCount } = await supabaseAdmin
       .from("auctions")
       .select("*", { count: "exact", head: true })
       .eq("status", "active");
+
+    // 5. TÍNH TỔNG DOANH THU (Platform Commission + Fees)
+
+    // A. Hoa hồng từ giao dịch
+    const { data: txRevenue } = await supabaseAdmin
+      .from("transactions")
+      .select("platform_commission")
+      .eq("status", "completed");
+
+    const commissionRevenue =
+      txRevenue?.reduce(
+        (acc, item) => acc + Number(item.platform_commission || 0),
+        0
+      ) || 0;
+
+    // B. Các loại phí thu trực tiếp (Đấu giá, Verify, Dealer)
+    const { data: feeRevenue } = await supabaseAdmin
+      .from("platform_payments")
+      .select("amount")
+      .eq("status", "succeeded")
+      .in("payment_for_type", [
+        "auction_creation_fee",
+        "auction_bid_fee",
+        "dealer_subscription", // <--- MỚI
+        "verification_fee", // <--- MỚI
+      ]);
+
+    const otherFeesRevenue =
+      feeRevenue?.reduce((acc, item) => acc + Number(item.amount || 0), 0) || 0;
+
+    const totalRevenue = commissionRevenue + otherFeesRevenue;
 
     const stats = {
       userCount: userCount ?? 0,

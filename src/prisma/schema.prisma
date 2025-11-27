@@ -85,6 +85,7 @@ enum PaymentForType {
   group_buy_order    // <-- MỚI: Trả tiền mua chung
   group_buy_refund   // <-- MỚI: Hoàn tiền mua chung
   group_buy_payout   // <-- MỚI: Trả tiền cho Host
+  verification_fee
   @@map("payment_for_type_enum")
 }
 
@@ -130,6 +131,9 @@ model User {
 
   // Thông tin ngân hàng (để auto-fill khi rút tiền)
   bank_info        Json?    @db.JsonB // Lưu: { bankName, accountNo, accountName }
+
+  reset_token          String?   @unique
+  reset_token_expiry   DateTime? @db.Timestamptz
 
   created_at       DateTime @default(now()) @db.Timestamptz
 

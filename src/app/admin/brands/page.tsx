@@ -17,43 +17,65 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, AlertCircle, Search } from "lucide-react";
 import { BrandActions } from "@/components/admin/BrandActions";
-// === 1. IMPORT TỪ PRISMA ===
-import { Brand } from "@prisma/client";
-// ========================
 
-// === 2. ĐỊNH NGHĨA LẠI CHO KHỚP API JSON ===
-// Prisma trả về Date object, nhưng qua API JSON nó thành chuỗi ISO string
-type BrandRow = Omit<Brand, "created_at"> & { created_at: string };
+type BrandRow = {
+  id: string;
+  name: string;
+  created_at: string;
+};
 
 export default function AdminBrandsPage() {
-  // === 3. SỬ DỤNG TYPE MỚI ===
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Hàm fetch
-  const fetchBrands = useCallback(async () => {
-    setError(null);
-    try {
-      const response = await fetch("/api/admin/brands");
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Lỗi HTTP: ${response.status}`);
-      }
-      const data = await response.json();
-      setBrands(data.brands || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Lỗi không xác định.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Search State
+  const [search, setSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
+  // Fetch Function
+  const fetchBrands = useCallback(
+    async (searchTerm = "", isInitial = false) => {
+      if (isInitial) setLoading(true);
+      else setIsSearching(true);
+      setError(null);
+
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append("search", searchTerm);
+
+        const response = await fetch(`/api/admin/brands?${params.toString()}`);
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP Error: ${response.status}`);
+        }
+        const data = await response.json();
+        setBrands(data.brands || []);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unknown error.");
+      } finally {
+        setLoading(false);
+        setIsSearching(false);
+      }
+    },
+    []
+  );
+
+  // 1. Initial Load
   useEffect(() => {
-    fetchBrands();
+    fetchBrands("", true);
   }, [fetchBrands]);
+
+  // 2. Debounce Search
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchBrands(search, false);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [search, fetchBrands]);
 
   if (loading) {
     return (
@@ -65,55 +87,85 @@ export default function AdminBrandsPage() {
 
   if (error) {
     return (
-      <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4">
-        <AlertCircle className="h-8 w-8 text-destructive mr-3" />
-        <p className="text-destructive font-medium">Lỗi: {error}</p>
+      <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+        <AlertCircle className="h-6 w-6 mr-2" />
+        <span>Error: {error}</span>
       </div>
     );
   }
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Quản lý Brand ({brands.length})</CardTitle>
-          <CardDescription>
-            Thêm, sửa, xóa các hãng xe (dùng cho trang đăng bán).
-          </CardDescription>
+      <CardHeader>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <CardTitle>Brand Management ({brands.length})</CardTitle>
+            <CardDescription>
+              Create, edit, and delete car brands.
+            </CardDescription>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {/* Search Bar */}
+            <div className="relative flex-1 md:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search brands..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-2.5">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </div>
+
+            {/* Nút Create nằm trong BrandActions */}
+            <BrandActions onActionSuccess={() => fetchBrands(search, false)} />
+          </div>
         </div>
-        <BrandActions onActionSuccess={fetchBrands} />
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Tên Brand</TableHead>
-              <TableHead>Ngày tạo</TableHead>
-              <TableHead className="text-right">Hành động</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {brands.length === 0 ? (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={3} className="text-center h-24">
-                  Chưa có brand nào.
-                </TableCell>
+                <TableHead>Brand Name</TableHead>
+                <TableHead>Created At</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              brands.map((brand) => (
-                <TableRow key={brand.id}>
-                  <TableCell className="font-medium">{brand.name}</TableCell>
-                  <TableCell>
-                    {new Date(brand.created_at).toLocaleDateString("vi-VN")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <BrandActions brand={brand} onActionSuccess={fetchBrands} />
+            </TableHeader>
+            <TableBody>
+              {brands.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className="text-center h-24 text-muted-foreground"
+                  >
+                    No brands found.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                brands.map((brand) => (
+                  <TableRow key={brand.id}>
+                    <TableCell className="font-medium">{brand.name}</TableCell>
+                    <TableCell>
+                      {new Date(brand.created_at).toLocaleDateString("en-GB")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <BrandActions
+                        brand={brand}
+                        onActionSuccess={() => fetchBrands(search, false)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

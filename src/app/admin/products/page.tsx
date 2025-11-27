@@ -20,7 +20,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertCircle, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { ProductActions } from "@/components/admin/ProductActions";
 
 interface ProductRow {
@@ -28,7 +27,7 @@ interface ProductRow {
   name: string;
   price: number;
   quantity: number;
-  status: "available" | "sold" | "auction"; // <-- CẬP NHẬT TYPE
+  status: "available" | "sold" | "auction" | "hidden";
   created_at: string;
   seller: {
     username: string | null;
@@ -36,7 +35,8 @@ interface ProductRow {
 }
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("vi-VN", {
+  return new Intl.NumberFormat("en-US", {
+    // Đổi sang en-US hoặc giữ vi-VN tùy bạn, ở đây giữ VND cho hợp lý
     style: "currency",
     currency: "VND",
   }).format(amount);
@@ -45,31 +45,31 @@ const formatCurrency = (amount: number) => {
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchProducts = useCallback(
-    async (searchQuery: string, isInitialLoad: boolean = false) => {
+    async (searchTerm = "", isInitialLoad = false) => {
       if (isInitialLoad) setLoading(true);
       else setIsSearching(true);
       setError(null);
 
       try {
         const params = new URLSearchParams();
-        if (searchQuery) params.append("search", searchQuery);
+        if (searchTerm) params.append("search", searchTerm);
 
         const response = await fetch(
           `/api/admin/products?${params.toString()}`
         );
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || `Lỗi HTTP: ${response.status}`);
+          throw new Error(data.error || "Failed to load products");
         }
         const data = await response.json();
         setProducts(data.products || []);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+      } catch (err: any) {
+        setError(err.message);
       } finally {
         setLoading(false);
         setIsSearching(false);
@@ -78,18 +78,18 @@ export default function AdminProductsPage() {
     []
   );
 
+  // 1. Initial Load
   useEffect(() => {
     fetchProducts("", true);
   }, [fetchProducts]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchProducts(searchTerm, false);
-  };
-
-  const handleActionSuccess = () => {
-    fetchProducts(searchTerm, false);
-  };
+  // 2. Debounce Search
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchProducts(search, false);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [search, fetchProducts]);
 
   if (loading) {
     return (
@@ -101,9 +101,9 @@ export default function AdminProductsPage() {
 
   if (error) {
     return (
-      <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4">
-        <AlertCircle className="h-8 w-8 text-destructive mr-3" />
-        <p className="text-destructive font-medium">Lỗi: {error}</p>
+      <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+        <AlertCircle className="h-6 w-6 mr-2" />
+        <span>Error: {error}</span>
       </div>
     );
   }
@@ -111,56 +111,54 @@ export default function AdminProductsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quản lý Sản phẩm ({products.length})</CardTitle>
-        <CardDescription>
-          Tìm kiếm và kiểm soát kho hàng toàn hệ thống.
-        </CardDescription>
-        <form
-          onSubmit={handleSearchSubmit}
-          className="relative pt-4 flex gap-2"
-        >
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Tìm theo tên sản phẩm..."
-              className="w-full max-w-sm pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+          <div>
+            <CardTitle>Product Management</CardTitle>
+            <CardDescription>
+              Manage inventory and product status across the system.
+            </CardDescription>
           </div>
-          <Button type="submit" disabled={isSearching}>
-            {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tìm"}
-          </Button>
-        </form>
-      </CardHeader>
-      <CardContent>
-        {isSearching && (
-          <div className="flex justify-center items-center py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span className="ml-2 text-muted-foreground text-sm">
-              Đang tải...
-            </span>
-          </div>
-        )}
 
+          {/* Search Bar */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search product, seller..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+            {isSearching && (
+              <div className="absolute right-3 top-2.5">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent>
         <div className="rounded-md border overflow-x-auto">
           <Table className="min-w-[800px]">
             <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Sản phẩm</TableHead>
-                <TableHead>Người bán</TableHead>
-                <TableHead>Giá</TableHead>
-                <TableHead>Kho</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Ngày đăng</TableHead>
-                <TableHead className="text-right">Hành động</TableHead>
+              <TableRow>
+                <TableHead>Product Name</TableHead>
+                <TableHead>Seller</TableHead>
+                <TableHead>Price</TableHead>
+                <TableHead>Stock</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!isSearching && products.length === 0 ? (
+              {products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center h-24">
-                    Không tìm thấy sản phẩm nào.
+                  <TableCell
+                    colSpan={7}
+                    className="text-center py-10 text-muted-foreground"
+                  >
+                    No products found.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -176,31 +174,26 @@ export default function AdminProductsPage() {
                     <TableCell>{formatCurrency(product.price)}</TableCell>
                     <TableCell>{product.quantity}</TableCell>
                     <TableCell>
-                      {/* LOGIC BADGE MỚI */}
                       <Badge
                         variant={
                           product.status === "available"
                             ? "default"
                             : product.status === "auction"
-                            ? "destructive" // Màu đỏ/cam cho đấu giá
-                            : "secondary" // Màu xám cho Sold
+                            ? "destructive"
+                            : "secondary"
                         }
-                        className="whitespace-nowrap capitalize"
+                        className="capitalize"
                       >
-                        {product.status === "auction"
-                          ? "Đang Đấu Giá"
-                          : product.status === "available"
-                          ? "Đang Bán"
-                          : "Đã Ẩn / Hết"}
+                        {product.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {new Date(product.created_at).toLocaleDateString("vi-VN")}
+                      {new Date(product.created_at).toLocaleDateString("en-GB")}
                     </TableCell>
                     <TableCell className="text-right">
                       <ProductActions
                         product={product}
-                        onActionSuccess={handleActionSuccess}
+                        onActionSuccess={() => fetchProducts(search, false)}
                       />
                     </TableCell>
                   </TableRow>

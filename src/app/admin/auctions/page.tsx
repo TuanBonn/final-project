@@ -17,10 +17,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button"; // <-- Import Button
-import { Loader2, AlertCircle, Gavel, Clock, ShieldAlert } from "lucide-react"; // <-- Import Icon
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input"; // Import Input
+import {
+  Loader2,
+  AlertCircle,
+  Gavel,
+  Clock,
+  ShieldAlert,
+  Search,
+} from "lucide-react";
 import { AuctionActions } from "@/components/admin/AuctionActions";
 import { AuctionStatus } from "@prisma/client";
 
@@ -45,33 +53,52 @@ export default function AdminAuctionsPage() {
   const [auctions, setAuctions] = useState<AuctionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState("all");
-  const [scanning, setScanning] = useState(false); // State cho nút quét
+  const [scanning, setScanning] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (currentTab !== "all") params.append("status", currentTab);
+  // Search State
+  const [search, setSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
-      const res = await fetch(`/api/admin/auctions?${params.toString()}`);
-      const data = await res.json();
-      setAuctions(data.auctions || []);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+  const fetchData = useCallback(
+    async (searchTerm = "", isInitial = false) => {
+      if (isInitial) setLoading(true);
+      else setIsSearching(true);
+
+      try {
+        const params = new URLSearchParams();
+        if (currentTab !== "all") params.append("status", currentTab);
+        if (searchTerm) params.append("search", searchTerm);
+
+        const res = await fetch(`/api/admin/auctions?${params.toString()}`);
+        const data = await res.json();
+        setAuctions(data.auctions || []);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+        setIsSearching(false);
+      }
+    },
+    [currentTab]
+  );
+
+  // Initial Load & Tab Change
+  useEffect(() => {
+    fetchData(search, true);
   }, [currentTab]);
 
+  // Debounce Search
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    const timeout = setTimeout(() => {
+      fetchData(search, false);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [search]);
 
-  // Hàm xử lý quét đơn quá hạn
   const handleScanOverdue = async () => {
     if (
       !confirm(
-        "Hệ thống sẽ quét các đơn kết thúc > 24h chưa thanh toán và trừ điểm uy tín. Tiếp tục?"
+        "System will scan auctions ended > 24h unpaid and penalize reputation. Continue?"
       )
     )
       return;
@@ -82,10 +109,10 @@ export default function AdminAuctionsPage() {
         method: "POST",
       });
       const data = await res.json();
-      alert(data.message || "Đã hoàn tất quét.");
-      fetchData(); // Reload lại bảng
+      alert(data.message || "Scan completed.");
+      fetchData(search, false);
     } catch (error) {
-      alert("Lỗi khi quét.");
+      alert("Scan error.");
     } finally {
       setScanning(false);
     }
@@ -93,41 +120,61 @@ export default function AdminAuctionsPage() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row justify-between items-start">
-        <div>
-          <CardTitle>Quản lý Đấu giá</CardTitle>
-          <CardDescription>
-            Theo dõi và kiểm duyệt các phiên đấu giá.
-          </CardDescription>
+      <CardHeader>
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+          <div>
+            <CardTitle>Auction Management</CardTitle>
+            <CardDescription>
+              Monitor and moderate auction sessions.
+            </CardDescription>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search product or seller..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+            {isSearching && (
+              <div className="absolute right-3 top-2.5">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* NÚT QUÉT ĐƠN QUÁ HẠN */}
-        <Button
-          variant="destructive"
-          onClick={handleScanOverdue}
-          disabled={scanning}
-          className="gap-2"
-        >
-          {scanning ? (
-            <Loader2 className="animate-spin h-4 w-4" />
-          ) : (
-            <ShieldAlert className="h-4 w-4" />
-          )}
-          Quét đơn bùng kèo (24h)
-        </Button>
+        <div className="mt-4">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleScanOverdue}
+            disabled={scanning}
+            className="gap-2 w-full md:w-auto"
+          >
+            {scanning ? (
+              <Loader2 className="animate-spin h-4 w-4" />
+            ) : (
+              <ShieldAlert className="h-4 w-4" />
+            )}
+            Scan Overdue (24h)
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent>
         <Tabs defaultValue="all" onValueChange={setCurrentTab} className="mb-4">
           <TabsList>
-            <TabsTrigger value="all">Tất cả</TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="active" className="text-green-600">
-              Đang diễn ra
+              Active
             </TabsTrigger>
-            <TabsTrigger value="scheduled">Sắp tới</TabsTrigger>
-            <TabsTrigger value="ended">Đã kết thúc</TabsTrigger>
+            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
+            <TabsTrigger value="ended">Ended</TabsTrigger>
             <TabsTrigger value="cancelled" className="text-red-600">
-              Đã hủy
+              Cancelled
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -137,63 +184,76 @@ export default function AdminAuctionsPage() {
             <Loader2 className="animate-spin" />
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Sản phẩm</TableHead>
-                <TableHead>Người bán</TableHead>
-                <TableHead>Giá khởi điểm</TableHead>
-                <TableHead>Lượt Bid</TableHead>
-                <TableHead>Kết thúc lúc</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Hành động</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {auctions.map((au) => (
-                <TableRow key={au.id}>
-                  <TableCell className="font-medium max-w-[200px] truncate">
-                    {au.product?.name || "---"}
-                  </TableCell>
-                  <TableCell>@{au.seller?.username}</TableCell>
-                  <TableCell className="font-mono">
-                    {formatCurrency(au.starting_bid)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Gavel className="h-3 w-3" /> {au.bid_count}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {new Date(au.end_time).toLocaleString("vi-VN")}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={au.status === "active" ? "default" : "outline"}
-                    >
-                      {au.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <AuctionActions auction={au} onActionSuccess={fetchData} />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {auctions.length === 0 && (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="text-center py-10 text-muted-foreground"
-                  >
-                    Chưa có phiên đấu giá nào.
-                  </TableCell>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Seller</TableHead>
+                  <TableHead>Start Price</TableHead>
+                  <TableHead>Bids</TableHead>
+                  <TableHead>End Time</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {auctions.map((au) => (
+                  <TableRow key={au.id}>
+                    <TableCell
+                      className="font-medium max-w-[200px] truncate"
+                      title={au.product?.name}
+                    >
+                      {au.product?.name || "---"}
+                    </TableCell>
+                    <TableCell>@{au.seller?.username}</TableCell>
+                    <TableCell className="font-mono text-primary font-bold">
+                      {formatCurrency(au.starting_bid)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Gavel className="h-3 w-3" /> {au.bid_count}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(au.end_time).toLocaleString("en-GB")}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={au.status === "active" ? "default" : "outline"}
+                        className={
+                          au.status === "cancelled"
+                            ? "text-red-600 border-red-200"
+                            : ""
+                        }
+                      >
+                        {au.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <AuctionActions
+                        auction={au}
+                        onActionSuccess={() => fetchData(search, false)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {auctions.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={7}
+                      className="text-center py-10 text-muted-foreground"
+                    >
+                      No auctions found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
     </Card>

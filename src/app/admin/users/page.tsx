@@ -1,7 +1,7 @@
 // src/app/admin/users/page.tsx
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -21,9 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertCircle, Search } from "lucide-react";
 import { UserActions } from "@/components/admin/UserActions";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 
-// Định nghĩa kiểu User
+// Define User Type
 interface User {
   id: string;
   username: string | null;
@@ -37,19 +36,18 @@ interface User {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true); // Chỉ loading lần đầu
-  const [isSearching, setIsSearching] = useState(false); // Dùng cho các lần refetch
+  const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // === HÀM FETCH (ĐÃ SỬA LOGIC LOADING) ===
+  // === FETCH FUNCTION ===
   const fetchUsers = useCallback(
     async (searchQuery: string, isInitialLoad: boolean = false) => {
-      // 1. Phân loại loading
       if (isInitialLoad) {
-        setLoading(true); // Chỉ dùng cho lần đầu
+        setLoading(true);
       } else {
-        setIsSearching(true); // Dùng cho search và actions
+        setIsSearching(true);
       }
       setError(null);
 
@@ -62,54 +60,50 @@ export default function AdminUsersPage() {
         const response = await fetch(`/api/admin/users?${params.toString()}`);
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || `Lỗi HTTP: ${response.status}`);
+          throw new Error(data.error || `HTTP Error: ${response.status}`);
         }
         const data = await response.json();
         setUsers(data.users || []);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Lỗi không xác định.");
+        setError(err instanceof Error ? err.message : "Unknown error.");
       } finally {
-        // 2. Tắt cả 2 loại loading
         setLoading(false);
         setIsSearching(false);
       }
     },
     []
-  ); // Dependency rỗng
+  );
 
-  // useEffect ban đầu (Chạy 1 lần)
+  // 1. Initial Load
   useEffect(() => {
-    // 3. Đánh dấu đây là lần tải ĐẦU TIÊN
     fetchUsers("", true);
   }, [fetchUsers]);
 
-  // Xử lý bấm nút "Tìm"
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // 4. Đây KHÔNG phải lần tải đầu tiên
-    fetchUsers(searchTerm, false);
-  };
+  // 2. Debounced Search
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchUsers(searchTerm, false);
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [searchTerm, fetchUsers]);
 
   // --- Render UI ---
   if (loading) {
-    // Chỉ show loading xoay tròn lần đầu (trang trắng)
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">
-          Đang tải danh sách dân làng...
-        </p>
+        <p className="ml-3 text-muted-foreground">Loading users...</p>
       </div>
     );
   }
 
   if (error) {
-    /* ... (giữ nguyên code render lỗi) ... */
     return (
       <div className="flex justify-center items-center py-20 bg-destructive/10 border border-destructive/30 rounded-lg p-4">
         <AlertCircle className="h-8 w-8 text-destructive mr-3" />
         <p className="text-destructive font-medium">
-          Toang! Không tải được: {error}
+          Error loading users: {error}
         </p>
       </div>
     );
@@ -118,106 +112,119 @@ export default function AdminUsersPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Quản lý Người dùng ({users.length})</CardTitle>
-        <CardDescription>
-          Xem, sửa, và ban/bỏ ban tài khoản người dùng trong hệ thống.
-        </CardDescription>
-        <form
-          onSubmit={handleSearchSubmit}
-          className="relative pt-4 flex gap-2"
-        >
-          <div className="relative flex-1">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <CardTitle>User Management ({users.length})</CardTitle>
+            <CardDescription>
+              View, edit, and manage user accounts.
+            </CardDescription>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Tìm theo email, username, hoặc tên..."
-              className="w-full max-w-sm pl-9"
+              placeholder="Search by email, username..."
+              className="pl-9 w-full bg-background"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-          </div>
-          <Button type="submit" disabled={isSearching}>
-            {isSearching ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              "Tìm kiếm"
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
             )}
-          </Button>
-        </form>
+          </div>
+        </div>
       </CardHeader>
 
       <CardContent>
-        {/* Hiển thị loading nhỏ khi đang search/action (đã có data cũ) */}
-        {isSearching && (
-          <div className="flex justify-center items-center py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span className="ml-2 text-muted-foreground text-sm">
-              Đang tải...
-            </span>
-          </div>
-        )}
-
-        <Table>
-          <TableHeader>{/* ... (giữ nguyên) ... */}</TableHeader>
-          <TableBody>
-            {!isSearching && users.length === 0 ? (
-              <TableRow>{/* ... (giữ nguyên) ... */}</TableRow>
-            ) : (
-              users.map((user) => (
-                <TableRow key={user.id}>
-                  {/* ... (giữ nguyên các TableCell) ... */}
-                  <TableCell className="font-medium">
-                    <div>{user.full_name || "Chưa đặt tên"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      @{user.username || "..."}
-                    </div>
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell className="capitalize">
-                    <Badge
-                      variant={
-                        user.role === "admin" ? "destructive" : "secondary"
-                      }
-                    >
-                      {user.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.is_verified ? (
-                      <Badge className="bg-green-600 hover:bg-green-700">
-                        Verified
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">Chưa</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={user.status === "active" ? "default" : "outline"}
-                    >
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(user.created_at).toLocaleDateString("vi-VN")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <UserActions
-                      user={{
-                        id: user.id,
-                        username: user.username,
-                        status: user.status,
-                        role: user.role,
-                        is_verified: user.is_verified,
-                      }}
-                      // 5. Đây KHÔNG phải lần tải đầu tiên
-                      onActionSuccess={() => fetchUsers(searchTerm, false)}
-                    />
+        <div className="rounded-md border overflow-x-auto">
+          <Table className="min-w-[800px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Verified</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Joined</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={7}
+                    className="text-center py-8 text-muted-foreground"
+                  >
+                    No users found.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      <div>{user.full_name || "Unnamed"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        @{user.username || "..."}
+                      </div>
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell className="capitalize">
+                      <Badge
+                        variant={
+                          user.role === "admin" ? "destructive" : "secondary"
+                        }
+                      >
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.is_verified ? (
+                        <Badge className="bg-green-600 hover:bg-green-700">
+                          Verified
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">No</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          user.status === "active" ? "default" : "outline"
+                        }
+                        className={
+                          user.status === "banned"
+                            ? "bg-red-100 text-red-700 border-red-200 hover:bg-red-100"
+                            : ""
+                        }
+                      >
+                        {user.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(user.created_at).toLocaleDateString("en-GB")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <UserActions
+                        user={{
+                          id: user.id,
+                          username: user.username,
+                          status: user.status,
+                          role: user.role,
+                          is_verified: user.is_verified,
+                        }}
+                        onActionSuccess={() => fetchUsers(searchTerm, false)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

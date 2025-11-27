@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ... (Hàm sendOrderConfirmationEmail cũ giữ nguyên) ...
+// 1. Gửi email xác nhận đơn hàng
 export const sendOrderConfirmationEmail = async (
   toEmail: string,
   orderId: string,
@@ -19,7 +19,6 @@ export const sendOrderConfirmationEmail = async (
   amount: number,
   quantity: number
 ) => {
-  // ... (Code cũ giữ nguyên)
   const formattedAmount = new Intl.NumberFormat("vi-VN", {
     style: "currency",
     currency: "VND",
@@ -64,7 +63,7 @@ export const sendOrderConfirmationEmail = async (
   }
 };
 
-// === THÊM HÀM MỚI ===
+// 2. Gửi email giao dịch ví
 export const sendWalletTransactionEmail = async (
   toEmail: string,
   type: "deposit" | "withdrawal",
@@ -138,5 +137,49 @@ export const sendWalletTransactionEmail = async (
     console.log(`📧 Wallet Email sent to ${toEmail} (${type} - ${status})`);
   } catch (error) {
     console.error("❌ Error sending wallet email:", error);
+  }
+};
+
+// 3. Gửi email Reset Password (MỚI THÊM)
+export const sendPasswordResetEmail = async (
+  toEmail: string,
+  token: string,
+  username: string
+) => {
+  const resetLink = `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password?token=${token}`;
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+      <div style="background-color: #2563eb; padding: 20px; text-align: center;">
+        <h2 style="color: white; margin: 0;">Yêu Cầu Đặt Lại Mật Khẩu</h2>
+      </div>
+      
+      <div style="padding: 20px;">
+        <p>Xin chào <strong>${username}</strong>,</p>
+        <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+        <p>Vui lòng nhấn vào nút bên dưới để tạo mật khẩu mới (Link có hiệu lực trong 1 giờ):</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Đặt Lại Mật Khẩu</a>
+        </div>
+
+        <p style="font-size: 0.9em; color: #666;">Hoặc copy link sau: <br/> <a href="${resetLink}">${resetLink}</a></p>
+        
+        <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+        <p style="margin-top: 30px; font-size: 0.9em; color: #6b7280;">Trân trọng,<br/>Đội ngũ Admin.</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM,
+      to: toEmail,
+      subject: "[Sàn Mô Hình] Hướng dẫn đặt lại mật khẩu",
+      html: htmlContent,
+    });
+    console.log(`📧 Reset Password Email sent to ${toEmail}`);
+  } catch (error) {
+    console.error("❌ Error sending reset email:", error);
   }
 };

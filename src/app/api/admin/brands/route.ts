@@ -6,7 +6,6 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-// --- Cấu hình ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -17,7 +16,6 @@ interface JwtPayload {
   [key: string]: unknown;
 }
 
-// --- Hàm khởi tạo Admin Client ---
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   try {
@@ -29,7 +27,6 @@ function getSupabaseAdmin(): SupabaseClient | null {
   }
 }
 
-// --- Hàm xác thực Admin ---
 async function verifyAdmin(request: NextRequest): Promise<boolean> {
   if (!JWT_SECRET) return false;
   try {
@@ -44,45 +41,70 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === HÀM GET (Lấy tất cả brands) ===
+// === GET ===
 export async function GET(request: NextRequest) {
-  // Không cần xác thực admin, vì trang /sell và /filter cũng cần
-  // (Chúng ta sẽ tạo 1 API public /api/brands sau, tạm thời dùng cái này)
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
+    if (!supabaseAdmin) throw new Error("Admin Client Error");
 
-    const { data: brands, error } = await supabaseAdmin
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search"); // <--- Lấy param search
+
+    let query = supabaseAdmin
       .from("brands")
       .select("*")
       .order("name", { ascending: true });
 
+    // === LOGIC SEARCH ===
+    if (search) {
+      query = query.ilike("name", `%${search}%`);
+    }
+
+    const { data: brands, error } = await query;
+
     if (error) throw error;
     return NextResponse.json({ brands: brands || [] }, { status: 200 });
   } catch (error: unknown) {
-    let message = "Lỗi server khi lấy brands.";
+    let message = "Server Error fetching brands.";
     if (error instanceof Error) message = error.message;
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-// === HÀM POST (Tạo brand mới) ===
+// === POST ===
 export async function POST(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   try {
     const { name } = await request.json();
+
+    // === VALIDATION SERVER-SIDE ===
     if (!name || name.trim().length === 0) {
       return NextResponse.json(
-        { error: "Tên brand là bắt buộc." },
+        { error: "Brand name is required." },
         { status: 400 }
       );
     }
+    if (name.length > 12) {
+      return NextResponse.json(
+        { error: "Brand name too long (Max 12 chars)." },
+        { status: 400 }
+      );
+    }
+    // Regex: Chỉ chấp nhận chữ (a-z, A-Z) và số (0-9)
+    const alphanumericRegex = /^[a-zA-Z0-9]+$/;
+    if (!alphanumericRegex.test(name)) {
+      return NextResponse.json(
+        { error: "Brand name must be alphanumeric only." },
+        { status: 400 }
+      );
+    }
+    // ==============================
 
     const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
+    if (!supabaseAdmin) throw new Error("Admin Client Error");
 
     const { data, error } = await supabaseAdmin
       .from("brands")
@@ -92,9 +114,8 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       if (error.code === "23505") {
-        // Lỗi unique constraint (tên đã tồn tại)
         return NextResponse.json(
-          { error: `Brand "${name}" đã tồn tại.` },
+          { error: `Brand "${name}" already exists.` },
           { status: 409 }
         );
       }
@@ -102,11 +123,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { brand: data, message: "Tạo brand thành công!" },
+      { brand: data, message: "Brand created successfully!" },
       { status: 201 }
     );
   } catch (error: unknown) {
-    let message = "Lỗi server khi tạo brand.";
+    let message = "Server Error creating brand.";
     if (error instanceof Error) message = error.message;
     return NextResponse.json({ error: message }, { status: 500 });
   }

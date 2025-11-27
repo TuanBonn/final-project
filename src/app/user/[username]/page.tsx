@@ -9,11 +9,17 @@ import { Separator } from "@/components/ui/separator";
 import { ProductCard } from "@/components/ProductCard";
 import { ChatButton } from "@/components/ChatButton";
 import { BackButton } from "@/components/BackButton";
-import { ShieldCheck, Calendar, Package } from "lucide-react";
-// Component phân trang Server-side (định nghĩa ngay trong file hoặc tách ra)
+import {
+  ShieldCheck,
+  Calendar,
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input"; // <-- Import Input
 
 // --- Cấu hình Supabase ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -48,7 +54,6 @@ export async function generateMetadata({
   };
 }
 
-// --- Helper Component: Server Side Pagination ---
 function ServerPagination({
   currentPage,
   totalPages,
@@ -59,12 +64,11 @@ function ServerPagination({
   baseUrl: string;
 }) {
   if (totalPages <= 1) return null;
-
   return (
     <div className="flex items-center justify-center gap-4 py-8">
       <Button variant="outline" size="sm" disabled={currentPage <= 1} asChild>
         {currentPage > 1 ? (
-          <Link href={`${baseUrl}?page=${currentPage - 1}`}>
+          <Link href={`${baseUrl}&page=${currentPage - 1}`}>
             <ChevronLeft className="h-4 w-4 mr-1" /> Trang trước
           </Link>
         ) : (
@@ -73,11 +77,9 @@ function ServerPagination({
           </span>
         )}
       </Button>
-
       <span className="text-sm font-medium">
         Trang {currentPage} / {totalPages}
       </span>
-
       <Button
         variant="outline"
         size="sm"
@@ -85,7 +87,7 @@ function ServerPagination({
         asChild
       >
         {currentPage < totalPages ? (
-          <Link href={`${baseUrl}?page=${currentPage + 1}`}>
+          <Link href={`${baseUrl}&page=${currentPage + 1}`}>
             Trang sau <ChevronRight className="h-4 w-4 ml-1" />
           </Link>
         ) : (
@@ -106,7 +108,8 @@ export default async function PublicProfilePage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { username } = await params;
-  const { page } = await searchParams;
+  const { page, search } = await searchParams; // <-- Lấy search param
+  const searchQuery = typeof search === "string" ? search : "";
 
   const decodedUsername = decodeURIComponent(username);
   const supabase = getSupabaseAdmin();
@@ -124,38 +127,42 @@ export default async function PublicProfilePage({
     return notFound();
   }
 
-  // 2. Phân trang Sản phẩm
+  // 2. Query Sản phẩm (Có lọc Search)
   const currentPage = Number(page) || 1;
   const limit = 12;
   const from = (currentPage - 1) * limit;
   const to = from + limit - 1;
 
-  const {
-    data: products,
-    error: productsError,
-    count,
-  } = await supabase
+  let query = supabase
     .from("products")
     .select(
       `
       id, name, description, price, condition, status, image_urls, quantity, created_at,
-      seller:users!seller_id (
-        username, avatar_url, is_verified
-      ),
+      seller:users!seller_id ( username, avatar_url, is_verified ),
       brand:brands ( id, name )
     `,
       { count: "exact" }
     )
     .eq("seller_id", profile.id)
-    .in("status", ["available", "auction"])
-    .order("created_at", { ascending: false })
-    .range(from, to);
+    .in("status", ["available", "auction"]);
+
+  // Thêm điều kiện tìm kiếm
+  if (searchQuery) {
+    query = query.ilike("name", `%${searchQuery}%`);
+  }
+
+  const {
+    data: products,
+    error: productsError,
+    count,
+  } = await query.order("created_at", { ascending: false }).range(from, to);
 
   if (productsError) {
     console.error("Error fetching products:", productsError);
   }
 
   const totalPages = count ? Math.ceil(count / limit) : 1;
+  const paginationBaseUrl = `/user/${username}?search=${searchQuery}`;
 
   return (
     <div className="container mx-auto py-6 max-w-6xl px-4">
@@ -165,8 +172,6 @@ export default async function PublicProfilePage({
         {/* === CỘT TRÁI: THÔNG TIN USER === */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="border shadow-sm overflow-hidden text-center sticky top-24">
-            {/* BỎ DIV GRADIENT Ở ĐÂY */}
-
             <div className="relative px-6 pt-8 mb-4 flex justify-center">
               <Avatar className="h-28 w-28 border shadow-sm bg-background">
                 <AvatarImage
@@ -180,7 +185,6 @@ export default async function PublicProfilePage({
             </div>
 
             <CardContent className="pb-6 px-6">
-              {/* Tên & Username */}
               <div className="mb-3">
                 <h1 className="text-xl font-bold text-foreground">
                   {profile.full_name || profile.username}
@@ -190,10 +194,8 @@ export default async function PublicProfilePage({
                 </p>
               </div>
 
-              {/* Badges (Đã sửa ShieldCheck và Star) */}
               <div className="flex justify-center items-center gap-2 mb-6 flex-wrap">
                 {profile.is_verified && (
-                  // SỬA: ShieldCheck thành Badge Verified
                   <Badge
                     variant="default"
                     className="bg-green-600 hover:bg-green-700 py-0.5 px-2 text-[10px] font-bold uppercase tracking-wider gap-1"
@@ -201,26 +203,15 @@ export default async function PublicProfilePage({
                     <ShieldCheck className="h-3 w-3" /> Verified
                   </Badge>
                 )}
-
-                {/* SỬA: Bỏ Star, chỉ hiện điểm */}
                 <Badge
                   variant="outline"
                   className="border-yellow-500 text-yellow-700 bg-yellow-50 py-0.5 px-2 text-[11px]"
                 >
                   {profile.reputation_score} Uy tín
                 </Badge>
-
                 {profile.role === "dealer" && (
                   <Badge className="bg-purple-600 hover:bg-purple-700 py-0.5 px-2 text-[10px]">
                     Dealer
-                  </Badge>
-                )}
-                {profile.role === "admin" && (
-                  <Badge
-                    variant="destructive"
-                    className="py-0.5 px-2 text-[10px]"
-                  >
-                    Admin
                   </Badge>
                 )}
               </div>
@@ -250,14 +241,27 @@ export default async function PublicProfilePage({
 
         {/* === CỘT PHẢI: DANH SÁCH SẢN PHẨM === */}
         <div className="lg:col-span-3">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Package className="h-6 w-6 text-primary" />
-              Sản phẩm đang bán
-            </h2>
-            <Badge variant="secondary" className="text-sm px-3 py-1">
-              Tổng: {count || 0}
-            </Badge>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Package className="h-6 w-6 text-primary" />
+                Sản phẩm đang bán
+              </h2>
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                {count || 0}
+              </Badge>
+            </div>
+
+            {/* FORM TÌM KIẾM (Server Action GET) */}
+            <form className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                name="search"
+                placeholder="Tìm trong shop này..."
+                defaultValue={searchQuery}
+                className="pl-9"
+              />
+            </form>
           </div>
 
           {products && products.length > 0 ? (
@@ -272,7 +276,7 @@ export default async function PublicProfilePage({
                 <ServerPagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  baseUrl={`/user/${username}`}
+                  baseUrl={paginationBaseUrl}
                 />
               </div>
             </>
@@ -280,7 +284,9 @@ export default async function PublicProfilePage({
             <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-xl border border-dashed">
               <Package className="h-16 w-16 text-muted-foreground/30 mb-4" />
               <p className="text-lg text-muted-foreground font-medium">
-                Người dùng này chưa có sản phẩm nào đang bán.
+                {searchQuery
+                  ? "Không tìm thấy sản phẩm nào khớp."
+                  : "Người dùng này chưa có sản phẩm nào đang bán."}
               </p>
             </div>
           )}

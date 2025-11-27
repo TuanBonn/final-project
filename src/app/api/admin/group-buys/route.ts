@@ -1,4 +1,3 @@
-// src/app/api/admin/group-buys/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -32,52 +31,41 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === GET ===
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
+    if (!supabaseAdmin) throw new Error("Admin Client Error");
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
+    const search = searchParams.get("search");
 
-    // Query: Lấy thông tin + đếm số người tham gia
+    // === SỬA LỖI TẠI ĐÂY ===
+    // Dùng 'users!host_id' thay vì 'users!user_id' vì cột trong DB là host_id
     let query = supabaseAdmin
       .from("group_buys")
       .select(
         `
-        id,
-        product_name,
-        price_per_unit,
-        target_quantity,
-        max_quantity,
-        join_deadline,
-        status,
-        created_at,
-        host:users!host_id ( username, email ),
-        participants:group_buy_participants ( count )
+        *,
+        host:users!host_id ( username, full_name, email )
       `
       )
       .order("created_at", { ascending: false });
 
-    if (status && status !== "all") {
-      query = query.eq("status", status);
+    if (search) {
+      // Tìm kiếm theo Title, Product Name hoặc Username của Host
+      query = query.or(
+        `title.ilike.%${search}%,product_name.ilike.%${search}%,host.username.ilike.%${search}%`
+      );
     }
 
     const { data, error } = await query;
     if (error) throw error;
 
-    // Format data: Flatten count
-    const groupBuys = data?.map((gb: any) => ({
-      ...gb,
-      participant_count: gb.participants?.[0]?.count || 0,
-    }));
-
-    return NextResponse.json({ groupBuys: groupBuys || [] }, { status: 200 });
+    return NextResponse.json({ groupBuys: data || [] }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
