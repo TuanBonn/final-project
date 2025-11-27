@@ -1,3 +1,4 @@
+// src/app/forgot-password/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -30,7 +31,7 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lỗi gửi yêu cầu");
+      if (!res.ok) throw new Error(data.error || "Error sending request");
 
       setIsSuccess(true);
     } catch (error: any) {
@@ -44,9 +45,9 @@ export default function ForgotPasswordPage() {
     <div className="flex justify-center items-center min-h-screen bg-gray-50 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-xl font-bold">Quên mật khẩu?</CardTitle>
+          <CardTitle className="text-xl font-bold">Forgot Password?</CardTitle>
           <CardDescription>
-            Nhập email của bạn để nhận liên kết đặt lại mật khẩu.
+            Enter your email to receive a password reset link.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -56,21 +57,21 @@ export default function ForgotPasswordPage() {
                 <Mail className="h-6 w-6" />
               </div>
               <h3 className="text-lg font-medium text-green-700">
-                Đã gửi email!
+                Email Sent!
               </h3>
               <p className="text-sm text-muted-foreground">
-                Vui lòng kiểm tra hộp thư (cả mục Spam) để lấy liên kết đặt lại
-                mật khẩu.
+                Please check your inbox (and Spam folder) for the password reset
+                link.
               </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email đăng ký</Label>
+                <Label htmlFor="email">Registered Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="vidu@email.com"
+                  placeholder="example@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -80,7 +81,7 @@ export default function ForgotPasswordPage() {
                 {loading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Gửi yêu cầu"
+                  "Send Request"
                 )}
               </Button>
             </form>
@@ -91,7 +92,7 @@ export default function ForgotPasswordPage() {
             href="/login"
             className="text-sm text-muted-foreground hover:text-primary flex items-center"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại đăng nhập
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Login
           </Link>
         </CardFooter>
       </Card>

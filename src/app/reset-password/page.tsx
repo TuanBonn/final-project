@@ -1,3 +1,4 @@
+// src/app/reset-password/page.tsx
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -26,21 +27,18 @@ function ResetPasswordContent() {
 
   useEffect(() => {
     if (!token) {
-      // Nếu không có token, có thể redirect hoặc báo lỗi
-      // Ở đây tạm thời alert và redirect về login
-      // alert("Token không hợp lệ hoặc bị thiếu.");
-      // router.push("/login");
+      // Logic check token...
     }
   }, [token, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      alert("Mật khẩu xác nhận không khớp!");
+      alert("Passwords do not match!");
       return;
     }
     if (newPassword.length < 6) {
-      alert("Mật khẩu quá ngắn.");
+      alert("Password is too short.");
       return;
     }
 
@@ -53,10 +51,10 @@ function ResetPasswordContent() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Đổi mật khẩu thất bại");
+      if (!res.ok) throw new Error(data.error || "Password reset failed");
 
       setStatus("success");
-      setTimeout(() => router.push("/login"), 3000); // Redirect sau 3s
+      setTimeout(() => router.push("/login"), 3000);
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -68,12 +66,12 @@ function ResetPasswordContent() {
     return (
       <Card className="w-full max-w-md shadow-lg mx-auto">
         <CardContent className="pt-6 text-center">
-          <p className="text-red-500">Liên kết không hợp lệ hoặc đã hết hạn.</p>
+          <p className="text-red-500">Invalid or expired link.</p>
           <Button
             variant="link"
             onClick={() => router.push("/forgot-password")}
           >
-            Yêu cầu lại
+            Request Again
           </Button>
         </CardContent>
       </Card>
@@ -83,30 +81,27 @@ function ResetPasswordContent() {
   return (
     <Card className="w-full max-w-md shadow-lg mx-auto">
       <CardHeader className="text-center">
-        <CardTitle className="text-xl font-bold">
-          Đặt lại mật khẩu mới
-        </CardTitle>
+        <CardTitle className="text-xl font-bold">Reset New Password</CardTitle>
         <CardDescription>
-          Nhập mật khẩu mới cho tài khoản của bạn.
+          Enter a new password for your account.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {status === "success" ? (
           <div className="text-center py-6 space-y-4">
             <CheckCircle className="h-12 w-12 text-green-600 mx-auto" />
-            <h3 className="text-lg font-bold text-green-700">Thành công!</h3>
+            <h3 className="text-lg font-bold text-green-700">Success!</h3>
             <p className="text-muted-foreground">
-              Mật khẩu của bạn đã được cập nhật. Đang chuyển hướng về trang đăng
-              nhập...
+              Your password has been updated. Redirecting to login page...
             </p>
             <Button onClick={() => router.push("/login")} variant="outline">
-              Đăng nhập ngay
+              Login Now
             </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="new-pass">Mật khẩu mới</Label>
+              <Label htmlFor="new-pass">New Password</Label>
               <Input
                 id="new-pass"
                 type="password"
@@ -117,7 +112,7 @@ function ResetPasswordContent() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm-pass">Xác nhận mật khẩu</Label>
+              <Label htmlFor="confirm-pass">Confirm Password</Label>
               <Input
                 id="confirm-pass"
                 type="password"
@@ -131,7 +126,7 @@ function ResetPasswordContent() {
               {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                "Lưu mật khẩu mới"
+                "Save New Password"
               )}
             </Button>
           </form>

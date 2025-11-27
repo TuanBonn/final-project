@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Chrome } from "lucide-react";
-import Link from "next/link"; // <--- Thêm import Link
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,11 +30,11 @@ export default function LoginPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (username.length < 3) {
-      alert("Username phải ít nhất 3 ký tự.");
+      alert("Username must be at least 3 characters.");
       return;
     }
     if (fullName.trim() === "") {
-      alert("Nhập họ tên đi chứ.");
+      alert("Please enter your full name.");
       return;
     }
 
@@ -50,13 +50,13 @@ export default function LoginPage() {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Đăng ký thất bại.");
+      if (!response.ok) throw new Error(data.error || "Registration failed.");
       alert(data.message);
     } catch (error: unknown) {
-      console.error("Lỗi gọi API đăng ký:", error);
-      let errorMessage = "Lỗi không xác định.";
+      console.error("Registration API Error:", error);
+      let errorMessage = "Unknown error.";
       if (error instanceof Error) errorMessage = error.message;
-      alert("Lỗi đăng ký: " + errorMessage);
+      alert("Registration error: " + errorMessage);
     }
   };
 
@@ -69,38 +69,38 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Đăng nhập thất bại.");
+      if (!response.ok) throw new Error(data.error || "Login failed.");
 
       console.log("LoginPage: Login successful, triggering context refresh.");
       await refetchUserContext();
 
       router.push("/");
     } catch (error: unknown) {
-      console.error("Lỗi gọi API đăng nhập:", error);
-      let errorMessage = "Lỗi không xác định.";
+      console.error("Login API Error:", error);
+      let errorMessage = "Unknown error.";
       if (error instanceof Error) errorMessage = error.message;
-      alert("Lỗi đăng nhập: " + errorMessage);
+      alert("Login error: " + errorMessage);
     }
   };
 
   const handleSignInWithGoogle = async () => {
-    alert("Google Sign-In sắp có...");
+    alert("Google Sign-In coming soon...");
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen py-12 bg-gray-50">
       <Card className="w-full max-w-md mx-4 shadow-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Chào mừng!</CardTitle>
+          <CardTitle className="text-2xl font-bold">Welcome!</CardTitle>
           <CardDescription>
-            Đăng nhập hoặc đăng ký để tiếp tục khám phá.
+            Login or register to continue exploring.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Đăng nhập</TabsTrigger>
-              <TabsTrigger value="register">Đăng ký</TabsTrigger>
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
             </TabsList>
 
             {/* === LOGIN TAB CONTENT === */}
@@ -120,19 +120,18 @@ export default function LoginPage() {
                   </div>
                   <div className="flex flex-col space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <Label htmlFor="login-password">Mật khẩu</Label>
-                      {/* LINK QUÊN MẬT KHẨU */}
+                      <Label htmlFor="login-password">Password</Label>
                       <Link
                         href="/forgot-password"
                         className="text-xs text-blue-600 hover:underline"
                       >
-                        Quên mật khẩu?
+                        Forgot Password?
                       </Link>
                     </div>
                     <Input
                       id="login-password"
                       type="password"
-                      placeholder="Mật khẩu của bạn"
+                      placeholder="Your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -140,7 +139,7 @@ export default function LoginPage() {
                   </div>
                 </div>
                 <Button type="submit" className="w-full mt-6">
-                  Đăng nhập
+                  Login
                 </Button>
               </form>
             </TabsContent>
@@ -150,20 +149,20 @@ export default function LoginPage() {
               <form onSubmit={handleSignUp}>
                 <div className="grid w-full items-center gap-4">
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="reg-fullName">Họ và tên</Label>
+                    <Label htmlFor="reg-fullName">Full Name</Label>
                     <Input
                       id="reg-fullName"
-                      placeholder="Nguyễn Văn A"
+                      placeholder="John Doe"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
                     />
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="reg-username">Tên người dùng</Label>
+                    <Label htmlFor="reg-username">Username</Label>
                     <Input
                       id="reg-username"
-                      placeholder="nguyenvana (min 3 chars)"
+                      placeholder="johndoe (min 3 chars)"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
@@ -182,11 +181,11 @@ export default function LoginPage() {
                     />
                   </div>
                   <div className="flex flex-col space-y-1.5">
-                    <Label htmlFor="reg-password">Mật khẩu</Label>
+                    <Label htmlFor="reg-password">Password</Label>
                     <Input
                       id="reg-password"
                       type="password"
-                      placeholder="Chọn mật khẩu mạnh"
+                      placeholder="Choose a strong password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -195,7 +194,7 @@ export default function LoginPage() {
                   </div>
                 </div>
                 <Button type="submit" className="w-full mt-6">
-                  Đăng ký
+                  Register
                 </Button>
               </form>
             </TabsContent>
@@ -207,7 +206,7 @@ export default function LoginPage() {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-card px-2 text-muted-foreground">
-                Hoặc tiếp tục với
+                Or continue with
               </span>
             </div>
           </div>
