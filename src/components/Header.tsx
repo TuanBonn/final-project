@@ -16,9 +16,7 @@ import {
 import UserAvatar from "./UserAvatar";
 import { useUser } from "@/contexts/UserContext";
 import { useCart } from "@/contexts/CartContext";
-// === IMPORT MỚI ===
 import { NotificationBell } from "@/components/NotificationBell";
-// =================
 
 export default function Header() {
   const { user, loadingUser } = useUser();
@@ -57,18 +55,18 @@ export default function Header() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Tìm kiếm..."
+            placeholder="Search..."
             className="w-full pl-10"
           />
         </div>
 
         <nav className="ml-auto flex items-center gap-1 md:gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/auctions">Đấu giá</Link>
+            <Link href="/auctions">Auctions</Link>
           </Button>
 
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/group-buys">Mua chung</Link>
+            <Link href="/group-buys">Group Buys</Link>
           </Button>
 
           <Button variant="ghost" size="sm" asChild>
@@ -79,15 +77,13 @@ export default function Header() {
 
           {user && (
             <>
-              <Button variant="ghost" size="icon" asChild title="Tin nhắn">
+              <Button variant="ghost" size="icon" asChild title="Messages">
                 <Link href="/messages">
                   <MessageCircle className="h-5 w-5" />
                 </Link>
               </Button>
 
-              {/* === THÊM CHUÔNG THÔNG BÁO VÀO ĐÂY === */}
               <NotificationBell />
-              {/* ===================================== */}
             </>
           )}
 

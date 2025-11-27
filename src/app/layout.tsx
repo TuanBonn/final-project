@@ -4,12 +4,13 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import { UserProvider } from "@/contexts/UserContext";
-import { CartProvider } from "@/contexts/CartContext"; // <-- IMPORT MỚI
+import { CartProvider } from "@/contexts/CartContext";
 
 const inter = Inter({ subsets: ["latin"] });
+
 export const metadata: Metadata = {
-  title: "Sàn Giao Dịch Mô Hình Xe",
-  description: "Cộng đồng mua bán, trao đổi mô hình 1/64",
+  title: "Model Car Marketplace",
+  description: "Community for trading and exchanging 1/64 models",
 };
 
 export default function RootLayout({
@@ -20,8 +21,6 @@ export default function RootLayout({
       <body className={inter.className}>
         <UserProvider>
           <CartProvider>
-            {" "}
-            {/* <-- BỌC CART PROVIDER */}
             <Header />
             <main className="container mx-auto py-8">{children}</main>
           </CartProvider>

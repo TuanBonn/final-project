@@ -14,7 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCallback } from "react";
-import { Wallet, User, LogOut, PackagePlus, Package } from "lucide-react"; // <-- THÊM ICON
+import { Wallet, User, LogOut, PackagePlus, Package } from "lucide-react";
 
 interface UserAvatarProps {
   avatarUrl: string | null;
@@ -62,7 +62,7 @@ export default function UserAvatar({
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {fullName || username || "Người dùng"}
+              {fullName || username || "User"}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
               {username ? `@${username}` : ""}
@@ -73,13 +73,13 @@ export default function UserAvatar({
 
         <DropdownMenuItem asChild>
           <Link href="/profile" className="cursor-pointer">
-            <User className="mr-2 h-4 w-4" /> Trang cá nhân
+            <User className="mr-2 h-4 w-4" /> Profile
           </Link>
         </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
           <Link href="/my-products" className="cursor-pointer w-full">
-            <Package className="mr-2 h-4 w-4" /> Sản phẩm đang bán
+            <Package className="mr-2 h-4 w-4" /> My Listings
           </Link>
         </DropdownMenuItem>
 
@@ -88,21 +88,19 @@ export default function UserAvatar({
             href="/wallet"
             className="cursor-pointer text-blue-600 font-medium"
           >
-            <Wallet className="mr-2 h-4 w-4" /> Ví của tôi
+            <Wallet className="mr-2 h-4 w-4" /> My Wallet
           </Link>
         </DropdownMenuItem>
 
-        {/* === MỚI: ĐƠN HÀNG === */}
         <DropdownMenuItem asChild>
           <Link href="/orders" className="cursor-pointer">
-            <Package className="mr-2 h-4 w-4" /> Đơn hàng của tôi
+            <Package className="mr-2 h-4 w-4" /> My Orders
           </Link>
         </DropdownMenuItem>
-        {/* ==================== */}
 
         <DropdownMenuItem asChild>
           <Link href="/sell" className="cursor-pointer">
-            <PackagePlus className="mr-2 h-4 w-4" /> Đăng bán sản phẩm
+            <PackagePlus className="mr-2 h-4 w-4" /> List a Product
           </Link>
         </DropdownMenuItem>
 
@@ -111,7 +109,7 @@ export default function UserAvatar({
           onClick={handleLogout}
           className="text-red-500 cursor-pointer focus:text-red-600"
         >
-          <LogOut className="mr-2 h-4 w-4" /> Đăng xuất
+          <LogOut className="mr-2 h-4 w-4" /> Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
