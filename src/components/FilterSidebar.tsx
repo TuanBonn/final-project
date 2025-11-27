@@ -73,7 +73,7 @@ export function FilterSidebar({
   };
 
   return (
-    <aside className="w-full lg:w-1/4 xl:w-1/5 space-y-6 p-4 border rounded-lg shadow-sm h-fit sticky top-24">
+    <aside className="w-full lg:w-1/4 xl:w-1/5 space-y-6 p-4 border rounded-lg shadow-sm h-fit top-24">
       {/* Sắp xếp */}
       <div>
         <h3 className="font-semibold mb-3 text-lg">Sắp xếp</h3>

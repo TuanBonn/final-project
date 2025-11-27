@@ -67,7 +67,8 @@ const isNegativeTransaction = (type: string) => {
     type === "withdrawal" ||
     type === "group_buy_order" || // Trừ tiền đặt cọc
     type.includes("fee") ||
-    type === "auction_bid_fee"
+    type === "auction_bid_fee" ||
+    type === "transaction_commission"
   );
 };
 
@@ -81,15 +82,15 @@ const getPaymentLabel = (type: string) => {
     case "group_buy_order":
       return "Đặt cọc Mua chung";
     case "group_buy_refund":
-      return "Hoàn tiền Mua chung (Kèo hủy)";
+      return "Hoàn tiền Mua chung";
     case "group_buy_payout":
-      return "Doanh thu Mua chung (Host)";
+      return "Doanh thu Mua chung";
     case "auction_creation_fee":
       return "Phí tạo đấu giá";
     case "auction_bid_fee":
       return "Phí tham gia đấu giá";
     case "transaction_commission":
-      return "Phí sàn";
+      return "Phí sàn (Hoa hồng)";
     default:
       return type.replace(/_/g, " ");
   }

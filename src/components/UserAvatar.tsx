@@ -78,6 +78,12 @@ export default function UserAvatar({
         </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
+          <Link href="/my-products" className="cursor-pointer w-full">
+            <Package className="mr-2 h-4 w-4" /> Sản phẩm đang bán
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild>
           <Link
             href="/wallet"
             className="cursor-pointer text-blue-600 font-medium"

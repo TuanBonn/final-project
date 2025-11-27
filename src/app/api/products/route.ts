@@ -23,7 +23,7 @@ function getSupabaseAdmin(): SupabaseClient | null {
   });
 }
 
-// ================== GET ==================
+// ================== GET: Lấy danh sách cho Homepage ==================
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -34,11 +34,8 @@ export async function GET(request: Request) {
     const filterConditions = params.getAll("condition");
     const filterBrandIds = params.getAll("brand_id");
     const filterSellerId = params.get("seller_id");
-
-    // --- MỚI: Lấy từ khóa tìm kiếm ---
     const search = params.get("search") || "";
 
-    // --- LOGIC PHÂN TRANG ---
     const page = parseInt(params.get("page") || "1");
     const limit = parseInt(params.get("limit") || "15");
     const from = (page - 1) * limit;
@@ -56,25 +53,28 @@ export async function GET(request: Request) {
       .from("products")
       .select(
         `
-        id, name, price, condition, image_urls, created_at, brand_id, seller_id, quantity,
+        id, name, price, condition, image_urls, created_at, brand_id, seller_id, quantity, status,
         seller:users!seller_id!inner ( username, avatar_url, is_verified ),
         brand:brands ( id, name )
       `,
         { count: "exact" }
       )
-      .eq("status", "available");
+      .eq("status", "available")
+      .gt("quantity", 0); // <--- QUAN TRỌNG: Chỉ lấy sản phẩm còn hàng (> 0)
 
-    // --- MỚI: Áp dụng tìm kiếm ---
+    // Tìm kiếm
     if (search) {
       query = query.ilike("name", `%${search}%`);
     }
 
+    // Bộ lọc
     if (filterConditions.length > 0)
       query = query.in("condition", filterConditions);
     if (filterBrandIds.length > 0) query = query.in("brand_id", filterBrandIds);
     if (filterVerified) query = query.eq("seller.is_verified", true);
     if (filterSellerId) query = query.eq("seller_id", filterSellerId);
 
+    // Sắp xếp
     if (sort === "price_asc") query = query.order("price", { ascending: true });
     else if (sort === "price_desc")
       query = query.order("price", { ascending: false });
@@ -102,9 +102,8 @@ export async function GET(request: Request) {
   }
 }
 
-// ... (Phần POST giữ nguyên)
+// ================== POST: Đăng bán sản phẩm mới ==================
 export async function POST(request: Request) {
-  // (Giữ nguyên code POST cũ của bạn ở đây)
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
       { error: "Lỗi cấu hình server." },
@@ -166,6 +165,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const initialQty = quantity ? parseInt(quantity.toString()) : 1;
+
+    // Logic tự động: Nếu nhập số lượng 0 thì tự set sold, ngược lại available
+    const initialStatus = initialQty > 0 ? "available" : "sold";
+
     const { data, error: insertError } = await supabaseAdmin
       .from("products")
       .insert({
@@ -176,26 +180,19 @@ export async function POST(request: Request) {
         brand_id,
         condition,
         image_urls: imageUrls,
-        status: "available",
-        quantity: quantity ? parseInt(quantity.toString()) : 1,
+        status: initialStatus, // <--- SET STATUS TỰ ĐỘNG
+        quantity: initialQty,
       })
       .select()
       .single();
 
-    if (insertError) {
-      console.error("API POST /products: Lỗi chèn DB:", insertError);
-      throw insertError;
-    }
+    if (insertError) throw insertError;
 
     return NextResponse.json(
       { product: data, message: "Đăng bán thành công!" },
       { status: 201 }
     );
   } catch (error: any) {
-    console.error("API POST /products: Lỗi bất ngờ:", error);
-    return NextResponse.json(
-      { error: error.message || "Lỗi server khi đăng bán." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
