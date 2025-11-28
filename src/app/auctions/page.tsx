@@ -19,9 +19,9 @@ import {
   Clock,
   User as UserIcon,
   PlusCircle,
-} from "lucide-react"; // <-- THÊM ICON
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUser } from "@/contexts/UserContext"; // <-- THÊM USEUSER
+import { useUser } from "@/contexts/UserContext";
 
 interface AuctionItem {
   id: string;
@@ -47,20 +47,20 @@ const getTimeLeft = (endTime: string) => {
   const end = new Date(endTime);
   const diff = end.getTime() - now.getTime();
 
-  if (diff <= 0) return "Đã kết thúc";
+  if (diff <= 0) return "Ended";
 
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
   if (hours > 24) {
     const days = Math.floor(hours / 24);
-    return `${days} ngày nữa`;
+    return `${days} days left`;
   }
-  return `${hours}h ${minutes}p`;
+  return `${hours}h ${minutes}m`;
 };
 
 export default function AuctionsPage() {
-  const { user } = useUser(); // <-- LẤY USER
+  const { user } = useUser();
   const [auctions, setAuctions] = useState<AuctionItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -84,30 +84,28 @@ export default function AuctionsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Gavel className="h-8 w-8 text-primary" /> Sàn Đấu Giá
+            <Gavel className="h-8 w-8 text-primary" /> Auction Marketplace
           </h1>
           <p className="text-muted-foreground mt-1">
-            Săn hàng độc, giá tốt cùng cộng đồng.
+            Hunt rare pieces and great deals with the community.
           </p>
         </div>
 
-        {/* === NÚT TẠO ĐẤU GIÁ (MỚI) === */}
         {user && (
           <Button asChild className="hidden sm:flex">
             <Link href="/auctions/create">
-              <PlusCircle className="mr-2 h-4 w-4" /> Tạo phiên đấu giá
+              <PlusCircle className="mr-2 h-4 w-4" /> Create auction
             </Link>
           </Button>
         )}
-        {/* ============================= */}
       </div>
 
-      {/* Nút Mobile (chỉ hiện trên màn hình nhỏ) */}
+      {/* Mobile button */}
       {user && (
         <div className="sm:hidden mb-6">
           <Button asChild className="w-full">
             <Link href="/auctions/create">
-              <PlusCircle className="mr-2 h-4 w-4" /> Tạo phiên đấu giá
+              <PlusCircle className="mr-2 h-4 w-4" /> Create auction
             </Link>
           </Button>
         </div>
@@ -120,12 +118,11 @@ export default function AuctionsPage() {
       ) : auctions.length === 0 ? (
         <div className="text-center py-20 bg-muted/20 rounded-lg border border-dashed">
           <p className="text-lg text-muted-foreground mb-4">
-            Hiện chưa có phiên đấu giá nào đang diễn ra.
+            There are no live auctions at the moment.
           </p>
-          {/* Gợi ý tạo nếu chưa có */}
           {user && (
             <Button variant="outline" asChild>
-              <Link href="/auctions/create">Hãy là người đầu tiên!</Link>
+              <Link href="/auctions/create">Be the first to create one!</Link>
             </Button>
           )}
         </div>
@@ -136,7 +133,7 @@ export default function AuctionsPage() {
               key={auction.id}
               className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow"
             >
-              {/* Ảnh */}
+              {/* Image */}
               <div className="relative aspect-[4/3] bg-muted">
                 {auction.productImage ? (
                   <Image
@@ -157,7 +154,7 @@ export default function AuctionsPage() {
                     }
                     className="bg-black/70 hover:bg-black/80 backdrop-blur-sm"
                   >
-                    {auction.status === "active" ? "Đang diễn ra" : "Sắp tới"}
+                    {auction.status === "active" ? "Live" : "Upcoming"}
                   </Badge>
                 </div>
               </div>
@@ -185,7 +182,7 @@ export default function AuctionsPage() {
               <CardContent className="p-4 flex-1">
                 <div className="bg-primary/5 rounded-lg p-3 border border-primary/10">
                   <p className="text-xs text-muted-foreground mb-1">
-                    Giá hiện tại
+                    Current price
                   </p>
                   <p className="text-xl font-bold text-primary">
                     {formatCurrency(auction.currentPrice)}
@@ -193,7 +190,7 @@ export default function AuctionsPage() {
                 </div>
                 <div className="flex items-center justify-between mt-3 text-sm">
                   <div className="flex items-center gap-1 text-muted-foreground">
-                    <Gavel className="h-3 w-3" /> {auction.bidCount} lượt
+                    <Gavel className="h-3 w-3" /> {auction.bidCount} bids
                   </div>
                   <div className="flex items-center gap-1 font-medium text-orange-600">
                     <Clock className="h-3 w-3" /> {getTimeLeft(auction.endTime)}
@@ -203,7 +200,7 @@ export default function AuctionsPage() {
 
               <CardFooter className="p-4 pt-0">
                 <Button className="w-full font-semibold" asChild>
-                  <Link href={`/auctions/${auction.id}`}>Tham gia ngay</Link>
+                  <Link href={`/auctions/${auction.id}`}>Join now</Link>
                 </Button>
               </CardFooter>
             </Card>

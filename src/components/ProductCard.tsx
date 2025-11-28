@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShieldCheck, Edit, Package } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 
-// Định nghĩa kiểu dữ liệu cho Product
+// Product type definition
 export interface ProductWithDetails {
   id: string;
   name: string;
@@ -40,10 +40,10 @@ const formatCurrency = (amount: number) =>
 export function ProductCard({ product }: ProductCardProps) {
   const { user } = useUser();
 
-  // Kiểm tra quyền sở hữu để hiện nút sửa
+  // Check ownership to show edit button
   const isOwner = user && user.id === product.seller_id;
 
-  // Lấy ảnh đầu tiên hoặc ảnh placeholder
+  // Get first image or placeholder
   const mainImage =
     product.image_urls && product.image_urls.length > 0
       ? product.image_urls[0]
@@ -51,10 +51,10 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <div className="group relative h-full">
-      {/* Link bao quanh toàn bộ Card */}
+      {/* Wrap the entire card with Link */}
       <Link href={`/products/${product.id}`} className="block h-full">
         <Card className="h-full overflow-hidden hover:shadow-lg transition-all duration-300 border-muted bg-card flex flex-col">
-          {/* === PHẦN ẢNH === */}
+          {/* === IMAGE SECTION === */}
           <div className="relative aspect-square w-full bg-muted overflow-hidden">
             {mainImage ? (
               <Image
@@ -71,7 +71,7 @@ export function ProductCard({ product }: ProductCardProps) {
               </div>
             )}
 
-            {/* Badge Tình trạng (Mới/Cũ) */}
+            {/* Condition badge (New/Used) */}
             {product.condition && (
               <div className="absolute top-2 left-2">
                 <Badge
@@ -85,7 +85,7 @@ export function ProductCard({ product }: ProductCardProps) {
               </div>
             )}
 
-            {/* Badge Trạng thái (Nếu không phải available) */}
+            {/* Status badge (if not available) */}
             {product.status && product.status !== "available" && (
               <div className="absolute top-2 right-2">
                 <Badge
@@ -98,9 +98,9 @@ export function ProductCard({ product }: ProductCardProps) {
             )}
           </div>
 
-          {/* === PHẦN NỘI DUNG === */}
+          {/* === CONTENT SECTION === */}
           <CardContent className="p-3 flex-1 flex flex-col gap-2">
-            {/* Tên sản phẩm */}
+            {/* Product name */}
             <h3
               className="font-medium text-base line-clamp-2 group-hover:text-primary transition-colors"
               title={product.name}
@@ -108,7 +108,7 @@ export function ProductCard({ product }: ProductCardProps) {
               {product.name}
             </h3>
 
-            {/* Giá tiền */}
+            {/* Price */}
             <div className="mt-auto">
               <p className="text-lg font-bold text-orange-600">
                 {formatCurrency(Number(product.price))}
@@ -116,7 +116,7 @@ export function ProductCard({ product }: ProductCardProps) {
             </div>
           </CardContent>
 
-          {/* === PHẦN FOOTER (Người bán) === */}
+          {/* === FOOTER (Seller info) === */}
           <CardFooter className="p-3 pt-0 border-t bg-muted/20 flex items-center gap-2 mt-auto">
             <Avatar className="h-6 w-6 border shadow-sm">
               <AvatarImage src={product.seller?.avatar_url || ""} />
@@ -126,7 +126,7 @@ export function ProductCard({ product }: ProductCardProps) {
             </Avatar>
             <div className="flex items-center gap-1 min-w-0 flex-1">
               <span className="text-xs text-muted-foreground truncate">
-                {product.seller?.username || "Ẩn danh"}
+                {product.seller?.username || "Anonymous"}
               </span>
               {product.seller?.is_verified && (
                 <ShieldCheck className="h-3 w-3 text-blue-600 flex-shrink-0" />
@@ -136,13 +136,13 @@ export function ProductCard({ product }: ProductCardProps) {
         </Card>
       </Link>
 
-      {/* === NÚT SỬA NHANH (Chỉ hiện cho chủ sở hữu) === */}
+      {/* === QUICK EDIT BUTTON (Owner only) === */}
       {isOwner && (
         <Link
           href={`/sell/${product.id}/edit`}
           className="absolute top-2 right-2 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-md text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-blue-50 hover:scale-110"
-          title="Sửa sản phẩm này"
-          onClick={(e) => e.stopPropagation()} // Ngăn chặn click vào Link cha
+          title="Edit this product"
+          onClick={(e) => e.stopPropagation()} // Prevent triggering parent Link
         >
           <Edit className="h-4 w-4" />
         </Link>

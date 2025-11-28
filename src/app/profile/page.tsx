@@ -29,7 +29,7 @@ import {
   Package,
   HelpCircle,
   Gem,
-  Search, // <-- Thêm Icon Search
+  Search, // <-- Icon Search
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { Separator } from "@/components/ui/separator";
@@ -101,9 +101,9 @@ export default function ProfilePage() {
   const [userProducts, setUserProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
-  // === STATE MỚI CHO TÌM KIẾM ===
+  // === SEARCH STATE ===
   const [searchTerm, setSearchTerm] = useState("");
-  // ==============================
+  // ====================
 
   useEffect(() => {
     if (user) {
@@ -128,11 +128,11 @@ export default function ProfilePage() {
       if (res.ok && data.products) {
         setUserProducts(data.products);
       } else {
-        console.error("Lỗi tải sản phẩm:", data.error);
+        console.error("Error loading products:", data.error);
         setUserProducts([]);
       }
     } catch (error) {
-      console.error("Lỗi kết nối:", error);
+      console.error("Connection error:", error);
     } finally {
       setLoadingProducts(false);
     }
@@ -143,7 +143,7 @@ export default function ProfilePage() {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Ảnh quá lớn (Tối đa 5MB)");
+      alert("Image is too large (max 5MB).");
       return;
     }
 
@@ -154,7 +154,7 @@ export default function ProfilePage() {
         setBasicInfo((prev) => ({ ...prev, avatarUrl: uploadedUrl }));
       }
     } catch (error: any) {
-      alert("Lỗi tải ảnh lên: " + (error.message || "Unknown error"));
+      alert("Failed to upload image: " + (error.message || "Unknown error"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -183,12 +183,12 @@ export default function ProfilePage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lỗi cập nhật");
+      if (!res.ok) throw new Error(data.error || "Update failed.");
 
-      alert("Đã lưu thông tin thành công!");
+      alert("Profile updated successfully!");
       if (fetchUserData) await fetchUserData();
     } catch (error: any) {
-      alert(error.message || "Lỗi khi lưu hồ sơ.");
+      alert(error.message || "Error while saving profile.");
     } finally {
       setLoading(false);
     }
@@ -196,11 +196,11 @@ export default function ProfilePage() {
 
   const handleChangePassword = async () => {
     if (passwords.new !== passwords.confirm) {
-      alert("Mật khẩu xác nhận không khớp!");
+      alert("Password confirmation does not match!");
       return;
     }
     if (passwords.new.length < 6) {
-      alert("Mật khẩu mới phải có ít nhất 6 ký tự.");
+      alert("New password must be at least 6 characters.");
       return;
     }
 
@@ -216,28 +216,26 @@ export default function ProfilePage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Đổi mật khẩu thất bại");
+      if (!res.ok) throw new Error(data.error || "Password change failed.");
 
-      alert("Đổi mật khẩu thành công!");
+      alert("Password changed successfully!");
       setPasswords({ current: "", new: "", confirm: "" });
     } catch (error: any) {
-      alert(error.message || "Lỗi đổi mật khẩu.");
+      alert(error.message || "Error while changing password.");
     } finally {
       setPassLoading(false);
     }
   };
 
-  // === LOGIC LỌC SẢN PHẨM ===
-  // 1. Chỉ lấy status 'available' hoặc 'auction' (nếu muốn hiện đấu giá đang chạy)
-  // 2. Lọc theo từ khóa tìm kiếm
+  // === FILTER PRODUCTS ===
   const displayedProducts = userProducts.filter((prod) => {
-    const isAvailable = prod.status === "available"; // Yêu cầu của bạn: Chỉ available
+    const isAvailable = prod.status === "available";
     const matchesSearch = prod.name
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
     return isAvailable && matchesSearch;
   });
-  // ==========================
+  // =======================
 
   if (!user) {
     return (
@@ -249,10 +247,10 @@ export default function ProfilePage() {
 
   return (
     <div className="container mx-auto py-8 max-w-6xl px-4">
-      <h1 className="text-3xl font-bold mb-6">Hồ sơ cá nhân</h1>
+      <h1 className="text-3xl font-bold mb-6">My Profile</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* CỘT TRÁI */}
+        {/* LEFT COLUMN */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="border shadow-md overflow-hidden text-center h-full">
             <div className="mt-8 mb-4 flex justify-center relative group">
@@ -275,7 +273,7 @@ export default function ProfilePage() {
             <CardContent className="pb-6 px-6">
               <div className="mb-4">
                 <h2 className="text-2xl font-bold text-foreground">
-                  {basicInfo.fullName || user.full_name || "Chưa đặt tên"}
+                  {basicInfo.fullName || user.full_name || "No name set"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   @{basicInfo.username || user.username}
@@ -291,7 +289,7 @@ export default function ProfilePage() {
                   variant="outline"
                   className="border-yellow-500 text-yellow-700 bg-yellow-50 py-0.5 px-2 text-[11px]"
                 >
-                  Uy tín: {user.reputation_score}
+                  Reputation: {user.reputation_score}
                 </Badge>
                 {user.role === "dealer" && (
                   <Badge className="bg-purple-600 hover:bg-purple-700 py-0.5 px-2 text-[10px]">
@@ -301,44 +299,44 @@ export default function ProfilePage() {
               </div>
               <Separator className="my-4" />
               <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
-                Đây là giao diện công khai của bạn trên sàn.
+                This is your public profile on the marketplace.
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* CỘT PHẢI */}
+        {/* RIGHT COLUMN */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="grid w-full grid-cols-5 mb-4 h-12">
               <TabsTrigger value="general">
                 <User className="w-4 h-4 md:mr-2" />{" "}
-                <span className="hidden md:inline">Cơ bản</span>
+                <span className="hidden md:inline">General</span>
               </TabsTrigger>
               <TabsTrigger value="shipping">
                 <MapPin className="w-4 h-4 md:mr-2" />{" "}
-                <span className="hidden md:inline">Giao hàng</span>
+                <span className="hidden md:inline">Shipping</span>
               </TabsTrigger>
               <TabsTrigger value="banking">
                 <CreditCard className="w-4 h-4 md:mr-2" />{" "}
-                <span className="hidden md:inline">Ngân hàng</span>
+                <span className="hidden md:inline">Banking</span>
               </TabsTrigger>
               <TabsTrigger value="security">
                 <KeyRound className="w-4 h-4 md:mr-2" />{" "}
-                <span className="hidden md:inline">Bảo mật</span>
+                <span className="hidden md:inline">Security</span>
               </TabsTrigger>
               <TabsTrigger value="upgrade">
                 <Gem className="w-4 h-4 md:mr-2" />{" "}
-                <span className="hidden md:inline">Nâng cấp</span>
+                <span className="hidden md:inline">Upgrade</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="general">
               <Card>
                 <CardHeader>
-                  <CardTitle>Thông tin tài khoản</CardTitle>
+                  <CardTitle>Account Information</CardTitle>
                   <CardDescription>
-                    Quản lý tên hiển thị và thông tin đăng nhập.
+                    Manage your display name and login details.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -371,14 +369,13 @@ export default function ProfilePage() {
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploading}
                       >
-                        <UploadCloud className="mr-2 h-4 w-4" /> Đổi ảnh đại
-                        diện
+                        <UploadCloud className="mr-2 h-4 w-4" /> Change avatar
                       </Button>
                     </div>
                   </div>
                   <Separator />
                   <div className="space-y-2">
-                    <Label>Tên hiển thị</Label>
+                    <Label>Display name</Label>
                     <Input
                       value={basicInfo.fullName}
                       onChange={(e) =>
@@ -422,7 +419,7 @@ export default function ProfilePage() {
                     ) : (
                       <Save className="mr-2 h-4 w-4" />
                     )}{" "}
-                    Lưu thay đổi
+                    Save changes
                   </Button>
                 </CardFooter>
               </Card>
@@ -431,15 +428,15 @@ export default function ProfilePage() {
             <TabsContent value="shipping">
               <Card>
                 <CardHeader>
-                  <CardTitle>Địa chỉ giao hàng</CardTitle>
+                  <CardTitle>Shipping address</CardTitle>
                   <CardDescription>
-                    Thông tin để người bán gửi hàng cho bạn.
+                    Information used for sellers to ship items to you.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Họ tên người nhận</Label>
+                      <Label>Recipient full name</Label>
                       <Input
                         value={shippingInfo.fullName}
                         onChange={(e) =>
@@ -451,7 +448,7 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Số điện thoại</Label>
+                      <Label>Phone number</Label>
                       <Input
                         value={shippingInfo.phone}
                         onChange={(e) =>
@@ -464,7 +461,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Địa chỉ chi tiết</Label>
+                    <Label>Detailed address</Label>
                     <Input
                       value={shippingInfo.address}
                       onChange={(e) =>
@@ -476,7 +473,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Tỉnh / Thành phố</Label>
+                    <Label>Province / City</Label>
                     <Input
                       value={shippingInfo.city}
                       onChange={(e) =>
@@ -499,7 +496,7 @@ export default function ProfilePage() {
                     ) : (
                       <Save className="mr-2 h-4 w-4" />
                     )}{" "}
-                    Lưu địa chỉ
+                    Save address
                   </Button>
                 </CardFooter>
               </Card>
@@ -508,25 +505,26 @@ export default function ProfilePage() {
             <TabsContent value="banking">
               <Card>
                 <CardHeader>
-                  <CardTitle>Tài khoản nhận tiền</CardTitle>
+                  <CardTitle>Payout account</CardTitle>
                   <CardDescription>
-                    Dùng để rút tiền từ Ví về tài khoản của bạn.
+                    Used to withdraw funds from your Wallet to your bank
+                    account.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Tên Ngân hàng</Label>
+                    <Label>Bank name</Label>
                     <Input
                       value={bankInfo.bankName}
                       onChange={(e) =>
                         setBankInfo({ ...bankInfo, bankName: e.target.value })
                       }
-                      placeholder="VD: Vietcombank"
+                      placeholder="e.g. Vietcombank"
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Số tài khoản</Label>
+                      <Label>Account number</Label>
                       <Input
                         value={bankInfo.accountNo}
                         onChange={(e) =>
@@ -538,7 +536,7 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Chủ tài khoản</Label>
+                      <Label>Account holder name</Label>
                       <Input
                         value={bankInfo.accountName}
                         onChange={(e) =>
@@ -563,7 +561,7 @@ export default function ProfilePage() {
                     ) : (
                       <Save className="mr-2 h-4 w-4" />
                     )}{" "}
-                    Lưu ngân hàng
+                    Save bank account
                   </Button>
                 </CardFooter>
               </Card>
@@ -572,15 +570,15 @@ export default function ProfilePage() {
             <TabsContent value="security">
               <Card>
                 <CardHeader>
-                  <CardTitle>Bảo mật tài khoản</CardTitle>
+                  <CardTitle>Account security</CardTitle>
                   <CardDescription>
-                    Đổi mật khẩu và khôi phục tài khoản.
+                    Change your password and recover your account.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Mật khẩu hiện tại</Label>
+                      <Label>Current password</Label>
                       <Input
                         type="password"
                         value={passwords.current}
@@ -594,7 +592,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Mật khẩu mới</Label>
+                        <Label>New password</Label>
                         <Input
                           type="password"
                           value={passwords.new}
@@ -604,7 +602,7 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Xác nhận mật khẩu mới</Label>
+                        <Label>Confirm new password</Label>
                         <Input
                           type="password"
                           value={passwords.confirm}
@@ -623,10 +621,12 @@ export default function ProfilePage() {
                       variant="ghost"
                       className="text-muted-foreground text-sm"
                       onClick={() =>
-                        alert("Tính năng Quên mật khẩu đang được phát triển.")
+                        alert(
+                          "The Forgot password feature is currently under development."
+                        )
                       }
                     >
-                      <HelpCircle className="mr-2 h-4 w-4" /> Quên mật khẩu?
+                      <HelpCircle className="mr-2 h-4 w-4" /> Forgot password?
                     </Button>
                     <Button
                       onClick={handleChangePassword}
@@ -637,7 +637,7 @@ export default function ProfilePage() {
                       ) : (
                         <KeyRound className="mr-2 h-4 w-4" />
                       )}{" "}
-                      Đổi mật khẩu
+                      Change password
                     </Button>
                   </div>
                 </CardContent>
@@ -647,9 +647,9 @@ export default function ProfilePage() {
             <TabsContent value="upgrade">
               <Card>
                 <CardHeader>
-                  <CardTitle>Hạng thành viên & Xác thực</CardTitle>
+                  <CardTitle>Membership & Verification</CardTitle>
                   <CardDescription>
-                    Nâng cấp tài khoản để nhận nhiều quyền lợi hơn.
+                    Upgrade your account to unlock more benefits.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -661,19 +661,18 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* === PHẦN SẢN PHẨM CỦA TÔI (ĐÃ SỬA) === */}
+      {/* === MY PRODUCTS SECTION === */}
       <div className="mt-12">
         <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-6 gap-4">
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Package className="h-6 w-6 text-primary" /> Sản phẩm đang bán của
-            tôi
+            <Package className="h-6 w-6 text-primary" /> My active listings
           </h2>
 
-          {/* THANH TÌM KIẾM */}
+          {/* SEARCH BAR */}
           <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Tìm sản phẩm của bạn..."
+              placeholder="Search your products..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
@@ -695,14 +694,14 @@ export default function ProfilePage() {
           <div className="text-center py-12 bg-muted/30 rounded-lg border border-dashed">
             <p className="text-muted-foreground">
               {searchTerm
-                ? "Không tìm thấy sản phẩm nào khớp."
-                : "Bạn chưa có sản phẩm nào đang bán."}
+                ? "No products found matching your search."
+                : "You don't have any active listings yet."}
             </p>
             <Button
               variant="link"
               onClick={() => (window.location.href = "/sell")}
             >
-              Đăng bán ngay
+              List a product now
             </Button>
           </div>
         )}

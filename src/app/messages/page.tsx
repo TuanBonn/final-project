@@ -53,7 +53,7 @@ export default function MessagesPage() {
   const [filteredConversations, setFilteredConversations] = useState<
     Conversation[]
   >([]);
-  const [searchQuery, setSearchQuery] = useState(""); // <-- State tìm kiếm
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -75,7 +75,7 @@ export default function MessagesPage() {
       const data = await res.json();
       if (data.conversations) {
         setConversations(data.conversations);
-        setFilteredConversations(data.conversations); // Init filtered list
+        setFilteredConversations(data.conversations);
       }
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -88,7 +88,7 @@ export default function MessagesPage() {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Logic lọc danh sách khi search thay đổi
+  // Filter conversations when search changes
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredConversations(conversations);
@@ -96,9 +96,8 @@ export default function MessagesPage() {
     }
 
     const query = searchQuery.toLowerCase();
-    const filtered = conversations.filter(
-      (conv) => conv.partner.username?.toLowerCase().includes(query)
-      // Bạn có thể thêm logic tìm theo fullName nếu API trả về fullName trong partner
+    const filtered = conversations.filter((conv) =>
+      conv.partner.username?.toLowerCase().includes(query)
     );
     setFilteredConversations(filtered);
   }, [searchQuery, conversations]);
@@ -117,7 +116,7 @@ export default function MessagesPage() {
     }
   }, []);
 
-  // Xử lý Realtime
+  // Realtime
   useEffect(() => {
     if (!activeConvId) return;
 
@@ -187,7 +186,7 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error("Send error:", error);
-      alert("Gửi tin nhắn thất bại.");
+      alert("Failed to send message.");
       setNewMessage(tempContent);
     }
   };
@@ -204,7 +203,7 @@ export default function MessagesPage() {
   return (
     <div className="container mx-auto py-6 max-w-6xl h-[calc(100vh-100px)]">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
-        {/* SIDEBAR DANH SÁCH */}
+        {/* SIDEBAR LIST */}
         <Card
           className={`md:col-span-1 flex flex-col h-full overflow-hidden ${
             activeConvId ? "hidden md:flex" : "flex"
@@ -212,14 +211,14 @@ export default function MessagesPage() {
         >
           <CardHeader className="py-4 border-b bg-muted/20 space-y-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <MessageSquare className="h-5 w-5" /> Tin nhắn
+              <MessageSquare className="h-5 w-5" /> Messages
             </CardTitle>
 
-            {/* THANH TÌM KIẾM MỚI */}
+            {/* SEARCH BAR */}
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Tìm người dùng..."
+                placeholder="Search users..."
                 className="pl-8 h-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -235,9 +234,7 @@ export default function MessagesPage() {
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground p-4">
-                  {searchQuery
-                    ? "Không tìm thấy kết quả."
-                    : "Chưa có tin nhắn nào."}
+                  {searchQuery ? "No results found." : "No conversations yet."}
                 </p>
               ) : (
                 filteredConversations.map((conv) => (
@@ -264,8 +261,7 @@ export default function MessagesPage() {
                         {conv.partner.username}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {conv.last_message?.content ||
-                          "Bắt đầu cuộc trò chuyện"}
+                        {conv.last_message?.content || "Start a conversation"}
                       </p>
                     </div>
                   </button>
@@ -275,7 +271,7 @@ export default function MessagesPage() {
           </ScrollArea>
         </Card>
 
-        {/* KHUNG CHAT CHÍNH */}
+        {/* MAIN CHAT BOX */}
         <Card
           className={`md:col-span-2 flex flex-col h-full overflow-hidden shadow-lg border-t-4 border-t-primary/20 ${
             !activeConvId ? "hidden md:flex" : "flex"
@@ -284,7 +280,7 @@ export default function MessagesPage() {
           {activeConvId ? (
             <>
               <div className="p-4 border-b flex items-center gap-3 bg-background shadow-sm z-10">
-                {/* Nút back trên mobile */}
+                {/* Back button on mobile */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -325,7 +321,7 @@ export default function MessagesPage() {
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="text-center text-muted-foreground py-10 opacity-60">
-                    <p>Hãy nói "Xin chào" 👋</p>
+                    <p>Say &quot;Hi&quot; 👋</p>
                   </div>
                 ) : (
                   messages.map((msg) => {
@@ -351,7 +347,7 @@ export default function MessagesPage() {
                             }`}
                           >
                             {new Date(msg.created_at).toLocaleTimeString(
-                              "vi-VN",
+                              "en-US",
                               {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -373,7 +369,7 @@ export default function MessagesPage() {
                   <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Nhập tin nhắn..."
+                    placeholder="Type a message..."
                     className="flex-1"
                     autoFocus
                   />
@@ -393,8 +389,8 @@ export default function MessagesPage() {
               <div className="bg-muted/30 p-6 rounded-full mb-4">
                 <User className="h-12 w-12 opacity-50" />
               </div>
-              <p className="text-lg font-medium">Chọn một cuộc hội thoại</p>
-              <p className="text-sm">để bắt đầu nhắn tin với người bán</p>
+              <p className="text-lg font-medium">Select a conversation</p>
+              <p className="text-sm">to start chatting with the seller</p>
             </div>
           )}
         </Card>

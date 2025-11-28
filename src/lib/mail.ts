@@ -11,7 +11,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// 1. Gửi email xác nhận đơn hàng
+// 1. Send order confirmation email
 export const sendOrderConfirmationEmail = async (
   toEmail: string,
   orderId: string,
@@ -27,25 +27,25 @@ export const sendOrderConfirmationEmail = async (
   const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #ea580c; padding: 20px; text-align: center;">
-          <h2 style="color: white; margin: 0;">Xác Nhận Đơn Hàng</h2>
+          <h2 style="color: white; margin: 0;">Order Confirmation</h2>
         </div>
         
         <div style="padding: 20px;">
-          <p>Xin chào,</p>
-          <p>Cảm ơn bạn đã mua hàng tại <strong>Sàn Giao Dịch Mô Hình Xe</strong>. Đơn hàng của bạn đã được hệ thống ghi nhận thành công.</p>
+          <p>Hello,</p>
+          <p>Thank you for shopping at <strong>Model Car Marketplace</strong>. Your order has been successfully recorded.</p>
           
           <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Mã đơn hàng:</strong> <span style="font-family: monospace;">${orderId}</span></p>
-            <p style="margin: 5px 0;"><strong>Sản phẩm:</strong> ${productName}</p>
-            <p style="margin: 5px 0;"><strong>Số lượng:</strong> ${quantity}</p>
+            <p style="margin: 5px 0;"><strong>Order ID:</strong> <span style="font-family: monospace;">${orderId}</span></p>
+            <p style="margin: 5px 0;"><strong>Product:</strong> ${productName}</p>
+            <p style="margin: 5px 0;"><strong>Quantity:</strong> ${quantity}</p>
             <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 10px 0;"/>
-            <p style="margin: 5px 0; font-size: 1.1em;"><strong>Tổng thanh toán:</strong> <span style="color: #ea580c; font-weight: bold;">${formattedAmount}</span></p>
+            <p style="margin: 5px 0; font-size: 1.1em;"><strong>Total amount:</strong> <span style="color: #ea580c; font-weight: bold;">${formattedAmount}</span></p>
           </div>
   
-          <p>Người bán sẽ sớm xác nhận và tiến hành giao hàng cho bạn.</p>
-          <p>Bạn có thể theo dõi trạng thái đơn hàng tại mục <a href="${process.env.NEXT_PUBLIC_BASE_URL}/orders" style="color: #ea580c;">Đơn hàng của tôi</a>.</p>
+          <p>The seller will confirm and ship your order shortly.</p>
+          <p>You can track your order status in <a href="${process.env.NEXT_PUBLIC_BASE_URL}/orders" style="color: #ea580c;">My Orders</a>.</p>
           
-          <p style="margin-top: 30px; font-size: 0.9em; color: #6b7280;">Trân trọng,<br/>Đội ngũ Admin.</p>
+          <p style="margin-top: 30px; font-size: 0.9em; color: #6b7280;">Best regards,<br/>Admin Team.</p>
         </div>
       </div>
     `;
@@ -54,7 +54,7 @@ export const sendOrderConfirmationEmail = async (
     await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to: toEmail,
-      subject: `[Đơn hàng mới] ${productName} - ${formattedAmount}`,
+      subject: `[New Order] ${productName} - ${formattedAmount}`,
       html: htmlContent,
     });
     console.log("📧 Email sent successfully to", toEmail);
@@ -63,7 +63,7 @@ export const sendOrderConfirmationEmail = async (
   }
 };
 
-// 2. Gửi email giao dịch ví
+// 2. Send wallet transaction email
 export const sendWalletTransactionEmail = async (
   toEmail: string,
   type: "deposit" | "withdrawal",
@@ -85,23 +85,23 @@ export const sendWalletTransactionEmail = async (
 
   if (isDeposit) {
     if (isSuccess) {
-      title = "Nạp tiền thành công";
-      message = `Hệ thống đã nhận được khoản nạp <strong>${formattedAmount}</strong> của bạn. Số dư ví đã được cập nhật.`;
-      color = "#16a34a"; // Green
+      title = "Deposit Successful";
+      message = `We have received your deposit of <strong>${formattedAmount}</strong>. Your wallet balance has been updated.`;
+      color = "#16a34a";
     } else {
-      title = "Nạp tiền thất bại";
-      message = `Yêu cầu nạp tiền <strong>${formattedAmount}</strong> của bạn đã bị hủy. Nếu có thắc mắc, vui lòng liên hệ Admin.`;
-      color = "#dc2626"; // Red
+      title = "Deposit Failed";
+      message = `Your deposit request of <strong>${formattedAmount}</strong> has been cancelled. Please contact Admin if you have any questions.`;
+      color = "#dc2626";
     }
   } else {
     // Withdrawal
     if (isSuccess) {
-      title = "Rút tiền thành công";
-      message = `Admin đã chuyển khoản <strong>${formattedAmount}</strong> vào tài khoản ngân hàng của bạn. Vui lòng kiểm tra app ngân hàng.`;
+      title = "Withdrawal Successful";
+      message = `Admin has transferred <strong>${formattedAmount}</strong> to your bank account. Please check your banking app.`;
       color = "#16a34a";
     } else {
-      title = "Rút tiền bị từ chối";
-      message = `Yêu cầu rút tiền <strong>${formattedAmount}</strong> của bạn đã bị từ chối. Số tiền đã được hoàn lại vào ví của bạn.`;
+      title = "Withdrawal Rejected";
+      message = `Your withdrawal request of <strong>${formattedAmount}</strong> was rejected. The amount has been refunded to your wallet.`;
       color = "#dc2626";
     }
   }
@@ -113,16 +113,16 @@ export const sendWalletTransactionEmail = async (
       </div>
       
       <div style="padding: 20px;">
-        <p>Xin chào <strong>${username}</strong>,</p>
+        <p>Hello <strong>${username}</strong>,</p>
         <p>${message}</p>
         
         <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
-           <p style="font-size: 1.2em; margin: 0;">Số tiền: <span style="color: ${color}; font-weight: bold;">${formattedAmount}</span></p>
+           <p style="font-size: 1.2em; margin: 0;">Amount: <span style="color: ${color}; font-weight: bold;">${formattedAmount}</span></p>
         </div>
 
-        <p>Bạn có thể kiểm tra lịch sử giao dịch tại mục <a href="${process.env.NEXT_PUBLIC_BASE_URL}/wallet" style="color: ${color};">Ví của tôi</a>.</p>
+        <p>You can check your transaction history in <a href="${process.env.NEXT_PUBLIC_BASE_URL}/wallet" style="color: ${color};">My Wallet</a>.</p>
         
-        <p style="margin-top: 30px; font-size: 0.9em; color: #6b7280;">Trân trọng,<br/>Đội ngũ Admin.</p>
+        <p style="margin-top: 30px; font-size: 0.9em; color: #6b7280;">Best regards,<br/>Admin Team.</p>
       </div>
     </div>
   `;
@@ -131,7 +131,7 @@ export const sendWalletTransactionEmail = async (
     await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to: toEmail,
-      subject: `[Ví điện tử] ${title} - ${formattedAmount}`,
+      subject: `[Wallet] ${title} - ${formattedAmount}`,
       html: htmlContent,
     });
     console.log(`📧 Wallet Email sent to ${toEmail} (${type} - ${status})`);
@@ -140,7 +140,7 @@ export const sendWalletTransactionEmail = async (
   }
 };
 
-// 3. Gửi email Reset Password (MỚI THÊM)
+// 3. Send Reset Password email
 export const sendPasswordResetEmail = async (
   toEmail: string,
   token: string,
@@ -151,22 +151,22 @@ export const sendPasswordResetEmail = async (
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
       <div style="background-color: #2563eb; padding: 20px; text-align: center;">
-        <h2 style="color: white; margin: 0;">Yêu Cầu Đặt Lại Mật Khẩu</h2>
+        <h2 style="color: white; margin: 0;">Password Reset Request</h2>
       </div>
       
       <div style="padding: 20px;">
-        <p>Xin chào <strong>${username}</strong>,</p>
-        <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
-        <p>Vui lòng nhấn vào nút bên dưới để tạo mật khẩu mới (Link có hiệu lực trong 1 giờ):</p>
+        <p>Hello <strong>${username}</strong>,</p>
+        <p>We received a request to reset your account password.</p>
+        <p>Please click the button below to set a new password (the link is valid for 1 hour):</p>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Đặt Lại Mật Khẩu</a>
+          <a href="${resetLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
         </div>
 
-        <p style="font-size: 0.9em; color: #666;">Hoặc copy link sau: <br/> <a href="${resetLink}">${resetLink}</a></p>
+        <p style="font-size: 0.9em; color: #666;">Or copy this link:<br/> <a href="${resetLink}">${resetLink}</a></p>
         
-        <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
-        <p style="margin-top: 30px; font-size: 0.9em; color: #6b7280;">Trân trọng,<br/>Đội ngũ Admin.</p>
+        <p>If you did not request this, please ignore this email.</p>
+        <p style="margin-top: 30px; font-size: 0.9em; color: #6b7280;">Best regards,<br/>Admin Team.</p>
       </div>
     </div>
   `;
@@ -175,7 +175,7 @@ export const sendPasswordResetEmail = async (
     await transporter.sendMail({
       from: process.env.SMTP_FROM,
       to: toEmail,
-      subject: "[Sàn Mô Hình] Hướng dẫn đặt lại mật khẩu",
+      subject: "[Model Marketplace] Password Reset Instructions",
       html: htmlContent,
     });
     console.log(`📧 Reset Password Email sent to ${toEmail}`);

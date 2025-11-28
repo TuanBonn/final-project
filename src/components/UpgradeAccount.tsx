@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShieldCheck, Zap, AlertCircle } from "lucide-react";
+import { Loader2, ShieldCheck, Zap } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 
 const formatCurrency = (amount: number) =>
@@ -24,11 +24,11 @@ export function UpgradeAccount() {
   const [loading, setLoading] = useState(false);
   const [fees, setFees] = useState({ verify: 0, dealer: 0 });
 
-  // Lấy phí từ API settings (Hoặc có thể hardcode tạm nếu chưa muốn gọi API)
+  // Fetch fees from settings API
   useEffect(() => {
     const getFees = async () => {
       try {
-        const res = await fetch("/api/admin/settings"); // Tận dụng API settings có sẵn
+        const res = await fetch("/api/admin/settings");
         const data = await res.json();
         const settings = data.settings || [];
 
@@ -52,9 +52,9 @@ export function UpgradeAccount() {
 
   const handleUpgrade = async (type: "verify" | "dealer") => {
     const fee = type === "verify" ? fees.verify : fees.dealer;
-    const label = type === "verify" ? "Xác thực tài khoản" : "Nâng cấp Dealer";
+    const label = type === "verify" ? "account verification" : "Dealer upgrade";
 
-    if (!confirm(`Bạn có muốn thanh toán ${formatCurrency(fee)} để ${label}?`))
+    if (!confirm(`Do you want to pay ${formatCurrency(fee)} for ${label}?`))
       return;
 
     setLoading(true);
@@ -71,8 +71,8 @@ export function UpgradeAccount() {
         throw new Error(data.error);
       }
 
-      alert("Thành công! " + data.message);
-      await fetchUserData(); // Reload user context
+      alert("Success! " + data.message);
+      await fetchUserData();
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -84,7 +84,7 @@ export function UpgradeAccount() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      {/* CARD VERIFY */}
+      {/* VERIFY CARD */}
       <Card
         className={`border-2 ${
           user.is_verified ? "border-green-200 bg-green-50" : "border-muted"
@@ -98,14 +98,14 @@ export function UpgradeAccount() {
                   user.is_verified ? "text-green-600" : "text-gray-500"
                 }
               />
-              Xác thực tài khoản
+              Account Verification
             </CardTitle>
             {user.is_verified && (
-              <Badge className="bg-green-600">Đã kích hoạt</Badge>
+              <Badge className="bg-green-600">Activated</Badge>
             )}
           </div>
           <CardDescription>
-            Nhận huy hiệu Verified (Tích xanh) để tăng độ uy tín khi giao dịch.
+            Get a Verified badge (blue check) to increase trust in transactions.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -113,7 +113,7 @@ export function UpgradeAccount() {
             <div className="text-2xl font-bold text-primary">
               {formatCurrency(fees.verify)}{" "}
               <span className="text-sm font-normal text-muted-foreground">
-                / lần
+                / one-time
               </span>
             </div>
           )}
@@ -124,7 +124,7 @@ export function UpgradeAccount() {
               disabled
               className="w-full bg-green-600 text-white opacity-90"
             >
-              Đã xác thực
+              Verified
             </Button>
           ) : (
             <Button
@@ -135,14 +135,14 @@ export function UpgradeAccount() {
               {loading ? (
                 <Loader2 className="animate-spin mr-2" />
               ) : (
-                "Đăng ký ngay"
+                "Apply Now"
               )}
             </Button>
           )}
         </CardFooter>
       </Card>
 
-      {/* CARD DEALER */}
+      {/* DEALER CARD */}
       <Card
         className={`border-2 ${
           user.role === "dealer"
@@ -158,14 +158,14 @@ export function UpgradeAccount() {
                   user.role === "dealer" ? "text-purple-600" : "text-gray-500"
                 }
               />
-              Nâng cấp Dealer
+              Dealer Upgrade
             </CardTitle>
             {user.role === "dealer" && (
-              <Badge className="bg-purple-600">Đang hoạt động</Badge>
+              <Badge className="bg-purple-600">Active</Badge>
             )}
           </div>
           <CardDescription>
-            Mở khóa các tính năng bán hàng nâng cao, phí sàn ưu đãi hơn.
+            Unlock advanced selling features and enjoy lower platform fees.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -173,12 +173,12 @@ export function UpgradeAccount() {
             <div className="text-2xl font-bold text-primary">
               {formatCurrency(fees.dealer)}{" "}
               <span className="text-sm font-normal text-muted-foreground">
-                / phí gia nhập
+                / joining fee
               </span>
             </div>
           )}
           {user.role === "admin" && (
-            <p className="text-sm text-red-500">Bạn là Admin.</p>
+            <p className="text-sm text-red-500">You are an Admin.</p>
           )}
         </CardContent>
         <CardFooter>
@@ -187,7 +187,7 @@ export function UpgradeAccount() {
               disabled
               className="w-full bg-purple-600 text-white opacity-90"
             >
-              Đã là Dealer
+              Dealer Enabled
             </Button>
           ) : (
             <Button
@@ -199,7 +199,7 @@ export function UpgradeAccount() {
               {loading ? (
                 <Loader2 className="animate-spin mr-2" />
               ) : (
-                "Nâng cấp Dealer"
+                "Upgrade to Dealer"
               )}
             </Button>
           )}

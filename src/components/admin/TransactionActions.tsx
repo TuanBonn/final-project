@@ -7,7 +7,6 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  AlertTriangle,
   ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,13 +42,14 @@ export function TransactionActions({
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionConfig, setActionConfig] = useState<{
-    newStatus: "completed" | "cancelled"; // Admin chỉ quan tâm 2 trạng thái cuối này
+    // Admin only cares about these 2 final states
+    newStatus: "completed" | "cancelled";
     title: string;
     desc: string;
     isDestructive?: boolean;
   } | null>(null);
 
-  // Hàm chuẩn bị hành động
+  // Prepare action
   const setupAction = (
     status: "completed" | "cancelled",
     title: string,
@@ -60,7 +60,7 @@ export function TransactionActions({
     setDialogOpen(true);
   };
 
-  // Hàm thực thi API
+  // Execute API call
   const executeAction = async () => {
     if (!actionConfig) return;
     setIsLoading(true);
@@ -72,7 +72,7 @@ export function TransactionActions({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lỗi cập nhật");
+      if (!res.ok) throw new Error(data.error || "Update failed.");
 
       alert(data.message);
       onActionSuccess();
@@ -84,7 +84,7 @@ export function TransactionActions({
     }
   };
 
-  // Nếu đơn đã xong, không làm gì thêm (trừ khi muốn reopen - tính năng nâng cao)
+  // If transaction is already in a final state, no further actions
   const isFinal =
     transaction.status === "completed" || transaction.status === "cancelled";
 
@@ -103,13 +103,12 @@ export function TransactionActions({
               {actionConfig?.desc}
               <br />
               <span className="mt-2 block text-xs text-muted-foreground bg-muted p-2 rounded">
-                ⚠️ Hành động này sẽ ảnh hưởng trực tiếp đến Ví tiền của người
-                dùng.
+                ⚠️ This action will directly affect users&apos; wallet balances.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Hủy</AlertDialogCancel>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={executeAction}
               disabled={isLoading}
@@ -120,7 +119,7 @@ export function TransactionActions({
               }
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Xác nhận
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -141,69 +140,69 @@ export function TransactionActions({
           <DropdownMenuSeparator />
 
           {isFinal ? (
-            <DropdownMenuItem disabled>Đã kết thúc</DropdownMenuItem>
+            <DropdownMenuItem disabled>Completed</DropdownMenuItem>
           ) : (
             <>
-              {/* === TRƯỜNG HỢP KHIẾU NẠI (DISPUTED) === */}
+              {/* DISPUTED CASE */}
               {transaction.status === "disputed" && (
                 <>
                   <DropdownMenuItem
                     onClick={() =>
                       setupAction(
                         "completed",
-                        "Xử Thắng cho Người Bán",
-                        "Giao dịch sẽ hoàn tất. Tiền sẽ được chuyển vào ví Người bán.",
+                        "Resolve in Favor of Seller",
+                        "The transaction will be completed. Funds will be transferred to the seller's wallet.",
                         false
                       )
                     }
                     className="text-green-600 focus:text-green-600"
                   >
-                    <CheckCircle className="mr-2 h-4 w-4" /> Xử Seller Thắng
+                    <CheckCircle className="mr-2 h-4 w-4" /> Seller Wins
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() =>
                       setupAction(
                         "cancelled",
-                        "Xử Thắng cho Người Mua",
-                        "Giao dịch sẽ bị Hủy. Tiền sẽ được HOÀN LẠI ví Người mua.",
+                        "Resolve in Favor of Buyer",
+                        "The transaction will be cancelled. Funds will be refunded to the buyer's wallet.",
                         true
                       )
                     }
                     className="text-red-600 focus:text-red-600"
                   >
-                    <XCircle className="mr-2 h-4 w-4" /> Xử Buyer Thắng (Refund)
+                    <XCircle className="mr-2 h-4 w-4" /> Buyer Wins (Refund)
                   </DropdownMenuItem>
                 </>
               )}
 
-              {/* === CÁC TRƯỜNG HỢP KHÁC (CAN THIỆP) === */}
+              {/* OTHER CASES (ADMIN INTERVENTION) */}
               {transaction.status !== "disputed" && (
                 <>
                   <DropdownMenuItem
                     onClick={() =>
                       setupAction(
                         "cancelled",
-                        "Buộc Hủy Đơn (Force Cancel)",
-                        "Dùng khi đơn hàng bị treo hoặc người dùng yêu cầu hủy. Tiền sẽ được hoàn về ví người mua.",
+                        "Force Cancel Order",
+                        "Use when an order is stuck or the user requests cancellation. Funds will be refunded to the buyer's wallet.",
                         true
                       )
                     }
                     className="text-red-600 focus:text-red-600"
                   >
-                    <XCircle className="mr-2 h-4 w-4" /> Buộc Hủy Đơn
+                    <XCircle className="mr-2 h-4 w-4" /> Force Cancel
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
                     onClick={() =>
                       setupAction(
                         "completed",
-                        "Buộc Hoàn Tất (Force Complete)",
-                        "Dùng khi khách đã nhận hàng nhưng quên xác nhận. Tiền sẽ chuyển cho Seller.",
+                        "Force Complete Order",
+                        "Use when the buyer has received the item but forgot to confirm. Funds will be released to the seller.",
                         false
                       )
                     }
                   >
-                    <CheckCircle className="mr-2 h-4 w-4" /> Buộc Hoàn Tất
+                    <CheckCircle className="mr-2 h-4 w-4" /> Force Complete
                   </DropdownMenuItem>
                 </>
               )}

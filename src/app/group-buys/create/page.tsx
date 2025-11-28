@@ -17,7 +17,7 @@ const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
   const numericValue = value.replace(/\D/g, "");
   if (numericValue === "") return "";
-  return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
+  return new Intl.NumberFormat("en-US").format(parseInt(numericValue, 10));
 };
 
 export default function CreateGroupBuyPage() {
@@ -40,43 +40,43 @@ export default function CreateGroupBuyPage() {
     setServerError(null);
 
     if (!user) {
-      alert("Vui lòng đăng nhập.");
+      alert("Please log in first.");
       router.push("/login");
       return;
     }
 
     if (selectedFiles.length === 0) {
-      setServerError("Vui lòng chọn ít nhất 1 ảnh.");
+      setServerError("Please select at least 1 image.");
       return;
     }
 
     setLoading(true);
 
     try {
-      // 1. Upload ảnh
+      // 1. Upload images
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
       const imageUrls = await Promise.all(uploadPromises);
 
-      // 2. Gọi API tạo kèo
+      // 2. Call API to create group buy
       const res = await fetch("/api/group-buys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productName: formData.productName,
           description: formData.productDescription,
-          price: formData.pricePerUnit, // API sẽ tự replace non-digit
+          price: formData.pricePerUnit, // API will sanitize non-digit chars
           targetQuantity: formData.targetQuantity,
           imageUrls: imageUrls,
-          // Không gửi deadline nữa
+          // No deadline sent
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Tạo kèo thất bại");
+      if (!res.ok) throw new Error(data.error || "Failed to create group buy.");
 
-      alert("Đã lên kèo thành công!");
+      alert("Group buy created successfully!");
       router.push("/group-buys");
     } catch (error: any) {
       setServerError(error.message);
@@ -90,37 +90,37 @@ export default function CreateGroupBuyPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
-            <Users className="h-6 w-6 text-orange-600" /> Tạo Kèo Mua Chung
+            <Users className="h-6 w-6 text-orange-600" /> Create Group Buy
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Tên SP */}
+            {/* Product name */}
             <div className="space-y-2">
-              <Label>Tên sản phẩm *</Label>
+              <Label>Product name *</Label>
               <Input
                 required
                 value={formData.productName}
                 onChange={(e) =>
                   setFormData({ ...formData, productName: e.target.value })
                 }
-                placeholder="Ví dụ: Set 5 xe Tomica Limited..."
+                placeholder="Example: Set of 5 Tomica Limited cars..."
               />
             </div>
 
-            {/* Ảnh SP */}
+            {/* Images */}
             <div className="space-y-2">
-              <Label>Hình ảnh *</Label>
+              <Label>Images *</Label>
               <ImageUploadPreview
                 onFilesChange={setSelectedFiles}
                 maxFiles={5}
               />
             </div>
 
-            {/* Giá & Số lượng */}
+            {/* Price & Quantity */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Giá mỗi suất (VNĐ) *</Label>
+                <Label>Price per slot (VND) *</Label>
                 <Input
                   required
                   value={formData.pricePerUnit}
@@ -130,11 +130,11 @@ export default function CreateGroupBuyPage() {
                       pricePerUnit: formatCurrencyForInput(e.target.value),
                     })
                   }
-                  placeholder="100.000"
+                  placeholder="100,000"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Số lượng mục tiêu *</Label>
+                <Label>Target quantity *</Label>
                 <Input
                   required
                   type="number"
@@ -148,9 +148,9 @@ export default function CreateGroupBuyPage() {
               </div>
             </div>
 
-            {/* Mô tả */}
+            {/* Description */}
             <div className="space-y-2">
-              <Label>Mô tả chi tiết & Điều khoản *</Label>
+              <Label>Detailed description & terms *</Label>
               <Textarea
                 required
                 className="h-32"
@@ -161,7 +161,7 @@ export default function CreateGroupBuyPage() {
                     productDescription: e.target.value,
                   })
                 }
-                placeholder="Mô tả về sản phẩm, quy định cọc, cam kết của Host..."
+                placeholder="Describe the product, deposit rules, host commitments..."
               />
             </div>
 
@@ -175,7 +175,7 @@ export default function CreateGroupBuyPage() {
               disabled={loading}
             >
               {loading ? <Loader2 className="animate-spin mr-2" /> : null}
-              Đăng Kèo Ngay
+              Create Group Buy
             </Button>
           </form>
         </CardContent>

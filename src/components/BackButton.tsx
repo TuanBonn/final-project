@@ -14,7 +14,7 @@ export function BackButton() {
       className="mb-6"
       onClick={() => router.back()} // Quay lại trang trước đó (lịch sử duyệt web)
     >
-      <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại
+      <ArrowLeft className="mr-2 h-4 w-4" /> Back
     </Button>
   );
 }

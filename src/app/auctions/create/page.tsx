@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useUser } from "@/contexts/UserContext";
 import { uploadFileViaApi } from "@/lib/storageUtils";
 import { Brand } from "@prisma/client";
-import { ImageUploadPreview } from "@/components/ImageUploadPreview"; // <-- DÙNG COMPONENT MỚI
+import { ImageUploadPreview } from "@/components/ImageUploadPreview";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -49,15 +49,15 @@ const formatCurrencyForInput = (value: string | number): string => {
 };
 
 const auctionSchema = z.object({
-  name: z.string().min(5, "Tên sản phẩm ít nhất 5 ký tự"),
+  name: z.string().min(5, "Product name must be at least 5 characters"),
   description: z.string().optional(),
-  brand_id: z.string({ required_error: "Vui lòng chọn hãng xe" }),
+  brand_id: z.string({ required_error: "Please select a brand" }),
   condition: z.enum(["new", "used", "like_new", "custom"], {
-    required_error: "Chọn tình trạng",
+    required_error: "Please select a condition",
   }),
-  startingBid: z.string().min(1, "Nhập giá khởi điểm"),
-  startTime: z.string().refine((val) => val !== "", "Chọn thời gian bắt đầu"),
-  endTime: z.string().refine((val) => val !== "", "Chọn thời gian kết thúc"),
+  startingBid: z.string().min(1, "Enter starting bid"),
+  startTime: z.string().refine((val) => val !== "", "Select start time"),
+  endTime: z.string().refine((val) => val !== "", "Select end time"),
 });
 
 type AuctionFormValues = z.infer<typeof auctionSchema>;
@@ -103,7 +103,7 @@ export default function CreateAuctionPage() {
     try {
       // 1. Validate
       if (selectedFiles.length === 0)
-        throw new Error("Vui lòng chọn ít nhất 1 ảnh sản phẩm.");
+        throw new Error("Please select at least 1 product image.");
 
       // 2. Upload song song
       const uploadPromises = selectedFiles.map((file) =>
@@ -120,9 +120,9 @@ export default function CreateAuctionPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Tạo đấu giá thất bại.");
+      if (!res.ok) throw new Error(data.error || "Failed to create auction.");
 
-      alert("Đã tạo phiên đấu giá thành công!");
+      alert("Auction created successfully!");
       router.push("/auctions");
     } catch (error: any) {
       setServerError(error.message);
@@ -131,18 +131,17 @@ export default function CreateAuctionPage() {
     }
   };
 
-  if (!user)
-    return <div className="text-center py-20">Vui lòng đăng nhập.</div>;
+  if (!user) return <div className="text-center py-20">Please log in.</div>;
 
   return (
     <div className="container mx-auto py-8 max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
-            <Gavel className="h-6 w-6 text-primary" /> Đăng Sản Phẩm Đấu Giá
+            <Gavel className="h-6 w-6 text-primary" /> Create Auction Listing
           </CardTitle>
           <CardDescription>
-            Đăng hàng hiếm, hàng độ của bạn lên sàn đấu giá.
+            List your rare or custom die-cast cars on the auction marketplace.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -153,12 +152,9 @@ export default function CreateAuctionPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tên sản phẩm *</FormLabel>
+                    <FormLabel>Product name *</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="Ví dụ: R34 Z-Tune Custom"
-                        {...field}
-                      />
+                      <Input placeholder="E.g. R34 Z-Tune Custom" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -167,7 +163,7 @@ export default function CreateAuctionPage() {
 
               {/* COMPONENT CHỌN ẢNH */}
               <FormItem>
-                <FormLabel>Hình ảnh sản phẩm *</FormLabel>
+                <FormLabel>Product images *</FormLabel>
                 <FormControl>
                   <ImageUploadPreview
                     onFilesChange={setSelectedFiles}
@@ -175,7 +171,8 @@ export default function CreateAuctionPage() {
                   />
                 </FormControl>
                 <FormDescription>
-                  Chọn tối đa 5 ảnh. Ảnh đầu tiên sẽ là ảnh đại diện.
+                  Choose up to 5 images. The first one will be used as the
+                  cover.
                 </FormDescription>
               </FormItem>
 
@@ -185,14 +182,14 @@ export default function CreateAuctionPage() {
                   name="brand_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hãng xe</FormLabel>
+                      <FormLabel>Brand</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Chọn hãng" />
+                            <SelectValue placeholder="Select brand" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -213,24 +210,22 @@ export default function CreateAuctionPage() {
                   name="condition"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tình trạng</FormLabel>
+                      <FormLabel>Condition</FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Chọn tình trạng" />
+                            <SelectValue placeholder="Select condition" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="new">Mới (New)</SelectItem>
-                          <SelectItem value="like_new">
-                            Như mới (Like New)
-                          </SelectItem>
-                          <SelectItem value="used">Đã dùng (Used)</SelectItem>
+                          <SelectItem value="new">New</SelectItem>
+                          <SelectItem value="like_new">Like new</SelectItem>
+                          <SelectItem value="used">Used</SelectItem>
                           <SelectItem value="custom">
-                            Độ chế (Custom)
+                            Custom (modified)
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -245,10 +240,10 @@ export default function CreateAuctionPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mô tả chi tiết</FormLabel>
+                    <FormLabel>Detailed description</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Mô tả kỹ về tình trạng..."
+                        placeholder="Describe the condition and details..."
                         {...field}
                       />
                     </FormControl>
@@ -258,16 +253,16 @@ export default function CreateAuctionPage() {
               />
 
               <div className="border-t pt-4 space-y-4">
-                <h3 className="font-semibold">Thiết lập đấu giá</h3>
+                <h3 className="font-semibold">Auction settings</h3>
                 <FormField
                   control={form.control}
                   name="startingBid"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Giá khởi điểm (VND) *</FormLabel>
+                      <FormLabel>Starting bid (VND) *</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Ví dụ: 50.000"
+                          placeholder="E.g. 50,000"
                           {...field}
                           onChange={(e) =>
                             field.onChange(
@@ -289,7 +284,7 @@ export default function CreateAuctionPage() {
                     name="startTime"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Bắt đầu lúc</FormLabel>
+                        <FormLabel>Start time</FormLabel>
                         <FormControl>
                           <Input type="datetime-local" {...field} />
                         </FormControl>
@@ -303,7 +298,7 @@ export default function CreateAuctionPage() {
                     name="endTime"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Kết thúc lúc</FormLabel>
+                        <FormLabel>End time</FormLabel>
                         <FormControl>
                           <Input type="datetime-local" {...field} />
                         </FormControl>
@@ -330,7 +325,7 @@ export default function CreateAuctionPage() {
                 ) : (
                   <Gavel className="mr-2 h-5 w-5" />
                 )}
-                {isSubmitting ? "Đang khởi tạo..." : "Đăng Đấu Giá Ngay"}
+                {isSubmitting ? "Creating..." : "Create auction now"}
               </Button>
             </form>
           </Form>

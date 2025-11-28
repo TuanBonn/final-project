@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, Search, MessageSquarePlus } from "lucide-react";
-// === SỬA DÒNG NÀY ===
+// === IMPORT COMPONENT ===
 import { ForumPostCard } from "@/components/ForumPostCard";
 // ====================
 import { useUser } from "@/contexts/UserContext";
@@ -21,7 +21,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-// (Interface giữ nguyên)
+// (Interface stays the same)
 interface ForumPost {
   id: string;
   title: string;
@@ -45,7 +45,7 @@ export default function ForumPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // State cho Create Post
+  // State for Create Post
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
@@ -75,7 +75,7 @@ export default function ForumPage() {
 
   const handleCreatePost = async () => {
     if (!newTitle.trim() || !newContent.trim())
-      return alert("Vui lòng nhập đủ thông tin");
+      return alert("Please fill in all required fields.");
     setIsCreating(true);
     try {
       const res = await fetch("/api/forum/posts", {
@@ -84,15 +84,15 @@ export default function ForumPage() {
         body: JSON.stringify({ title: newTitle, content: newContent }),
       });
 
-      if (!res.ok) throw new Error("Đăng bài thất bại");
+      if (!res.ok) throw new Error("Failed to create post.");
 
       setNewTitle("");
       setNewContent("");
       setCreateOpen(false);
-      fetchPosts(); // Tải lại danh sách
-      alert("Đăng bài thành công!");
+      fetchPosts(); // Reload list
+      alert("Post created successfully!");
     } catch (error) {
-      alert("Có lỗi xảy ra khi đăng bài.");
+      alert("An error occurred while creating the post.");
     } finally {
       setIsCreating(false);
     }
@@ -103,39 +103,40 @@ export default function ForumPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Diễn Đàn Cộng Đồng</h1>
+          <h1 className="text-3xl font-bold">Community Forum</h1>
           <p className="text-muted-foreground">
-            Nơi chia sẻ đam mê, kinh nghiệm chơi xe mô hình.
+            A place to share your passion and experience with die-cast model
+            cars.
           </p>
         </div>
 
-        {/* Nút Tạo bài viết */}
+        {/* Create Post Button */}
         {user ? (
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
-                <MessageSquarePlus className="h-5 w-5" /> Đăng bài mới
+                <MessageSquarePlus className="h-5 w-5" /> New Post
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[525px]">
               <DialogHeader>
-                <DialogTitle>Tạo bài thảo luận mới</DialogTitle>
+                <DialogTitle>Create New Discussion</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="title">Tiêu đề</Label>
+                  <Label htmlFor="title">Title</Label>
                   <Input
                     id="title"
-                    placeholder="Chủ đề bạn muốn thảo luận..."
+                    placeholder="Topic you want to discuss..."
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="content">Nội dung</Label>
+                  <Label htmlFor="content">Content</Label>
                   <Textarea
                     id="content"
-                    placeholder="Chia sẻ suy nghĩ của bạn..."
+                    placeholder="Share your thoughts..."
                     rows={6}
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
@@ -144,20 +145,20 @@ export default function ForumPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateOpen(false)}>
-                  Hủy
+                  Cancel
                 </Button>
                 <Button onClick={handleCreatePost} disabled={isCreating}>
                   {isCreating && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}{" "}
-                  Đăng bài
+                  Publish
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         ) : (
           <Button variant="outline" onClick={() => router.push("/login")}>
-            Đăng nhập để viết bài
+            Sign in to post
           </Button>
         )}
       </div>
@@ -166,7 +167,7 @@ export default function ForumPage() {
       <form onSubmit={handleSearch} className="relative mb-8 max-w-lg">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Tìm kiếm bài viết..."
+          placeholder="Search posts..."
           className="pl-9 bg-background"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -181,7 +182,7 @@ export default function ForumPage() {
       ) : posts.length === 0 ? (
         <div className="text-center py-20 bg-muted/20 rounded-lg border border-dashed">
           <p className="text-muted-foreground">
-            Chưa có bài viết nào. Hãy là người đầu tiên!
+            No posts yet. Be the first to post!
           </p>
         </div>
       ) : (

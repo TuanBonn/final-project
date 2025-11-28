@@ -32,9 +32,10 @@ interface GroupBuy {
 }
 
 const formatCurrency = (val: number) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
-    val
-  );
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "VND",
+  }).format(val);
 
 export default function GroupBuysPage() {
   const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([]);
@@ -56,7 +57,7 @@ export default function GroupBuysPage() {
     fetchData();
   }, []);
 
-  // Lọc danh sách (nếu cần search client-side đơn giản)
+  // Client-side filtering
   const filteredList = groupBuys.filter((gb) =>
     gb.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -66,14 +67,14 @@ export default function GroupBuysPage() {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Sàn Mua Chung (Group Buy)</h1>
+          <h1 className="text-3xl font-bold">Group Buy Marketplace</h1>
           <p className="text-muted-foreground">
-            Gom đơn để có giá tốt nhất. An toàn với chế độ giữ tiền.
+            Join together to get better prices. Secure with escrow protection.
           </p>
         </div>
         <Button asChild className="bg-orange-600 hover:bg-orange-700">
           <Link href="/group-buys/create">
-            <Plus className="mr-2 h-4 w-4" /> Tạo Kèo Mới
+            <Plus className="mr-2 h-4 w-4" /> Create New Group Buy
           </Link>
         </Button>
       </div>
@@ -82,7 +83,7 @@ export default function GroupBuysPage() {
       <div className="relative mb-8 max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Tìm kiếm kèo..."
+          placeholder="Search group buys..."
           className="pl-10"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -96,7 +97,9 @@ export default function GroupBuysPage() {
         </div>
       ) : filteredList.length === 0 ? (
         <div className="text-center py-20 bg-muted/30 rounded-xl border border-dashed">
-          <p className="text-muted-foreground">Chưa có kèo mua chung nào.</p>
+          <p className="text-muted-foreground">
+            No group buy campaigns available.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -118,15 +121,15 @@ export default function GroupBuysPage() {
                     </div>
                   )}
 
-                  {/* BADGE TRẠNG THÁI (SỬA) */}
+                  {/* STATUS BADGE */}
                   <div className="absolute top-2 right-2">
                     {gb.status === "open" ? (
                       <Badge className="bg-blue-600 hover:bg-blue-700">
-                        Đang gom
+                        Collecting
                       </Badge>
                     ) : gb.status === "successful" ? (
                       <Badge className="bg-green-600 hover:bg-green-700">
-                        Đã chốt
+                        Successful
                       </Badge>
                     ) : null}
                   </div>
@@ -141,7 +144,8 @@ export default function GroupBuysPage() {
                     <p className="text-xl font-bold text-orange-600">
                       {formatCurrency(gb.price)}
                     </p>
-                    {/* TIẾN ĐỘ */}
+
+                    {/* PROGRESS */}
                     <div className="flex items-center text-xs font-medium bg-muted px-2 py-1 rounded text-muted-foreground">
                       <Users className="h-3 w-3 mr-1" />
                       {gb.current}/{gb.target}

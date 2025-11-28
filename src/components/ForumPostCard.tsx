@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageSquare, CheckCircle, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { vi } from "date-fns/locale";
-// Import LikeButton (Đảm bảo bạn đã tạo component này ở bước trước)
+import { enUS } from "date-fns/locale";
+// Import LikeButton
 import { LikeButton } from "./LikeButton";
 
 interface ForumPost {
@@ -23,12 +23,12 @@ interface ForumPost {
   };
   likeCount: number;
   commentCount: number;
-  isLiked: boolean; // Có thêm trường này từ API
+  isLiked: boolean;
 }
 
 export function ForumPostCard({ post }: { post: ForumPost }) {
   const getInitials = (name: string) =>
-    name?.substring(0, 2).toUpperCase() || "Uy";
+    name?.substring(0, 2).toUpperCase() || "U";
 
   const truncateContent = (text: string, length: number) => {
     if (!text) return "";
@@ -58,7 +58,7 @@ export function ForumPostCard({ post }: { post: ForumPost }) {
               <Clock className="h-3 w-3" />
               {formatDistanceToNow(new Date(post.createdAt), {
                 addSuffix: true,
-                locale: vi,
+                locale: enUS,
               })}
             </span>
           </div>
@@ -76,7 +76,7 @@ export function ForumPostCard({ post }: { post: ForumPost }) {
 
       <CardContent className="px-4 pb-3 pt-0">
         <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
-          {/* NÚT LIKE */}
+          {/* LIKE BUTTON */}
           <LikeButton
             postId={post.id}
             initialLikeCount={post.likeCount}
@@ -88,7 +88,7 @@ export function ForumPostCard({ post }: { post: ForumPost }) {
             className="flex items-center gap-1 hover:text-foreground transition-colors"
           >
             <MessageSquare className="h-4 w-4" />
-            <span>{post.commentCount} bình luận</span>
+            <span>{post.commentCount} comments</span>
           </Link>
         </div>
       </CardContent>

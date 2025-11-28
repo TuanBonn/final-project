@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
   try {
-    // 1. Lấy số dư và bank_info của User
+    // 1. Get user's balance and bank_info
     const { data: user, error: userError } = await supabase
       .from("users")
       .select("balance, bank_info")
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     if (userError) throw userError;
 
-    // 2. Lấy lịch sử giao dịch
+    // 2. Get transaction history
     const { data: history, error: historyError } = await supabase
       .from("platform_payments")
       .select("*")
@@ -66,13 +66,13 @@ export async function GET(request: NextRequest) {
 
     if (historyError) throw historyError;
 
-    // === 3. LẤY CẤU HÌNH NGÂN HÀNG ADMIN TỪ APP_SETTINGS ===
+    // === 3. GET ADMIN BANK CONFIG FROM APP_SETTINGS ===
     const { data: appSettings } = await supabase
       .from("app_settings")
       .select("key, value")
       .in("key", ["BANK_ID", "ACCOUNT_NO", "ACCOUNT_NAME", "QR_TEMPLATE"]);
 
-    // Chuyển mảng thành object cho dễ dùng
+    // Convert array to object for easier usage
     const systemBankInfo = {
       bankId: appSettings?.find((s) => s.key === "BANK_ID")?.value || "MB",
       accountNo: appSettings?.find((s) => s.key === "ACCOUNT_NO")?.value || "",
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
         balance: user.balance,
         bankInfo: user.bank_info,
         history: history || [],
-        systemBankInfo, // Trả về cho Client
+        systemBankInfo, // Return to client
       },
       { status: 200 }
     );
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ... (Phần POST giữ nguyên như cũ)
+// ... (POST part remains as before)
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -112,12 +112,12 @@ export async function POST(request: NextRequest) {
 
     if (!amount || amount < 10000) {
       return NextResponse.json(
-        { error: "Số tiền tối thiểu là 10.000đ" },
+        { error: "Minimum amount is 10,000 VND" },
         { status: 400 }
       );
     }
 
-    // NẠP TIỀN
+    // DEPOSIT
     if (type === "deposit") {
       const { data, error } = await supabase
         .from("platform_payments")
@@ -133,12 +133,12 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
       return NextResponse.json(
-        { message: "Đã tạo lệnh nạp.", payment: data },
+        { message: "Deposit request created.", payment: data },
         { status: 201 }
       );
     }
 
-    // RÚT TIỀN
+    // WITHDRAWAL
     else if (type === "withdrawal") {
       if (
         !bankInfo?.bankName ||
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
         !bankInfo?.accountName
       ) {
         return NextResponse.json(
-          { error: "Thiếu thông tin ngân hàng." },
+          { error: "Missing bank information." },
           { status: 400 }
         );
       }
@@ -158,7 +158,10 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (!user || user.balance < amount) {
-        return NextResponse.json({ error: "Số dư không đủ." }, { status: 400 });
+        return NextResponse.json(
+          { error: "Insufficient balance." },
+          { status: 400 }
+        );
       }
 
       const { data, error } = await supabase
@@ -174,7 +177,7 @@ export async function POST(request: NextRequest) {
         .select()
         .single();
 
-      // Trừ tiền ngay
+      // Deduct balance immediately
       await supabase
         .from("users")
         .update({ balance: user.balance - amount })
@@ -182,13 +185,13 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
       return NextResponse.json(
-        { message: "Đã gửi yêu cầu rút.", payment: data },
+        { message: "Withdrawal request submitted.", payment: data },
         { status: 201 }
       );
     }
 
     return NextResponse.json(
-      { error: "Loại giao dịch không hợp lệ" },
+      { error: "Invalid transaction type." },
       { status: 400 }
     );
   } catch (error: any) {

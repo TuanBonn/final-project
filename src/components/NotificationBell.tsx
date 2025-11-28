@@ -15,7 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useUser } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
 
-// Khởi tạo Supabase Client (để lắng nghe Realtime)
+// Initialize Supabase Client (for Realtime listener)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -37,7 +37,7 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
-  // 1. Lấy dữ liệu ban đầu khi load trang
+  // 1. Fetch initial data on page load
   const fetchNotifications = async () => {
     if (!user) return;
     try {
@@ -48,7 +48,7 @@ export function NotificationBell() {
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (error) {
-      console.error("Err fetching notifs", error);
+      console.error("Error fetching notifications", error);
     }
   };
 
@@ -57,29 +57,29 @@ export function NotificationBell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // 2. Lắng nghe Realtime (Khi có thông báo mới -> Tự động cập nhật UI)
+  // 2. Realtime listener (auto update UI when new notification comes)
   useEffect(() => {
     if (!user) return;
 
-    // Đăng ký kênh lắng nghe bảng 'notifications'
+    // Subscribe to 'notifications' table
     const channel = supabase
       .channel(`notif:${user.id}`)
       .on(
         "postgres_changes",
         {
-          event: "INSERT", // Chỉ quan tâm sự kiện thêm mới
+          event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `user_id=eq.${user.id}`, // Lọc đúng user này
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
           const newNotif = payload.new as Notification;
 
-          // Cập nhật State
+          // Update state
           setNotifications((prev) => [newNotif, ...prev]);
           setUnreadCount((prev) => prev + 1);
 
-          // (Tuỳ chọn) Phát âm thanh nhẹ
+          // Optional: play sound
           // const audio = new Audio('/notification.mp3');
           // audio.play().catch(() => {});
         }
@@ -91,20 +91,20 @@ export function NotificationBell() {
     };
   }, [user]);
 
-  // 3. Xử lý khi bấm vào thông báo (Đánh dấu đã đọc)
+  // 3. Handle click on notification (mark as read)
   const handleMarkAsRead = async (notif: Notification) => {
-    // Đóng popup
+    // Close popup
     setIsOpen(false);
 
     if (notif.is_read) return;
 
-    // Cập nhật UI ngay lập tức (Optimistic Update)
+    // Optimistic UI update
     setNotifications((prev) =>
       prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
 
-    // Gọi API cập nhật trong background
+    // Update in background
     try {
       await fetch(`/api/notifications/${notif.id}`, { method: "PATCH" });
     } catch (error) {
@@ -126,10 +126,10 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="p-3 border-b font-semibold bg-muted/10 flex justify-between items-center">
-          <span>Thông báo</span>
+          <span>Notifications</span>
           {unreadCount > 0 && (
             <span className="text-xs text-muted-foreground">
-              {unreadCount} chưa đọc
+              {unreadCount} unread
             </span>
           )}
         </div>
@@ -138,7 +138,7 @@ export function NotificationBell() {
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-muted-foreground space-y-2">
               <Bell className="h-8 w-8 opacity-20" />
-              <span className="text-sm">Không có thông báo mới.</span>
+              <span className="text-sm">No new notifications.</span>
             </div>
           ) : (
             <div className="flex flex-col">

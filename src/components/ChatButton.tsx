@@ -18,7 +18,7 @@ export function ChatButton({ sellerId }: { sellerId: string }) {
       return;
     }
     if (user.id === sellerId) {
-      alert("Bạn không thể chat với chính mình.");
+      alert("You can't chat with yourself.");
       return;
     }
 
@@ -54,7 +54,7 @@ export function ChatButton({ sellerId }: { sellerId: string }) {
       ) : (
         <MessageCircle className="mr-2 h-4 w-4" />
       )}
-      Chat với người bán
+      Chat with seller
     </Button>
   );
 }

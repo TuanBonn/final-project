@@ -42,7 +42,7 @@ export default function GroupBuyDetailPage() {
   const fetchGroupBuy = useCallback(async () => {
     try {
       const res = await fetch(`/api/group-buys/${id}`);
-      if (!res.ok) throw new Error("Lỗi tải dữ liệu");
+      if (!res.ok) throw new Error("Failed to load data");
       const data = await res.json();
       setGroupBuy(data.groupBuy);
     } catch (error) {
@@ -56,12 +56,12 @@ export default function GroupBuyDetailPage() {
     fetchGroupBuy();
   }, [fetchGroupBuy]);
 
-  // --- HOST CHỐT KÈO / HỦY KÈO ---
+  // --- HOST CLOSE / CANCEL GROUP BUY ---
   const handleHostStatusChange = async (newStatus: "successful" | "failed") => {
     const confirmMsg =
       newStatus === "successful"
-        ? "Xác nhận CHỐT KÈO THÀNH CÔNG? \n\nHệ thống sẽ TỰ ĐỘNG TẠO ĐƠN HÀNG cho tất cả người tham gia vào mục 'Quản lý đơn hàng'."
-        : "Xác nhận HỦY KÈO? \n\nHệ thống sẽ hoàn tiền 100%.";
+        ? "Confirm CLOSE this group buy as SUCCESSFUL?\n\nThe system will automatically create orders for all participants in the 'Order Management' section."
+        : "Confirm CANCEL this group buy?\n\nThe system will refund 100% to all participants.";
 
     if (!confirm(confirmMsg)) return;
 
@@ -78,7 +78,7 @@ export default function GroupBuyDetailPage() {
         throw new Error(data.error);
       }
 
-      alert("Thành công! Các đơn hàng đã được tạo.");
+      alert("Success! Orders have been created.");
       fetchGroupBuy();
     } catch (e: any) {
       alert(e.message);
@@ -87,17 +87,21 @@ export default function GroupBuyDetailPage() {
     }
   };
 
-  // --- KHÁCH THAM GIA ---
+  // --- USER JOIN ---
   const handleJoin = async () => {
     if (!user) {
       router.push("/login");
       return;
     }
     const qty = parseInt(joinQuantity);
-    if (qty < 1) return alert("Số lượng tối thiểu là 1");
+    if (qty < 1) return alert("Minimum quantity is 1");
 
     const total = qty * Number(groupBuy.price_per_unit);
-    if (!confirm(`Xác nhận tham gia? Trừ ${formatCurrency(total)} vào ví.`))
+    if (
+      !confirm(
+        `Confirm to join? Your wallet will be charged ${formatCurrency(total)}.`
+      )
+    )
       return;
 
     setIsActionLoading(true);
@@ -109,12 +113,12 @@ export default function GroupBuyDetailPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 402 && confirm("Số dư thiếu. Nạp tiền?"))
+        if (res.status === 402 && confirm("Insufficient balance. Top up now?"))
           router.push("/wallet");
         else alert(data.error);
         return;
       }
-      alert("Tham gia thành công!");
+      alert("Joined successfully!");
       fetchGroupBuy();
     } catch (error: any) {
       alert(error.message);
@@ -130,10 +134,10 @@ export default function GroupBuyDetailPage() {
       </div>
     );
   if (!groupBuy)
-    return <div className="text-center py-20">Kèo không tồn tại.</div>;
+    return <div className="text-center py-20">Group buy does not exist.</div>;
 
   const isOpen = groupBuy.status === "open";
-  const isSuccessful = groupBuy.status === "successful"; // Đã tạo đơn hàng
+  const isSuccessful = groupBuy.status === "successful"; // Orders created
   const isFailed = groupBuy.status === "failed";
 
   const isHost = user && groupBuy.host.id === user.id;
@@ -146,12 +150,12 @@ export default function GroupBuyDetailPage() {
     <div className="container mx-auto py-6 max-w-5xl px-4">
       <Button variant="ghost" asChild className="mb-4">
         <Link href="/group-buys">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại danh sách
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to list
         </Link>
       </Button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* CỘT TRÁI */}
+        {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
           <ProductImageGallery
             images={groupBuy.product_images}
@@ -173,10 +177,10 @@ export default function GroupBuyDetailPage() {
                 }
               >
                 {isOpen
-                  ? "Đang Gom"
+                  ? "Open"
                   : isSuccessful
-                  ? "Đã Chốt & Tạo Đơn"
-                  : "Đã Hủy"}
+                  ? "Closed & Orders Created"
+                  : "Cancelled"}
               </Badge>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground mb-4">
@@ -190,7 +194,7 @@ export default function GroupBuyDetailPage() {
             </div>
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Chi tiết kèo</CardTitle>
+                <CardTitle className="text-lg">Group buy details</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground whitespace-pre-line">
@@ -201,21 +205,21 @@ export default function GroupBuyDetailPage() {
           </div>
         </div>
 
-        {/* CỘT PHẢI */}
+        {/* RIGHT COLUMN */}
         <div className="space-y-6">
-          {/* PANEL QUẢN LÝ HOST */}
+          {/* HOST MANAGEMENT PANEL */}
           {isHost && isOpen && (
             <Card className="border-2 border-blue-200 bg-blue-50">
               <CardHeader className="pb-2">
                 <CardTitle className="text-blue-800 flex items-center gap-2">
-                  <Settings className="h-5 w-5" /> Quản lý Kèo
+                  <Settings className="h-5 w-5" /> Manage Group Buy
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-blue-700">
-                  Đủ số lượng? Chốt ngay để hệ thống{" "}
-                  <strong>tự động tạo đơn hàng</strong> cho tất cả người tham
-                  gia.
+                  Reached the target quantity? Close now to let the system{" "}
+                  <strong>automatically create orders</strong> for all
+                  participants.
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -223,7 +227,7 @@ export default function GroupBuyDetailPage() {
                     onClick={() => handleHostStatusChange("successful")}
                     disabled={isActionLoading}
                   >
-                    <Check className="mr-2 h-4 w-4" /> Chốt Kèo
+                    <Check className="mr-2 h-4 w-4" /> Close Group Buy
                   </Button>
                   <Button
                     variant="destructive"
@@ -231,7 +235,7 @@ export default function GroupBuyDetailPage() {
                     onClick={() => handleHostStatusChange("failed")}
                     disabled={isActionLoading}
                   >
-                    <X className="mr-2 h-4 w-4" /> Hủy Kèo
+                    <X className="mr-2 h-4 w-4" /> Cancel Group Buy
                   </Button>
                 </div>
               </CardContent>
@@ -242,22 +246,22 @@ export default function GroupBuyDetailPage() {
             <CardContent className="p-6 space-y-6">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">
-                  Giá mua chung
+                  Group buy price
                 </p>
                 <p className="text-4xl font-bold text-orange-600">
                   {formatCurrency(Number(groupBuy.price_per_unit))}
                 </p>
               </div>
 
-              {/* THÔNG BÁO KHI THÀNH CÔNG */}
+              {/* NOTICE WHEN SUCCESSFUL */}
               {isSuccessful && (
                 <div className="bg-green-100 border border-green-300 text-green-800 p-4 rounded-md">
                   <p className="font-bold flex items-center gap-2">
-                    <Check className="h-5 w-5" /> Kèo đã được chốt!
+                    <Check className="h-5 w-5" /> Group buy has been closed!
                   </p>
                   <p className="text-sm mt-1">
-                    Hệ thống đã tạo đơn hàng. Vui lòng kiểm tra trong mục{" "}
-                    <strong>Quản lý đơn hàng</strong> để theo dõi vận chuyển.
+                    Orders have been created. Please check the{" "}
+                    <strong>Orders</strong> page to track the shipment.
                   </p>
                   <Button
                     variant="outline"
@@ -266,8 +270,7 @@ export default function GroupBuyDetailPage() {
                     asChild
                   >
                     <Link href="/orders">
-                      <ExternalLink className="mr-2 h-4 w-4" /> Đến trang Đơn
-                      hàng
+                      <ExternalLink className="mr-2 h-4 w-4" /> Go to Orders
                     </Link>
                   </Button>
                 </div>
@@ -276,17 +279,17 @@ export default function GroupBuyDetailPage() {
               <div className="flex items-center gap-2 text-sm font-medium bg-white text-orange-800 px-3 py-2 rounded-md border border-orange-100 w-fit shadow-sm">
                 <Users className="h-4 w-4" />
                 <span>
-                  Đã đăng ký: {groupBuy.currentQuantity} /{" "}
+                  Joined: {groupBuy.currentQuantity} /{" "}
                   {groupBuy.target_quantity}
                 </span>
               </div>
 
-              {/* Nút Tham gia */}
+              {/* JOIN BUTTON */}
               {isOpen && !isHost && !hasJoined && (
                 <div className="space-y-3 pt-4 border-t border-orange-200 mt-2">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium whitespace-nowrap">
-                      Số lượng:
+                      Quantity:
                     </span>
                     <Input
                       type="number"
@@ -306,29 +309,30 @@ export default function GroupBuyDetailPage() {
                     ) : (
                       <ShoppingBag className="mr-2 h-5 w-5" />
                     )}{" "}
-                    Đặt Cọc Tham Gia
+                    Join & Pay Deposit
                   </Button>
                 </div>
               )}
 
               {hasJoined && isOpen && (
                 <div className="bg-blue-100 text-blue-800 p-3 rounded-md text-center text-sm font-medium border border-blue-200">
-                  Bạn đang tham gia kèo này. Chờ Host chốt nhé!
+                  You have already joined this group buy. Please wait for the
+                  host to close it.
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* DANH SÁCH THAM GIA */}
+          {/* PARTICIPANTS LIST */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Danh sách tham gia</CardTitle>
+              <CardTitle className="text-lg">Participants</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="max-h-[400px] overflow-y-auto space-y-4 pr-2">
                 {groupBuy.participants.length === 0 && (
                   <p className="text-center text-muted-foreground text-sm">
-                    Chưa có ai tham gia.
+                    No participants yet.
                   </p>
                 )}
                 {groupBuy.participants.map((p: any, idx: number) => (
@@ -344,11 +348,11 @@ export default function GroupBuyDetailPage() {
                       <div>
                         <p className="text-sm font-medium">{p.user.username}</p>
                         <p className="text-xs text-muted-foreground">
-                          SL: {p.quantity}
+                          Qty: {p.quantity}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="secondary">Đã cọc</Badge>
+                    <Badge variant="secondary">Deposited</Badge>
                   </div>
                 ))}
               </div>

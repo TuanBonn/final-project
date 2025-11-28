@@ -178,7 +178,7 @@ export function BuyProductDialog({
               <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-md text-xs flex gap-2">
                 <Info className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
-                  Auction Rule: Wallet payment mandatory for security.
+                  Auction rule: wallet payment is mandatory for security.
                 </span>
               </div>
             )}

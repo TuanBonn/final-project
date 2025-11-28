@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { ThumbsUp } from "lucide-react"; // Hoặc dùng Heart nếu thích
+import { ThumbsUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
@@ -26,7 +26,7 @@ export function LikeButton({
   const [isLoading, setIsLoading] = useState(false);
 
   const handleToggleLike = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Ngăn chặn click vào Link bao ngoài (nếu có)
+    e.preventDefault();
     e.stopPropagation();
 
     if (!user) {
@@ -36,7 +36,7 @@ export function LikeButton({
 
     if (isLoading) return;
 
-    // Optimistic Update (Cập nhật giao diện trước khi gọi API)
+    // Optimistic update
     const previousIsLiked = isLiked;
     const previousCount = likeCount;
 
@@ -52,11 +52,10 @@ export function LikeButton({
       if (!res.ok) throw new Error("Failed");
 
       const data = await res.json();
-      // Cập nhật lại số chính xác từ server (để chắc chắn)
       setLikeCount(data.newLikeCount);
       setIsLiked(data.isLiked);
     } catch (error) {
-      // Revert nếu lỗi
+      // Revert on error
       setIsLiked(previousIsLiked);
       setLikeCount(previousCount);
     } finally {
@@ -71,7 +70,7 @@ export function LikeButton({
         "flex items-center gap-1 transition-colors hover:text-primary text-sm font-medium",
         isLiked ? "text-primary" : "text-muted-foreground"
       )}
-      title={isLiked ? "Bỏ thích" : "Thích"}
+      title={isLiked ? "Unlike" : "Like"}
     >
       <ThumbsUp className={cn("h-4 w-4", isLiked && "fill-current")} />
       <span>{likeCount}</span>

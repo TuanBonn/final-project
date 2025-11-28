@@ -61,7 +61,7 @@ const formatCurrency = (amount: number) =>
     amount
   );
 
-// Helper xác định loại giao dịch là TRỪ TIỀN (SỬA LẠI Ở ĐÂY)
+// Helper to determine if transaction is a deduction
 const isNegativeTransaction = (type: string) => {
   return (
     type === "withdrawal" ||
@@ -69,36 +69,34 @@ const isNegativeTransaction = (type: string) => {
     type.includes("fee") ||
     type === "auction_bid_fee" ||
     type === "transaction_commission" ||
-    type === "dealer_subscription" || // <--- ĐÃ THÊM: Phí Dealer là trừ tiền
-    type === "verification_fee" // <--- ĐÃ THÊM: Phí Verify là trừ tiền
+    type === "dealer_subscription" || // Dealer subscription is a deduction
+    type === "verification_fee" // Account verification fee is a deduction
   );
 };
 
-// Helper lấy Label (SỬA LẠI Ở ĐÂY)
+// Helper to get transaction label
 const getPaymentLabel = (type: string) => {
   switch (type) {
     case "deposit":
-      return "Nạp tiền";
+      return "Deposit";
     case "withdrawal":
-      return "Rút tiền";
+      return "Withdrawal";
     case "group_buy_order":
-      return "Đặt cọc Mua chung";
+      return "Group Buy Deposit";
     case "group_buy_refund":
-      return "Hoàn tiền Mua chung";
+      return "Group Buy Refund";
     case "group_buy_payout":
-      return "Doanh thu Mua chung";
+      return "Group Buy Revenue";
     case "auction_creation_fee":
-      return "Phí tạo đấu giá";
+      return "Auction Creation Fee";
     case "auction_bid_fee":
-      return "Phí tham gia đấu giá";
+      return "Auction Participation Fee";
     case "transaction_commission":
-      return "Phí sàn (Hoa hồng)";
-    // === THÊM NHÃN TIẾNG VIỆT ===
+      return "Platform Commission Fee";
     case "dealer_subscription":
-      return "Nâng cấp Dealer";
+      return "Dealer Subscription";
     case "verification_fee":
-      return "Phí xác thực tài khoản";
-    // ============================
+      return "Account Verification Fee";
     default:
       return type.replace(/_/g, " ");
   }
@@ -149,12 +147,12 @@ export default function WalletPage() {
   const generateQR = () => {
     const amount = parseInt(amountInput.replace(/\D/g, ""), 10);
     if (!amount || amount < 10000) {
-      alert("Số tiền tối thiểu là 10.000đ");
+      alert("Minimum amount is 10,000₫");
       setQrCodeUrl(null);
       return;
     }
     if (!systemBankInfo) {
-      alert("Chưa có thông tin tài khoản hệ thống.");
+      alert("System bank account is not configured yet.");
       return;
     }
     const { bankId, accountNo, accountName, template } = systemBankInfo;
@@ -175,17 +173,17 @@ export default function WalletPage() {
   const handleTransaction = async () => {
     const amount = parseInt(amountInput.replace(/\D/g, ""), 10);
     if (!amount || amount < 10000) {
-      alert("Số tiền tối thiểu là 10,000đ");
+      alert("Minimum amount is 10,000₫");
       return;
     }
     if (actionType === "withdrawal") {
       if (!bankName || !accountNo || !accountName) {
-        alert("Vui lòng nhập đầy đủ thông tin ngân hàng.");
+        alert("Please fill in all bank information.");
         return;
       }
     } else if (actionType === "deposit") {
       if (!qrCodeUrl) {
-        alert("Vui lòng bấm 'Tạo mã QR' trước.");
+        alert('Please click "Generate QR Code" first.');
         return;
       }
     }
@@ -206,12 +204,12 @@ export default function WalletPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Giao dịch thất bại");
+      if (!res.ok) throw new Error(data.error || "Transaction failed.");
 
       alert(
         actionType === "deposit"
-          ? "Đã tạo lệnh nạp tiền!"
-          : "Đã gửi yêu cầu rút tiền."
+          ? "Top-up request created!"
+          : "Withdrawal request submitted."
       );
       setDialogOpen(false);
       setAmountInput("");
@@ -246,7 +244,7 @@ export default function WalletPage() {
         <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div>
             <p className="text-slate-300 font-medium mb-1 flex items-center gap-2">
-              <Wallet className="h-5 w-5" /> Số dư khả dụng
+              <Wallet className="h-5 w-5" /> Available balance
             </p>
             {loading ? (
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -262,7 +260,7 @@ export default function WalletPage() {
               className="bg-green-600 hover:bg-green-700 text-white border-none font-semibold shadow-md"
               size="lg"
             >
-              <ArrowDownCircle className="mr-2 h-5 w-5" /> Nạp tiền
+              <ArrowDownCircle className="mr-2 h-5 w-5" /> Top up
             </Button>
             <Button
               onClick={() => openDialog("withdrawal")}
@@ -270,7 +268,7 @@ export default function WalletPage() {
               size="lg"
               className="font-semibold shadow-md"
             >
-              <ArrowUpCircle className="mr-2 h-5 w-5" /> Rút tiền
+              <ArrowUpCircle className="mr-2 h-5 w-5" /> Withdraw
             </Button>
           </div>
         </CardContent>
@@ -279,8 +277,10 @@ export default function WalletPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Lịch sử giao dịch</CardTitle>
-            <CardDescription>Theo dõi biến động số dư của bạn.</CardDescription>
+            <CardTitle>Transaction history</CardTitle>
+            <CardDescription>
+              Track all changes to your wallet balance.
+            </CardDescription>
           </div>
           <Button variant="ghost" size="icon" onClick={fetchWalletData}>
             <RefreshCcw
@@ -292,10 +292,10 @@ export default function WalletPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Loại giao dịch</TableHead>
-                <TableHead>Số tiền</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Thời gian</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Time</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -305,7 +305,7 @@ export default function WalletPage() {
                     colSpan={4}
                     className="text-center py-12 text-muted-foreground"
                   >
-                    Chưa có giao dịch nào.
+                    No transactions yet.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -347,14 +347,14 @@ export default function WalletPage() {
                           }
                         >
                           {item.status === "succeeded"
-                            ? "Thành công"
+                            ? "Succeeded"
                             : item.status === "pending"
-                            ? "Đang xử lý"
-                            : "Thất bại"}
+                            ? "Pending"
+                            : "Failed"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground">
-                        {new Date(item.created_at).toLocaleDateString("vi-VN", {
+                        {new Date(item.created_at).toLocaleDateString("en-GB", {
                           day: "2-digit",
                           month: "2-digit",
                           year: "numeric",
@@ -371,7 +371,7 @@ export default function WalletPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog Nạp/Rút (Giữ nguyên logic cũ) */}
+      {/* Top-up / Withdraw Dialog (logic unchanged, text translated) */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           className={
@@ -383,21 +383,21 @@ export default function WalletPage() {
           <DialogHeader>
             <DialogTitle>
               {actionType === "deposit"
-                ? "Nạp tiền vào ví"
-                : "Rút tiền về tài khoản"}
+                ? "Top up wallet"
+                : "Withdraw to bank account"}
             </DialogTitle>
             <DialogDescription>
               {actionType === "deposit"
-                ? "Nhập số tiền, sau đó bấm tạo mã QR."
-                : "Nhập số tiền và thông tin nhận tiền."}
+                ? "Enter the amount, then click Generate QR Code."
+                : "Enter the amount and your bank account information."}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="flex gap-2 items-end">
               <div className="space-y-2 flex-1">
-                <Label>Số tiền (VND)</Label>
+                <Label>Amount (VND)</Label>
                 <Input
-                  placeholder="Ví dụ: 500.000"
+                  placeholder="e.g. 500.000"
                   value={amountInput}
                   onChange={handleAmountChange}
                   className="font-bold text-lg"
@@ -412,14 +412,14 @@ export default function WalletPage() {
                   className="mb-[2px]"
                 >
                   <QrCode className="mr-2 h-4 w-4" />{" "}
-                  {qrCodeUrl ? "Tạo lại QR" : "Tạo mã QR"}
+                  {qrCodeUrl ? "Regenerate QR" : "Generate QR Code"}
                 </Button>
               )}
             </div>
             {actionType === "deposit" && qrCodeUrl && systemBankInfo && (
               <div className="mt-4 border rounded-lg p-4 bg-muted/20 flex flex-col items-center animate-in fade-in zoom-in duration-300">
                 <p className="text-sm font-medium mb-3 flex items-center gap-2 text-blue-600">
-                  Quét mã để chuyển khoản
+                  Scan the code to transfer
                 </p>
                 <div className="relative w-full aspect-square max-w-[280px] bg-white p-2 rounded-md shadow-sm">
                   <Image
@@ -432,20 +432,22 @@ export default function WalletPage() {
                 </div>
                 <div className="mt-4 w-full space-y-2 bg-white p-3 rounded border text-sm">
                   <div className="flex justify-between border-b pb-2">
-                    <span className="text-muted-foreground">Ngân hàng:</span>
+                    <span className="text-muted-foreground">Bank:</span>
                     <span className="font-semibold">
                       {systemBankInfo.bankId}
                     </span>
                   </div>
                   <div className="flex justify-between border-b pb-2">
-                    <span className="text-muted-foreground">Số tài khoản:</span>
+                    <span className="text-muted-foreground">
+                      Account number:
+                    </span>
                     <span className="font-semibold">
                       {systemBankInfo.accountNo}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
-                      Chủ tài khoản:
+                      Account holder:
                     </span>
                     <span className="font-semibold">
                       {systemBankInfo.accountName}
@@ -453,32 +455,32 @@ export default function WalletPage() {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-3 text-center bg-yellow-50 p-2 rounded border border-yellow-100 text-yellow-800">
-                  ⚠️ Lưu ý: Vui lòng{" "}
-                  <strong>giữ nguyên nội dung chuyển khoản</strong> để được
-                  duyệt nhanh nhất.
+                  ⚠️ Note: Please{" "}
+                  <strong>keep the transfer description unchanged</strong> for
+                  the fastest approval.
                 </p>
               </div>
             )}
             {actionType === "withdrawal" && (
               <div className="space-y-4 border-t pt-4 mt-2">
                 <div className="space-y-2">
-                  <Label>Ngân hàng thụ hưởng</Label>
+                  <Label>Receiving bank</Label>
                   <Input
-                    placeholder="Ví dụ: MB Bank, Vietcombank..."
+                    placeholder="e.g. MB Bank, Vietcombank..."
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Số tài khoản</Label>
+                  <Label>Account number</Label>
                   <Input
-                    placeholder="Nhập số tài khoản..."
+                    placeholder="Enter account number..."
                     value={accountNo}
                     onChange={(e) => setAccountNo(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Tên chủ tài khoản (Viết hoa)</Label>
+                  <Label>Account holder name (UPPERCASE)</Label>
                   <Input
                     placeholder="NGUYEN VAN A"
                     value={accountName}
@@ -490,8 +492,8 @@ export default function WalletPage() {
                 <div className="bg-yellow-50 p-3 rounded-md text-sm text-yellow-800 border border-yellow-200 flex items-start gap-2">
                   <span className="text-lg">ℹ️</span>
                   <span>
-                    Lưu ý: Phí rút tiền là 0%. Thời gian xử lý từ 2-24h làm
-                    việc.
+                    Note: Withdrawal fee is 0%. Processing time is 2–24 working
+                    hours.
                   </span>
                 </div>
               </div>
@@ -499,7 +501,7 @@ export default function WalletPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Hủy
+              Cancel
             </Button>
             <Button
               onClick={handleTransaction}
@@ -510,7 +512,9 @@ export default function WalletPage() {
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}{" "}
-              {actionType === "deposit" ? "Đã chuyển khoản" : "Gửi yêu cầu"}
+              {actionType === "deposit"
+                ? "I have transferred"
+                : "Submit request"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -19,9 +19,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input"; // <-- Import Input
+import { Input } from "@/components/ui/input";
 
-// --- Cấu hình Supabase ---
+// --- Supabase configuration ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -49,8 +49,8 @@ export async function generateMetadata({
   const { username } = await params;
   const decodedUsername = decodeURIComponent(username);
   return {
-    title: `Shop của ${decodedUsername} | Sàn Mô Hình`,
-    description: `Danh sách sản phẩm đang bán của ${decodedUsername}.`,
+    title: `${decodedUsername}'s Shop | Model Marketplace`,
+    description: `Products currently listed by ${decodedUsername}.`,
   };
 }
 
@@ -69,16 +69,16 @@ function ServerPagination({
       <Button variant="outline" size="sm" disabled={currentPage <= 1} asChild>
         {currentPage > 1 ? (
           <Link href={`${baseUrl}&page=${currentPage - 1}`}>
-            <ChevronLeft className="h-4 w-4 mr-1" /> Trang trước
+            <ChevronLeft className="h-4 w-4 mr-1" /> Previous
           </Link>
         ) : (
           <span>
-            <ChevronLeft className="h-4 w-4 mr-1" /> Trang trước
+            <ChevronLeft className="h-4 w-4 mr-1" /> Previous
           </span>
         )}
       </Button>
       <span className="text-sm font-medium">
-        Trang {currentPage} / {totalPages}
+        Page {currentPage} / {totalPages}
       </span>
       <Button
         variant="outline"
@@ -88,11 +88,11 @@ function ServerPagination({
       >
         {currentPage < totalPages ? (
           <Link href={`${baseUrl}&page=${currentPage + 1}`}>
-            Trang sau <ChevronRight className="h-4 w-4 ml-1" />
+            Next <ChevronRight className="h-4 w-4 ml-1" />
           </Link>
         ) : (
           <span>
-            Trang sau <ChevronRight className="h-4 w-4 ml-1" />
+            Next <ChevronRight className="h-4 w-4 ml-1" />
           </span>
         )}
       </Button>
@@ -108,13 +108,13 @@ export default async function PublicProfilePage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { username } = await params;
-  const { page, search } = await searchParams; // <-- Lấy search param
+  const { page, search } = await searchParams;
   const searchQuery = typeof search === "string" ? search : "";
 
   const decodedUsername = decodeURIComponent(username);
   const supabase = getSupabaseAdmin();
 
-  // 1. Lấy thông tin User
+  // 1. Fetch user info
   const { data: profile, error: profileError } = await supabase
     .from("users")
     .select(
@@ -127,7 +127,7 @@ export default async function PublicProfilePage({
     return notFound();
   }
 
-  // 2. Query Sản phẩm (Có lọc Search)
+  // 2. Query products (with search filter)
   const currentPage = Number(page) || 1;
   const limit = 12;
   const from = (currentPage - 1) * limit;
@@ -146,7 +146,7 @@ export default async function PublicProfilePage({
     .eq("seller_id", profile.id)
     .in("status", ["available", "auction"]);
 
-  // Thêm điều kiện tìm kiếm
+  // Apply search condition
   if (searchQuery) {
     query = query.ilike("name", `%${searchQuery}%`);
   }
@@ -169,7 +169,7 @@ export default async function PublicProfilePage({
       <BackButton />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* === CỘT TRÁI: THÔNG TIN USER === */}
+        {/* === LEFT COLUMN: USER INFO === */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="border shadow-sm overflow-hidden text-center sticky top-24">
             <div className="relative px-6 pt-8 mb-4 flex justify-center">
@@ -207,7 +207,7 @@ export default async function PublicProfilePage({
                   variant="outline"
                   className="border-yellow-500 text-yellow-700 bg-yellow-50 py-0.5 px-2 text-[11px]"
                 >
-                  {profile.reputation_score} Uy tín
+                  {profile.reputation_score} Reputation
                 </Badge>
                 {profile.role === "dealer" && (
                   <Badge className="bg-purple-600 hover:bg-purple-700 py-0.5 px-2 text-[10px]">
@@ -226,38 +226,38 @@ export default async function PublicProfilePage({
                 <div className="flex items-center gap-3">
                   <Calendar className="h-4 w-4 shrink-0" />
                   <span>
-                    Tham gia:{" "}
-                    {new Date(profile.created_at).toLocaleDateString("vi-VN")}
+                    Joined:{" "}
+                    {new Date(profile.created_at).toLocaleDateString("en-GB")}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Package className="h-4 w-4 shrink-0" />
-                  <span>Tổng tin: {count || 0} sản phẩm</span>
+                  <span>Total listings: {count || 0} products</span>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* === CỘT PHẢI: DANH SÁCH SẢN PHẨM === */}
+        {/* === RIGHT COLUMN: PRODUCT LIST === */}
         <div className="lg:col-span-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <div className="flex items-center gap-2">
               <h2 className="text-2xl font-bold flex items-center gap-2">
                 <Package className="h-6 w-6 text-primary" />
-                Sản phẩm đang bán
+                Products for sale
               </h2>
               <Badge variant="secondary" className="text-sm px-3 py-1">
                 {count || 0}
               </Badge>
             </div>
 
-            {/* FORM TÌM KIẾM (Server Action GET) */}
+            {/* SEARCH FORM (GET) */}
             <form className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 name="search"
-                placeholder="Tìm trong shop này..."
+                placeholder="Search in this shop..."
                 defaultValue={searchQuery}
                 className="pl-9"
               />
@@ -285,8 +285,8 @@ export default async function PublicProfilePage({
               <Package className="h-16 w-16 text-muted-foreground/30 mb-4" />
               <p className="text-lg text-muted-foreground font-medium">
                 {searchQuery
-                  ? "Không tìm thấy sản phẩm nào khớp."
-                  : "Người dùng này chưa có sản phẩm nào đang bán."}
+                  ? "No products found matching your search."
+                  : "This user has no active products for sale."}
               </p>
             </div>
           )}

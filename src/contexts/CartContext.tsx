@@ -40,7 +40,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         setItems(JSON.parse(savedCart));
       } catch (e) {
-        console.error("Lỗi parse cart", e);
+        console.error("Failed to parse cart", e);
       }
     }
   }, []);
@@ -54,7 +54,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const existingItem = prev.find((item) => item.id === newItem.id);
       if (existingItem) {
-        // Fallback an toàn nếu maxQuantity undefined
+        // Safe fallback if maxQuantity is undefined
         const safeMax = existingItem.maxQuantity ?? 999;
 
         const newQty = Math.min(
@@ -63,15 +63,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
 
         if (newQty === safeMax && newItem.quantity > 0) {
-          alert(`Đã đạt giới hạn tồn kho (${safeMax}) cho sản phẩm này.`);
+          alert(`Stock limit reached (${safeMax}) for this product.`);
         } else {
-          alert("Đã cập nhật số lượng trong giỏ!");
+          alert("Cart quantity updated!");
         }
         return prev.map((item) =>
           item.id === newItem.id ? { ...item, quantity: newQty } : item
         );
       }
-      alert("Đã thêm vào giỏ hàng!");
+      alert("Added to cart!");
       return [...prev, newItem];
     });
   };
@@ -80,7 +80,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          // Fallback an toàn
+          // Safe fallback
           const safeMax = item.maxQuantity ?? 999;
           const validQty = Math.max(1, Math.min(newQuantity, safeMax));
           return { ...item, quantity: validQty };

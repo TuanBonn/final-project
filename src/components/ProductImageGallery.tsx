@@ -25,7 +25,7 @@ export function ProductImageGallery({
 
   return (
     <div className="space-y-4">
-      {/* Ảnh lớn */}
+      {/* Main image */}
       <div className="relative aspect-square w-full overflow-hidden rounded-lg border bg-white">
         <Image
           src={imageList[selectedIndex]}
@@ -36,7 +36,7 @@ export function ProductImageGallery({
         />
       </div>
 
-      {/* List ảnh nhỏ */}
+      {/* Thumbnail list */}
       {imageList.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-2 snap-x scrollbar-hide">
           {imageList.map((url, index) => (

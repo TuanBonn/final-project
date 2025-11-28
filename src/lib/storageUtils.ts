@@ -16,18 +16,18 @@ export async function uploadFileViaApi(
   formData.append("bucketName", bucketName);
 
   console.log(
-    `StorageUtils: Gọi API /api/upload cho file ${file.name} tới bucket ${bucketName}...`
+    `StorageUtils: Calling /api/upload for file ${file.name} to bucket ${bucketName}...`
   );
 
   try {
     const response = await fetch("/api/upload", {
-      // Gọi API của bạn
+      // Call your API
       method: "POST",
       body: formData,
-      // === THÊM DÒNG NÀY ĐỂ BẮT BUỘC GỬI COOKIE ===
+      // === ADD THIS LINE TO FORCE COOKIE TO BE SENT ===
       credentials: "include",
-      // ===========================================
-      // Không cần 'Content-Type', trình duyệt tự xử lý FormData
+      // =================================================
+      // No need to set 'Content-Type', browser handles FormData automatically
     });
 
     const data = await response.json();
@@ -55,11 +55,11 @@ export async function uploadFileViaApi(
     console.log(`StorageUtils: API upload successful: ${data.publicUrl}`);
     return data.publicUrl;
   } catch (error: unknown) {
-    console.error("StorageUtils: Lỗi khi gọi API upload:", error);
+    console.error("StorageUtils: Error while calling upload API:", error);
     if (error instanceof Error) {
       throw error;
     } else {
-      throw new Error("Lỗi không xác định khi gọi API upload.");
+      throw new Error("Unknown error while calling upload API.");
     }
   }
 }

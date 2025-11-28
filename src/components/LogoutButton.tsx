@@ -1,43 +1,43 @@
 // src/components/LogoutButton.tsx
 "use client";
 
-// KHÔNG cần import createClient nữa
+// NO need to import createClient anymore
 // import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Button } from "./ui/button"; // Đảm bảo bạn đã cài đặt: npx shadcn-ui@latest add button
+import { Button } from "./ui/button";
 
 export default function LogoutButton() {
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
-      // Gọi API đăng xuất bạn đã tạo
+      // Call your logout API
       const response = await fetch("/api/auth/logout", {
         method: "POST",
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Đăng xuất không thành công.");
+        throw new Error(data.error || "Logout failed.");
       }
 
-      // Đăng xuất thành công
-      console.log("Đăng xuất thành công từ client."); // Log để debug
-      router.replace("/"); // Về trang chủ
-      router.refresh(); // Làm mới trang để cập nhật UI (Header sẽ nhận lại user là null)
+      // Logout successful
+      console.log("Successfully logged out from client."); // Debug log
+      router.replace("/"); // Back to homepage
+      router.refresh(); // Refresh page to update UI (Header receives user = null)
     } catch (error: unknown) {
-      console.error("Lỗi khi đăng xuất:", error);
-      let errorMessage = "Đã xảy ra lỗi.";
+      console.error("Logout error:", error);
+      let errorMessage = "An error occurred.";
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      alert("Lỗi đăng xuất: " + errorMessage);
+      alert("Logout error: " + errorMessage);
     }
   };
 
   return (
     <Button variant="destructive" onClick={handleLogout}>
-      Đăng xuất
+      Logout
     </Button>
   );
 }

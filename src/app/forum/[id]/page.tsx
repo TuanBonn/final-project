@@ -16,7 +16,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { vi } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 import { useUser } from "@/contexts/UserContext";
 import { LikeButton } from "@/components/LikeButton"; // Import LikeButton
 
@@ -33,7 +33,7 @@ interface PostDetail {
   };
   like_count: number;
   comment_count: number;
-  isLiked: boolean; // Có trường này
+  isLiked: boolean;
 }
 
 interface CommentItem {
@@ -62,7 +62,7 @@ export default function ForumPostDetailPage() {
     try {
       // Fetch Post
       const postRes = await fetch(`/api/forum/posts/${postId}`);
-      if (!postRes.ok) throw new Error("Bài viết không tồn tại");
+      if (!postRes.ok) throw new Error("Post not found");
       const postData = await postRes.json();
       setPost(postData.post);
 
@@ -93,14 +93,14 @@ export default function ForumPostDetailPage() {
         body: JSON.stringify({ content: commentContent }),
       });
 
-      if (!res.ok) throw new Error("Lỗi gửi bình luận");
+      if (!res.ok) throw new Error("Failed to submit comment");
 
       const data = await res.json();
 
       setComments((prev) => [...prev, data.comment]);
       setCommentContent("");
     } catch (error) {
-      alert("Không thể gửi bình luận.");
+      alert("Unable to submit comment.");
     } finally {
       setIsSubmitting(false);
     }
@@ -116,17 +116,17 @@ export default function ForumPostDetailPage() {
       </div>
     );
   if (!post)
-    return <div className="text-center py-20">Bài viết không tồn tại.</div>;
+    return <div className="text-center py-20">Post does not exist.</div>;
 
   return (
     <div className="container mx-auto py-6 max-w-4xl px-4">
       <Button variant="ghost" asChild className="mb-4">
         <Link href="/forum">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại diễn đàn
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to forum
         </Link>
       </Button>
 
-      {/* BÀI VIẾT CHÍNH */}
+      {/* MAIN POST */}
       <Card className="mb-8 border-l-4 border-l-primary shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-3 mb-3">
@@ -149,7 +149,7 @@ export default function ForumPostDetailPage() {
                 @{post.author.username} •{" "}
                 {formatDistanceToNow(new Date(post.created_at), {
                   addSuffix: true,
-                  locale: vi,
+                  locale: enUS,
                 })}
               </p>
             </div>
@@ -163,7 +163,7 @@ export default function ForumPostDetailPage() {
             {post.content}
           </p>
 
-          {/* NÚT LIKE VÀ SỐ BÌNH LUẬN */}
+          {/* LIKE + COMMENT COUNT */}
           <div className="flex items-center gap-4 border-t pt-3">
             <LikeButton
               postId={post.id}
@@ -171,19 +171,19 @@ export default function ForumPostDetailPage() {
               initialIsLiked={post.isLiked}
             />
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <MessageSquare className="h-4 w-4" /> {comments.length} bình luận
+              <MessageSquare className="h-4 w-4" /> {comments.length} comments
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* KHUNG BÌNH LUẬN */}
+      {/* COMMENTS SECTION */}
       <div className="space-y-6">
         <h3 className="text-xl font-semibold flex items-center gap-2">
-          <MessageSquare className="h-5 w-5" /> Bình luận ({comments.length})
+          <MessageSquare className="h-5 w-5" /> Comments ({comments.length})
         </h3>
 
-        {/* Form nhập */}
+        {/* Comment form */}
         <div className="flex gap-4">
           <Avatar className="h-10 w-10 hidden sm:block">
             <AvatarImage src={user?.avatar_url || ""} />
@@ -194,7 +194,7 @@ export default function ForumPostDetailPage() {
           <div className="flex-1 space-y-2">
             <Textarea
               placeholder={
-                user ? "Viết bình luận của bạn..." : "Đăng nhập để bình luận"
+                user ? "Write your comment..." : "Sign in to write a comment"
               }
               value={commentContent}
               onChange={(e) => setCommentContent(e.target.value)}
@@ -211,17 +211,17 @@ export default function ForumPostDetailPage() {
                 ) : (
                   <Send className="mr-2 h-4 w-4" />
                 )}
-                Gửi bình luận
+                Post comment
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Danh sách bình luận */}
+        {/* Comment list */}
         <div className="space-y-4 mt-6">
           {comments.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              Chưa có bình luận nào.
+              No comments yet.
             </p>
           ) : (
             comments.map((cmt) => (
@@ -243,7 +243,7 @@ export default function ForumPostDetailPage() {
                     <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(cmt.created_at), {
                         addSuffix: true,
-                        locale: vi,
+                        locale: enUS,
                       })}
                     </span>
                   </div>

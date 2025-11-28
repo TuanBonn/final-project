@@ -37,12 +37,12 @@ export function OrderDetailsDialog({
           size="sm"
           className="gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
         >
-          <MapPin className="h-4 w-4" /> Xem địa chỉ
+          <MapPin className="h-4 w-4" /> View address
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Thông tin giao hàng</DialogTitle>
+          <DialogTitle>Shipping information</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
@@ -50,7 +50,7 @@ export function OrderDetailsDialog({
             <User className="h-5 w-5 text-muted-foreground mt-0.5" />
             <div>
               <p className="text-sm font-medium text-muted-foreground">
-                Người nhận
+                Recipient
               </p>
               <p className="font-semibold text-base">
                 {shippingAddress.fullName || buyerName}
@@ -62,10 +62,10 @@ export function OrderDetailsDialog({
             <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
             <div>
               <p className="text-sm font-medium text-muted-foreground">
-                Số điện thoại
+                Phone number
               </p>
               <p className="font-semibold text-base">
-                {shippingAddress.phone || "Không có SĐT"}
+                {shippingAddress.phone || "No phone number"}
               </p>
             </div>
           </div>
@@ -74,10 +74,10 @@ export function OrderDetailsDialog({
             <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
             <div>
               <p className="text-sm font-medium text-muted-foreground">
-                Địa chỉ nhận hàng
+                Shipping address
               </p>
               <p className="text-base">
-                {shippingAddress.address || "Chưa cập nhật"}
+                {shippingAddress.address || "Not updated yet"}
                 {shippingAddress.city ? `, ${shippingAddress.city}` : ""}
               </p>
             </div>

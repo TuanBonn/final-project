@@ -1,4 +1,3 @@
-// src/app/auctions/[id]/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -47,7 +46,7 @@ interface AuctionDetail {
   end_time: string;
   winning_bidder_id: string | null;
   isJoined: boolean;
-  orderId: string | null; // ID đơn hàng nếu đã tạo
+  orderId: string | null; // Order ID if already created
   product: {
     id: string;
     name: string;
@@ -70,7 +69,7 @@ const formatCurrency = (val: number) =>
     val
   );
 
-// Component Countdown
+// Countdown Component
 const Countdown = ({
   targetDate,
   onExpire,
@@ -87,7 +86,7 @@ const Countdown = ({
       const distance = new Date(targetDate).getTime() - now;
 
       if (distance < 0) {
-        setTimeLeft("ĐANG CHỐT...");
+        setTimeLeft("FINALIZING...");
         if (!isExpired) {
           setIsExpired(true);
           if (onExpire) onExpire();
@@ -133,7 +132,7 @@ export default function AuctionDetailPage() {
   const [joining, setJoining] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
 
-  // Ref để tránh stale closure trong setInterval
+  // Ref to avoid stale closure in setInterval
   const auctionRef = useRef(auction);
   useEffect(() => {
     auctionRef.current = auction;
@@ -143,17 +142,17 @@ export default function AuctionDetailPage() {
     async (isSilent = false) => {
       if (!isSilent) setLoading(true);
       try {
-        // Thêm timestamp để tránh cache
+        // Add timestamp to avoid cache
         const res = await fetch(
           `/api/auctions/${id}?t=${new Date().getTime()}`
         );
         if (!res.ok) {
           if (res.status === 404) return;
-          throw new Error("Lỗi tải");
+          throw new Error("Failed to load data");
         }
         const data = await res.json();
 
-        // Cập nhật state nếu có dữ liệu mới
+        // Update state if there is new data
         setAuction((prev) => {
           if (JSON.stringify(prev) !== JSON.stringify(data.auction)) {
             return data.auction;
@@ -173,7 +172,7 @@ export default function AuctionDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // Polling fallback (mỗi 3s nếu đang active)
+  // Polling fallback (every 3s if active)
   useEffect(() => {
     const interval = setInterval(() => {
       if (auctionRef.current?.status === "active") {
@@ -192,7 +191,7 @@ export default function AuctionDetailPage() {
       .on(
         "postgres_changes",
         {
-          event: "*", // Nghe mọi sự kiện
+          event: "*", // Listen to all events
           schema: "public",
           table: "bids",
           filter: `auction_id=eq.${id}`,
@@ -228,7 +227,9 @@ export default function AuctionDetailPage() {
       return;
     }
     if (
-      !confirm("Bạn sẽ bị trừ phí tham gia (50.000đ) từ ví. Xác nhận tham gia?")
+      !confirm(
+        "A participation fee (50,000 VND) will be deducted from your wallet. Confirm joining?"
+      )
     )
       return;
 
@@ -244,7 +245,11 @@ export default function AuctionDetailPage() {
         fetchData(true);
       } else {
         if (res.status === 402) {
-          if (confirm("Số dư không đủ. Bạn có muốn nạp tiền ngay?")) {
+          if (
+            confirm(
+              "Insufficient balance. Do you want to top up your wallet now?"
+            )
+          ) {
             router.push("/wallet");
           }
         } else {
@@ -253,7 +258,7 @@ export default function AuctionDetailPage() {
       }
     } catch (error) {
       console.error(error);
-      alert("Lỗi khi tham gia.");
+      alert("Error while joining.");
     } finally {
       setJoining(false);
     }
@@ -283,9 +288,7 @@ export default function AuctionDetailPage() {
     );
 
   if (!auction)
-    return (
-      <div className="text-center py-20">Không tìm thấy phiên đấu giá.</div>
-    );
+    return <div className="text-center py-20">Auction not found.</div>;
 
   const isEnded = auction.status === "ended" || auction.status === "cancelled";
   const topBid =
@@ -302,19 +305,19 @@ export default function AuctionDetailPage() {
     new Date(auction.end_time).getTime() + 24 * 60 * 60 * 1000
   );
 
-  // Kiểm tra đã có đơn hàng chưa
+  // === CHECK IF ORDER EXISTS ===
   const hasOrder = !!auction.orderId;
 
   return (
     <div className="container mx-auto py-6 max-w-5xl px-4">
       <Button variant="ghost" asChild className="mb-4">
         <Link href="/auctions">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Quay lại sàn đấu giá
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to auctions
         </Link>
       </Button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative">
-        {/* Cột Trái: Thông tin sản phẩm */}
+        {/* Left Column: Product information */}
         <div className="lg:col-span-2 space-y-6">
           <div className="relative">
             <ProductImageGallery
@@ -329,7 +332,7 @@ export default function AuctionDetailPage() {
                     : "bg-gray-500"
                 }
               >
-                {!isEnded ? "ĐANG DIỄN RA" : "ĐÃ KẾT THÚC"}
+                {!isEnded ? "ONGOING" : "ENDED"}
               </Badge>
             </div>
           </div>
@@ -344,14 +347,16 @@ export default function AuctionDetailPage() {
                 <AvatarFallback>S</AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Chủ phiên</span>
+                <span className="text-xs text-muted-foreground">Host</span>
                 <span className="text-sm font-semibold">
                   {auction.seller.username}
                 </span>
               </div>
               <div className="h-8 w-px bg-border mx-2"></div>
               <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Uy tín</span>
+                <span className="text-xs text-muted-foreground">
+                  Reputation
+                </span>
                 <span className="text-sm font-bold text-blue-600">
                   {auction.seller.reputation_score}
                 </span>
@@ -359,7 +364,9 @@ export default function AuctionDetailPage() {
             </div>
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Mô tả & Tình trạng</CardTitle>
+                <CardTitle className="text-lg">
+                  Description & Condition
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="mb-4">
@@ -367,18 +374,18 @@ export default function AuctionDetailPage() {
                     variant="outline"
                     className="text-sm py-1 px-3 capitalize"
                   >
-                    Tình trạng: {auction.product.condition.replace(/_/g, " ")}
+                    Condition: {auction.product.condition.replace(/_/g, " ")}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
-                  {auction.product.description || "Không có mô tả."}
+                  {auction.product.description || "No description."}
                 </p>
               </CardContent>
             </Card>
           </div>
         </div>
 
-        {/* Cột Phải: Điều khiển Đấu giá */}
+        {/* Right Column: Auction controls */}
         <div className="space-y-6 lg:col-span-1 self-start lg:sticky lg:top-24">
           <Card
             className={`border-2 shadow-lg bg-card z-20 ${
@@ -388,10 +395,10 @@ export default function AuctionDetailPage() {
             }`}
           >
             <CardContent className="p-6 space-y-4">
-              {/* Thời gian */}
+              {/* Time */}
               <div>
                 <p className="text-sm text-muted-foreground mb-1">
-                  Thời gian còn lại
+                  Time remaining
                 </p>
                 <div className="flex items-center gap-2 bg-secondary/50 p-3 rounded-md border">
                   <Clock
@@ -400,7 +407,7 @@ export default function AuctionDetailPage() {
                     }`}
                   />
                   {isEnded ? (
-                    <span className="font-bold text-gray-600">ĐÃ KẾT THÚC</span>
+                    <span className="font-bold text-gray-600">ENDED</span>
                   ) : (
                     <Countdown
                       targetDate={auction.end_time}
@@ -410,10 +417,10 @@ export default function AuctionDetailPage() {
                 </div>
               </div>
 
-              {/* Giá */}
+              {/* Price */}
               <div>
                 <p className="text-sm text-muted-foreground mb-1">
-                  Giá cao nhất hiện tại
+                  Current highest bid
                 </p>
                 <div className="flex items-baseline gap-2">
                   <p
@@ -424,13 +431,13 @@ export default function AuctionDetailPage() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Khởi điểm: {formatCurrency(auction.starting_bid)}
+                  Starting bid: {formatCurrency(auction.starting_bid)}
                 </p>
               </div>
 
               <Separator />
 
-              {/* Khu vực Hành động */}
+              {/* Actions */}
               {isWinner && isEnded ? (
                 <div className="space-y-4 animate-in zoom-in duration-500">
                   <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4 text-center shadow-sm">
@@ -440,15 +447,14 @@ export default function AuctionDetailPage() {
                       </div>
                     </div>
                     <h3 className="text-lg font-bold text-green-800 mb-1">
-                      CHÚC MỪNG BẠN ĐÃ THẮNG!
+                      CONGRATULATIONS, YOU WON!
                     </h3>
 
-                    {/* Chỉ hiện hạn thanh toán nếu CHƯA có đơn hàng */}
+                    {/* If no order yet -> show payment deadline */}
                     {!hasOrder && (
                       <div className="bg-white p-3 rounded-lg border border-green-200 text-sm text-muted-foreground mt-3">
                         <p className="mb-1 flex items-center justify-center gap-1 text-red-600 font-medium">
-                          <AlertCircle className="h-4 w-4" /> Hạn chót thanh
-                          toán:
+                          <AlertCircle className="h-4 w-4" /> Payment deadline:
                         </p>
                         <p className="font-bold text-foreground text-lg">
                           {paymentDeadline.toLocaleTimeString([], {
@@ -461,41 +467,40 @@ export default function AuctionDetailPage() {
                     )}
                   </div>
 
-                  {/* LOGIC ẨN NÚT MUA NẾU ĐÃ CÓ ĐƠN */}
+                  {/* Hide button when order already exists */}
                   {hasOrder ? (
                     <Button
                       className="w-full bg-blue-600 hover:bg-blue-700 py-6 text-lg font-bold shadow-md"
                       asChild
                     >
                       <Link href="/orders">
-                        <CheckCircle className="mr-2 h-5 w-5" /> Đơn hàng đã
-                        được tạo
+                        <CheckCircle className="mr-2 h-5 w-5" /> Order has been
+                        created
                       </Link>
                     </Button>
                   ) : (
                     <BuyProductDialog
                       product={{
-                        id: auction.product.id,
+                        id: auction.product.id || "unknown",
                         name: auction.product.name,
                         price: auction.currentPrice,
                         status: "in_transaction",
-                        quantity: 1, // Đấu giá thường là 1 sản phẩm
+                        quantity: 1,
                       }}
                       fixedPrice={auction.currentPrice}
                       auctionId={auction.id}
                     />
                   )}
+
+                  {!hasOrder && (
+                    <p className="text-center text-xs text-muted-foreground">
+                      * You need to confirm and complete payment to receive the
+                      product.
+                    </p>
+                  )}
                 </div>
-              ) : isEnded && !isWinner ? (
-                <Button
-                  disabled
-                  variant="secondary"
-                  className="w-full py-6 text-lg"
-                >
-                  Phiên đấu giá đã kết thúc
-                </Button>
               ) : !isEnded ? (
-                // Đang diễn ra
+                // Ongoing (Join/Bid logic stays the same)
                 !auction.isJoined ? (
                   <div className="space-y-2">
                     <Button
@@ -508,12 +513,13 @@ export default function AuctionDetailPage() {
                       ) : (
                         <Wallet className="mr-2 h-5 w-5" />
                       )}
-                      Tham gia đấu giá
+                      Join auction
                     </Button>
                     <p className="text-xs text-center text-muted-foreground bg-orange-50 p-2 rounded border border-orange-100">
-                      Phí tham gia: <strong>50.000đ</strong> (Trừ vào ví)
+                      Participation fee: <strong>50,000 VND</strong> (deducted
+                      from wallet)
                       <br />
-                      <em>Phí này không hoàn lại</em>
+                      <em>This fee is non-refundable</em>
                     </p>
                   </div>
                 ) : (
@@ -523,16 +529,24 @@ export default function AuctionDetailPage() {
                     onSuccess={() => fetchData(true)}
                   />
                 )
-              ) : null}
+              ) : (
+                <Button
+                  disabled
+                  variant="secondary"
+                  className="w-full py-6 text-lg"
+                >
+                  This auction has ended
+                </Button>
+              )}
             </CardContent>
           </Card>
 
-          {/* Lịch sử */}
+          {/* History */}
           <Card className="bg-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-500" /> Lịch sử đặt giá
-                {!isEnded && (
+                <Trophy className="h-5 w-5 text-yellow-500" /> Bid history
+                {auction.status === "active" && !isEnded && (
                   <span className="text-xs font-normal text-muted-foreground ml-auto flex items-center gap-1">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -546,9 +560,9 @@ export default function AuctionDetailPage() {
             <CardContent className="p-0">
               {auction.bids.length === 0 ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">
-                  Chưa có ai đặt giá.
+                  No bids yet.
                   <br />
-                  Hãy là người đầu tiên!
+                  Be the first one!
                 </div>
               ) : (
                 <div className="max-h-[300px] overflow-y-auto scrollbar-thin">

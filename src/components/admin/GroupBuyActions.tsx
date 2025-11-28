@@ -32,7 +32,9 @@ export function GroupBuyActions({
   const [isLoading, setIsLoading] = useState(false);
 
   const updateStatus = async (newStatus: GroupBuyStatus) => {
-    if (!confirm(`Bạn có chắc chắn muốn đổi trạng thái sang "${newStatus}"?`))
+    if (
+      !confirm(`Are you sure you want to change the status to "${newStatus}"?`)
+    )
       return;
 
     setIsLoading(true);
@@ -42,10 +44,10 @@ export function GroupBuyActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error("Lỗi cập nhật");
+      if (!res.ok) throw new Error("Update failed");
       onActionSuccess();
     } catch (error) {
-      alert("Có lỗi xảy ra");
+      alert("An error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -63,23 +65,23 @@ export function GroupBuyActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+        <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        {/* Chỉ hiện các action hợp lý dựa trên trạng thái hiện tại */}
+        {/* Only show valid actions based on current status */}
         {groupBuy.status === "open" && (
           <>
             <DropdownMenuItem
               onClick={() => updateStatus("failed")}
               className="text-red-600"
             >
-              <Ban className="mr-2 h-4 w-4" /> Hủy kèo (Failed)
+              <Ban className="mr-2 h-4 w-4" /> Cancel (Failed)
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => updateStatus("successful")}
               className="text-green-600"
             >
-              <CheckCircle className="mr-2 h-4 w-4" /> Duyệt thành công
+              <CheckCircle className="mr-2 h-4 w-4" /> Mark as Successful
             </DropdownMenuItem>
           </>
         )}
@@ -89,12 +91,12 @@ export function GroupBuyActions({
             onClick={() => updateStatus("completed")}
             className="text-blue-600"
           >
-            <CheckCircle className="mr-2 h-4 w-4" /> Hoàn tất (Completed)
+            <CheckCircle className="mr-2 h-4 w-4" /> Complete
           </DropdownMenuItem>
         )}
 
         {(groupBuy.status === "failed" || groupBuy.status === "completed") && (
-          <DropdownMenuItem disabled>Đã kết thúc</DropdownMenuItem>
+          <DropdownMenuItem disabled>Finished</DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

@@ -25,9 +25,9 @@ export function ImageUploadPreview({
 
     let newFiles = Array.from(files);
 
-    // Giới hạn số lượng
+    // Limit number of files
     if (selectedFiles.length + newFiles.length > maxFiles) {
-      alert(`Bạn chỉ được chọn tối đa ${maxFiles} ảnh.`);
+      alert(`You can only select up to ${maxFiles} images.`);
       newFiles = newFiles.slice(0, maxFiles - selectedFiles.length);
     }
 
@@ -40,7 +40,7 @@ export function ImageUploadPreview({
       setSelectedFiles(updatedFiles);
       onFilesChange(updatedFiles);
 
-      // Tạo URL preview
+      // Create preview URLs
       const newPreviews = validImageFiles.map((file) =>
         URL.createObjectURL(file)
       );
@@ -69,7 +69,7 @@ export function ImageUploadPreview({
 
   return (
     <div className="space-y-4">
-      {/* Khu vực hiển thị ảnh (Grid giống Admin) */}
+      {/* Image grid (similar to Admin) */}
       {previewUrls.length > 0 && (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
           {previewUrls.map((url, index) => (
@@ -84,7 +84,7 @@ export function ImageUploadPreview({
                 className="object-cover"
               />
 
-              {/* Nút xóa (Hiện khi hover) */}
+              {/* Delete button (visible on hover) */}
               <Button
                 type="button"
                 variant="destructive"
@@ -97,7 +97,7 @@ export function ImageUploadPreview({
 
               {index === 0 && (
                 <Badge className="absolute bottom-1 left-1 bg-black/70 hover:bg-black/80 text-[10px] h-5">
-                  Ảnh bìa
+                  Cover image
                 </Badge>
               )}
             </div>
@@ -105,7 +105,7 @@ export function ImageUploadPreview({
         </div>
       )}
 
-      {/* Nút chọn ảnh */}
+      {/* Select images button */}
       {selectedFiles.length < maxFiles && (
         <div className="relative">
           <input
@@ -120,7 +120,7 @@ export function ImageUploadPreview({
           <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg bg-muted/10 hover:bg-muted/20 transition-colors text-muted-foreground">
             <ImagePlus className="h-8 w-8 mb-2" />
             <span className="text-sm font-medium">
-              Bấm để chọn ảnh ({selectedFiles.length}/{maxFiles})
+              Click to select images ({selectedFiles.length}/{maxFiles})
             </span>
             <span className="text-xs">JPG, PNG, WebP (Max 5MB)</span>
           </div>

@@ -23,7 +23,8 @@ export async function createNotification(
       is_read: false,
     });
   } catch (error) {
-    console.error("Lỗi tạo thông báo:", error);
-    // Không throw error để tránh làm hỏng luồng chính (ví dụ mua hàng xong thì vẫn phải báo thành công dù lỗi notif)
+    console.error("Error creating notification:", error);
+    // Do not throw to avoid breaking the main flow
+    // (e.g. an order should still succeed even if notification fails)
   }
 }

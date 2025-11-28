@@ -43,11 +43,11 @@ export function ReviewDialog({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Lỗi đánh giá");
+      if (!res.ok) throw new Error(data.error || "Review error");
 
-      alert("Cảm ơn bạn đã đánh giá!");
+      alert("Thank you for your review!");
       setIsOpen(false);
-      onSuccess(); // Refresh lại danh sách
+      onSuccess(); // Refresh list
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -59,19 +59,19 @@ export function ReviewDialog({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1">
-          <Star className="h-4 w-4" /> Đánh giá
+          <Star className="h-4 w-4" /> Review
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Đánh giá sản phẩm</DialogTitle>
+          <DialogTitle>Product review</DialogTitle>
           <DialogDescription>
-            Bạn thấy sản phẩm <strong>{productName}</strong> thế nào?
+            How was the product <strong>{productName}</strong> for you?
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* Chọn sao */}
+          {/* Rating stars */}
           <div className="flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -93,19 +93,19 @@ export function ReviewDialog({
           </div>
           <p className="text-center text-sm font-medium text-muted-foreground">
             {rating === 5
-              ? "Tuyệt vời!"
+              ? "Excellent!"
               : rating === 4
-              ? "Hài lòng"
+              ? "Satisfied"
               : rating === 3
-              ? "Bình thường"
-              : "Tệ"}
+              ? "Average"
+              : "Poor"}
           </p>
 
-          {/* Nhập nội dung */}
+          {/* Comment input */}
           <div className="space-y-2">
-            <Label>Nhận xét của bạn</Label>
+            <Label>Your review</Label>
             <Textarea
-              placeholder="Chia sẻ thêm về trải nghiệm của bạn..."
+              placeholder="Share more about your experience..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={4}
@@ -115,11 +115,11 @@ export function ReviewDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsOpen(false)}>
-            Đóng
+            Close
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Gửi đánh giá
+            Submit review
           </Button>
         </DialogFooter>
       </DialogContent>
