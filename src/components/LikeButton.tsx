@@ -1,4 +1,3 @@
-// src/components/forum/LikeButton.tsx
 "use client";
 
 import { useState } from "react";
@@ -36,7 +35,6 @@ export function LikeButton({
 
     if (isLoading) return;
 
-    // Optimistic update
     const previousIsLiked = isLiked;
     const previousCount = likeCount;
 
@@ -55,7 +53,6 @@ export function LikeButton({
       setLikeCount(data.newLikeCount);
       setIsLiked(data.isLiked);
     } catch (error) {
-      // Revert on error
       setIsLiked(previousIsLiked);
       setLikeCount(previousCount);
     } finally {

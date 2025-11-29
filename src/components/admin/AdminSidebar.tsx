@@ -15,10 +15,9 @@ import {
   CreditCard,
   MessageSquare,
   ShoppingBag,
-  Landmark, // Icon cho System Wallet
+  Landmark,
 } from "lucide-react";
 
-// Danh sách các link trong sidebar (Tiếng Anh)
 const navItems = [
   {
     href: "/admin",
@@ -47,7 +46,7 @@ const navItems = [
   },
   {
     href: "/admin/system-wallet",
-    label: "System Wallet", // Ví hệ thống
+    label: "System Wallet",
     icon: Landmark,
   },
   {
@@ -87,9 +86,6 @@ export function AdminSidebar() {
       </div>
       <nav className="flex flex-col gap-1 overflow-y-auto flex-1">
         {navItems.map((item) => {
-          // Logic active:
-          // - Nếu href là "/admin" (Dashboard) -> Phải khớp chính xác
-          // - Các mục khác -> Chỉ cần bắt đầu bằng href (để active cả trang con)
           const isActive =
             item.href === "/admin"
               ? pathname === item.href

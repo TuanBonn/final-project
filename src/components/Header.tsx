@@ -1,4 +1,3 @@
-// src/components/Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -49,15 +48,6 @@ export default function Header() {
               className="w-auto h-8 md:h-10"
             />
           </Link>
-        </div>
-
-        <div className="flex-1 max-w-xl relative mx-4 hidden md:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search..."
-            className="w-full pl-10"
-          />
         </div>
 
         <nav className="ml-auto flex items-center gap-1 md:gap-2">

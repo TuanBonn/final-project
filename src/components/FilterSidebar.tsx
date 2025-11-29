@@ -1,4 +1,3 @@
-// src/components/FilterSidebar.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,7 +16,7 @@ interface FilterSidebarProps {
   setFilterVerified: (value: boolean) => void;
   filterConditions: string[];
   setFilterConditions: (conditions: string[]) => void;
-  filterBrands: string[]; // array brand_id
+  filterBrands: string[];
   setFilterBrands: (brands: string[]) => void;
 }
 

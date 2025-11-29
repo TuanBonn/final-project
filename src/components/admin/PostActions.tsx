@@ -34,7 +34,6 @@ export function PostActions({ post, type, onActionSuccess }: PostActionsProps) {
   const handleDelete = async () => {
     setIsLoading(true);
     try {
-      // Chọn API endpoint dựa trên type
       const endpoint =
         type === "forum"
           ? `/api/admin/posts/${post.id}`

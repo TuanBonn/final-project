@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShieldCheck, Edit, Package } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 
-// Product type definition
 export interface ProductWithDetails {
   id: string;
   name: string;
@@ -39,15 +39,22 @@ const formatCurrency = (amount: number) =>
 
 export function ProductCard({ product }: ProductCardProps) {
   const { user } = useUser();
+  const router = useRouter();
 
-  // Check ownership to show edit button
   const isOwner = user && user.id === product.seller_id;
 
-  // Get first image or placeholder
   const mainImage =
     product.image_urls && product.image_urls.length > 0
       ? product.image_urls[0]
       : null;
+
+  const handleSellerClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (product.seller?.username) {
+      router.push(`/user/${product.seller.username}`);
+    }
+  };
 
   return (
     <div className="group relative h-full">
@@ -118,14 +125,22 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* === FOOTER (Seller info) === */}
           <CardFooter className="p-3 pt-0 border-t bg-muted/20 flex items-center gap-2 mt-auto">
-            <Avatar className="h-6 w-6 border shadow-sm">
-              <AvatarImage src={product.seller?.avatar_url || ""} />
-              <AvatarFallback className="text-[10px]">
-                {product.seller?.username?.[0]?.toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex items-center gap-1 min-w-0 flex-1">
-              <span className="text-xs text-muted-foreground truncate">
+            <div
+              onClick={handleSellerClick}
+              className="cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <Avatar className="h-6 w-6 border shadow-sm">
+                <AvatarImage src={product.seller?.avatar_url || ""} />
+                <AvatarFallback className="text-[10px]">
+                  {product.seller?.username?.[0]?.toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            <div
+              className="flex items-center gap-1 min-w-0 flex-1 cursor-pointer group/seller"
+              onClick={handleSellerClick}
+            >
+              <span className="text-xs text-muted-foreground truncate group-hover/seller:text-primary group-hover/seller:underline">
                 {product.seller?.username || "Anonymous"}
               </span>
               {product.seller?.is_verified && (
@@ -142,7 +157,7 @@ export function ProductCard({ product }: ProductCardProps) {
           href={`/sell/${product.id}/edit`}
           className="absolute top-2 right-2 z-20 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-md text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-blue-50 hover:scale-110"
           title="Edit this product"
-          onClick={(e) => e.stopPropagation()} // Prevent triggering parent Link
+          onClick={(e) => e.stopPropagation()}
         >
           <Edit className="h-4 w-4" />
         </Link>

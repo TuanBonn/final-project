@@ -1,4 +1,3 @@
-// src/components/NotificationBell.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,7 +14,6 @@ import { createClient } from "@supabase/supabase-js";
 import { useUser } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
 
-// Initialize Supabase Client (for Realtime listener)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -37,7 +35,6 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
-  // 1. Fetch initial data on page load
   const fetchNotifications = async () => {
     if (!user) return;
     try {
@@ -54,14 +51,11 @@ export function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // 2. Realtime listener (auto update UI when new notification comes)
   useEffect(() => {
     if (!user) return;
 
-    // Subscribe to 'notifications' table
     const channel = supabase
       .channel(`notif:${user.id}`)
       .on(
@@ -75,13 +69,8 @@ export function NotificationBell() {
         (payload) => {
           const newNotif = payload.new as Notification;
 
-          // Update state
           setNotifications((prev) => [newNotif, ...prev]);
           setUnreadCount((prev) => prev + 1);
-
-          // Optional: play sound
-          // const audio = new Audio('/notification.mp3');
-          // audio.play().catch(() => {});
         }
       )
       .subscribe();
@@ -91,20 +80,16 @@ export function NotificationBell() {
     };
   }, [user]);
 
-  // 3. Handle click on notification (mark as read)
   const handleMarkAsRead = async (notif: Notification) => {
-    // Close popup
     setIsOpen(false);
 
     if (notif.is_read) return;
 
-    // Optimistic UI update
     setNotifications((prev) =>
       prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
 
-    // Update in background
     try {
       await fetch(`/api/notifications/${notif.id}`, { method: "PATCH" });
     } catch (error) {

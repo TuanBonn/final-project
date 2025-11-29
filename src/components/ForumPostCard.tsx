@@ -1,4 +1,3 @@
-// src/components/forum/ForumPostCard.tsx
 "use client";
 
 import Link from "next/link";
@@ -7,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageSquare, CheckCircle, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { enUS } from "date-fns/locale";
-// Import LikeButton
+
 import { LikeButton } from "./LikeButton";
 
 interface ForumPost {

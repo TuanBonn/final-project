@@ -1,20 +1,12 @@
-// src/prisma/schema.prisma
-
-// This is your Prisma schema file.
-// Learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Cấu hình "nguồn" database
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// Cấu hình "đầu ra" (Prisma Client)
 generator client {
   provider = "prisma-client-js"
 }
 
-// --- Enums (Kiểu dữ liệu tùy chỉnh) ---
 enum UserRole {
   user
   dealer
@@ -70,7 +62,7 @@ enum ParticipantStatus {
   pending_payment
   paid
   shipped
-  received      
+  received
   refunded
   @@map("participant_status")
 }
@@ -80,11 +72,11 @@ enum PaymentForType {
   auction_bid_fee
   transaction_commission
   dealer_subscription
-  deposit    // Nạp tiền
-  withdrawal // Rút tiền
-  group_buy_order    // <-- MỚI: Trả tiền mua chung
-  group_buy_refund   // <-- MỚI: Hoàn tiền mua chung
-  group_buy_payout   // <-- MỚI: Trả tiền cho Host
+  deposit
+  withdrawal
+  group_buy_order
+  group_buy_refund
+  group_buy_payout
   verification_fee
   @@map("payment_for_type_enum")
 }
@@ -102,7 +94,6 @@ enum UserStatus {
   @@map("user_status")
 }
 
-// Phương thức thanh toán
 enum PaymentMethod {
   cod
   banking_qr
@@ -110,9 +101,6 @@ enum PaymentMethod {
   @@map("payment_method_enum")
 }
 
-// --- Bảng Dữ liệu ---
-
-// Bảng User
 model User {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   username         String?  @unique
@@ -124,33 +112,22 @@ model User {
   is_verified      Boolean  @default(false)
   reputation_score Int      @default(0)
   status           UserStatus @default(active)
-  shipping_info    Json?    @db.JsonB // { fullName, phone, address, city, district, ward }
-  
-  // Ví tiền
+  shipping_info    Json?    @db.JsonB
   balance          Decimal  @default(0) @db.Decimal
-
-  // Thông tin ngân hàng (để auto-fill khi rút tiền)
-  bank_info        Json?    @db.JsonB // Lưu: { bankName, accountNo, accountName }
-
+  bank_info        Json?    @db.JsonB
   reset_token          String?   @unique
   reset_token_expiry   DateTime? @db.Timestamptz
-
   created_at       DateTime @default(now()) @db.Timestamptz
-
-  // Quan hệ
-  products              Product[]                 @relation("SellerProducts")
-  posts                 Post[]                    @relation("AuthorPosts")
-  comments              Comment[]                 @relation("AuthorComments")
-  wallPosts             WallPost[]                @relation("AuthorWallPosts")
-  wallPostLikes         WallPostLike[]
-  wallPostComments      WallPostComment[]
-  auctionsAsSeller      Auction[]                 @relation("AuctionSeller")
-  auctionsAsWinner      Auction[]                 @relation("AuctionWinner")
+  products              Product[]                 
+  posts                 Post[]                    
+  comments              Comment[]                 
+  auctionsAsSeller      Auction[]                 
+  auctionsAsWinner      Auction[]                 
   bids                  Bid[]
-  transactionsAsBuyer   Transaction[]             @relation("TransactionBuyer")
-  transactionsAsSeller  Transaction[]             @relation("TransactionSeller")
-  reviewsGiven          Review[]                  @relation("Reviewer")
-  reviewsReceived       Review[]                  @relation("Reviewee")
+  transactionsAsBuyer   Transaction[]             
+  transactionsAsSeller  Transaction[]             
+  reviewsGiven          Review[]                  
+  reviewsReceived       Review[]                  
   forumPostLikes        ForumPostLike[]
   conversationParts     ConversationParticipant[]
   sentMessages          Message[]
@@ -158,25 +135,18 @@ model User {
   groupBuyParts         GroupBuyParticipant[]
   platformPayments      PlatformPayment[]
   auctionParticipations AuctionParticipant[]
-  
-  // === QUAN TRỌNG: Quan hệ ngược với Notification ===
   notifications         Notification[]
-  // ================================================
-
   @@map("users")
 }
 
-// Bảng Brand
 model Brand {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name       String    @unique
   created_at DateTime  @default(now()) @db.Timestamptz
   products   Product[]
-
   @@map("brands")
 }
 
-// Bảng Product
 model Product {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   seller      User     @relation("SellerProducts", fields: [seller_id], references: [id])
@@ -185,22 +155,17 @@ model Product {
   description String?
   price       Decimal  @db.Decimal
   quantity    Int      @default(1)
-
   brand_id    String?  @db.Uuid 
   brand       Brand?   @relation(fields: [brand_id], references: [id], onDelete: SetNull)
-
   condition   ProductCondition?
   status      ProductStatus     @default(available)
   image_urls  Json?             @db.JsonB
   created_at  DateTime          @default(now()) @db.Timestamptz
-
   auctions     Auction[]
   transactions Transaction[]
-
   @@map("products")
 }
 
-// --- Forum ---
 model Post {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   author     User     @relation("AuthorPosts", fields: [author_id], references: [id])
@@ -237,44 +202,6 @@ model Comment {
   @@map("comments")
 }
 
-// --- User Wall ---
-model WallPost {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  author     User     @relation("AuthorWallPosts", fields: [user_id], references: [id])
-  user_id    String   @db.Uuid
-  caption    String?
-  image_urls Json?    @db.JsonB
-  created_at DateTime @default(now()) @db.Timestamptz
-  likes      WallPostLike[]
-  comments   WallPostComment[]
-  @@map("wall_posts")
-}
-
-model WallPostLike {
-  user_id    String   @db.Uuid
-  post_id    String   @db.Uuid
-  created_at DateTime @default(now()) @db.Timestamptz
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  post       WallPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  @@id([user_id, post_id])
-  @@map("wall_post_likes")
-}
-
-model WallPostComment {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  post              WallPost           @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  post_id           String             @db.Uuid
-  author            User               @relation(fields: [author_id], references: [id])
-  author_id         String             @db.Uuid
-  content           String
-  created_at        DateTime           @default(now()) @db.Timestamptz
-  parent            WallPostComment?   @relation("WallReplies", fields: [parent_comment_id], references: [id])
-  parent_comment_id String?            @db.Uuid
-  replies           WallPostComment[]  @relation("WallReplies")
-  @@map("wall_post_comments")
-}
-
-// --- Auction ---
 model Auction {
   id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   product           Product                @relation(fields: [product_id], references: [id])
@@ -287,9 +214,7 @@ model Auction {
   status            AuctionStatus          @default(draft)
   winning_bidder    User?                  @relation("AuctionWinner", fields: [winning_bidder_id], references: [id])
   winning_bidder_id String?                @db.Uuid
-  
   created_at        DateTime               @default(now()) @db.Timestamptz
-
   bids              Bid[]
   participants      AuctionParticipant[]
   @@map("auctions")
@@ -316,7 +241,6 @@ model AuctionParticipant {
   @@map("auction_participants")
 }
 
-// --- Transaction & Review ---
 model Transaction {
   id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   product             Product           @relation(fields: [product_id], references: [id], onDelete: Restrict)
@@ -330,14 +254,10 @@ model Transaction {
   platform_commission Decimal           @default(0) @db.Decimal
   status              TransactionStatus @default(initiated)
   quantity            Int               @default(1)
-
-  group_buy_id     String?   @db.Uuid
+  group_buy_id        String?           @db.Uuid
   auction_id          String?           @db.Uuid
-  
   payment_method      PaymentMethod     @default(cod)
-
-  shipping_address Json?    @db.JsonB
-
+  shipping_address    Json?             @db.JsonB
   created_at          DateTime          @default(now()) @db.Timestamptz
   updated_at          DateTime          @default(now()) @db.Timestamptz
   review              Review?
@@ -358,7 +278,6 @@ model Review {
   @@map("reviews")
 }
 
-// --- Chat ---
 model Conversation {
   id           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   created_at   DateTime                  @default(now()) @db.Timestamptz
@@ -387,7 +306,6 @@ model Message {
   @@map("messages")
 }
 
-// --- Group Buy ---
 model GroupBuy {
   id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   host                User                    @relation(fields: [host_id], references: [id], onDelete: SetNull)
@@ -398,7 +316,7 @@ model GroupBuy {
   price_per_unit      Decimal                 @db.Decimal
   target_quantity     Int
   max_quantity        Int?
-  join_deadline       DateTime?                @db.Timestamptz
+  join_deadline       DateTime?               @db.Timestamptz
   status              GroupBuyStatus          @default(open)
   created_at          DateTime                @default(now()) @db.Timestamptz
   participants        GroupBuyParticipant[]
@@ -418,7 +336,6 @@ model GroupBuyParticipant {
   @@map("group_buy_participants")
 }
 
-// --- Platform Payments ---
 model PlatformPayment {
   id                     String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user                   User?          @relation(fields: [user_id], references: [id], onDelete: SetNull)
@@ -429,16 +346,12 @@ model PlatformPayment {
   related_id             String?        @db.Uuid
   status                 PaymentStatus  @default(pending)
   gateway_transaction_id String?
-  
-  // Thông tin rút tiền (Snapshot lịch sử)
-  withdrawal_info        Json?          @db.JsonB // { bankName, accountNo, accountName }
-
+  withdrawal_info        Json?          @db.JsonB
   created_at             DateTime       @default(now()) @db.Timestamptz
   updated_at             DateTime       @default(now()) @db.Timestamptz
   @@map("platform_payments")
 }
 
-// --- App Settings ---
 model AppSetting {
   key         String    @id
   value       String?
@@ -447,17 +360,15 @@ model AppSetting {
   @@map("app_settings")
 }
 
-// === THÊM BẢNG NOTIFICATION ===
 model Notification {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   user_id    String   @db.Uuid
   title      String
   message    String
-  type       String   // order, wallet, auction, system, chat
-  link       String?  // Link để click vào (vd: /orders, /wallet)
+  type       String
+  link       String?
   is_read    Boolean  @default(false)
   created_at DateTime @default(now()) @db.Timestamptz
-
   @@map("notifications")
 }

@@ -1,4 +1,3 @@
-// src/components/AddToCartButton.tsx
 "use client";
 
 import { useState } from "react";

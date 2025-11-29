@@ -1,4 +1,3 @@
-// src/app/profile/page.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -29,7 +28,7 @@ import {
   Package,
   HelpCircle,
   Gem,
-  Search, // <-- Icon Search
+  Search,
 } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { Separator } from "@/components/ui/separator";
@@ -101,9 +100,7 @@ export default function ProfilePage() {
   const [userProducts, setUserProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
-  // === SEARCH STATE ===
   const [searchTerm, setSearchTerm] = useState("");
-  // ====================
 
   useEffect(() => {
     if (user) {
@@ -227,7 +224,6 @@ export default function ProfilePage() {
     }
   };
 
-  // === FILTER PRODUCTS ===
   const displayedProducts = userProducts.filter((prod) => {
     const isAvailable = prod.status === "available";
     const matchesSearch = prod.name
@@ -235,7 +231,6 @@ export default function ProfilePage() {
       .includes(searchTerm.toLowerCase());
     return isAvailable && matchesSearch;
   });
-  // =======================
 
   if (!user) {
     return (

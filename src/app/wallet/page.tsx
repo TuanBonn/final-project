@@ -1,4 +1,3 @@
-// src/app/wallet/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -61,7 +60,6 @@ const formatCurrency = (amount: number) =>
     amount
   );
 
-// Helper to determine if transaction is a deduction
 const isNegativeTransaction = (type: string) => {
   return (
     type === "withdrawal" ||
@@ -69,12 +67,11 @@ const isNegativeTransaction = (type: string) => {
     type.includes("fee") ||
     type === "auction_bid_fee" ||
     type === "transaction_commission" ||
-    type === "dealer_subscription" || // Dealer subscription is a deduction
-    type === "verification_fee" // Account verification fee is a deduction
+    type === "dealer_subscription" ||
+    type === "verification_fee"
   );
 };
 
-// Helper to get transaction label
 const getPaymentLabel = (type: string) => {
   switch (type) {
     case "deposit":

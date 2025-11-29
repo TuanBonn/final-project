@@ -1,4 +1,3 @@
-// src/components/Pagination.tsx
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ export function Pagination({
   onPageChange,
   loading,
 }: PaginationProps) {
-  if (totalPages <= 1) return null; // Do not render if there is only 1 page
+  if (totalPages <= 1) return null;
 
   return (
     <div className="flex items-center justify-center gap-4 py-8">

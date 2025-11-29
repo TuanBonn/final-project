@@ -1,4 +1,3 @@
-// src/app/group-buys/[id]/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -19,7 +18,7 @@ import {
   X,
   Settings,
   AlertTriangle,
-  ExternalLink, // Icon mới
+  ExternalLink,
 } from "lucide-react";
 import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { useUser } from "@/contexts/UserContext";
@@ -56,7 +55,6 @@ export default function GroupBuyDetailPage() {
     fetchGroupBuy();
   }, [fetchGroupBuy]);
 
-  // --- HOST CLOSE / CANCEL GROUP BUY ---
   const handleHostStatusChange = async (newStatus: "successful" | "failed") => {
     const confirmMsg =
       newStatus === "successful"
@@ -87,7 +85,6 @@ export default function GroupBuyDetailPage() {
     }
   };
 
-  // --- USER JOIN ---
   const handleJoin = async () => {
     if (!user) {
       router.push("/login");
@@ -137,7 +134,7 @@ export default function GroupBuyDetailPage() {
     return <div className="text-center py-20">Group buy does not exist.</div>;
 
   const isOpen = groupBuy.status === "open";
-  const isSuccessful = groupBuy.status === "successful"; // Orders created
+  const isSuccessful = groupBuy.status === "successful";
   const isFailed = groupBuy.status === "failed";
 
   const isHost = user && groupBuy.host.id === user.id;
@@ -229,6 +226,8 @@ export default function GroupBuyDetailPage() {
                   >
                     <Check className="mr-2 h-4 w-4" /> Close Group Buy
                   </Button>
+                </div>
+                <div className="flex gap-2">
                   <Button
                     variant="destructive"
                     className="flex-1"

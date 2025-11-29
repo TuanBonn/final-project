@@ -1,4 +1,3 @@
-// src/app/api/wallet/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -37,7 +36,6 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET ===
 export async function GET(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -48,7 +46,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
   try {
-    // 1. Get user's balance and bank_info
     const { data: user, error: userError } = await supabase
       .from("users")
       .select("balance, bank_info")
@@ -57,7 +54,6 @@ export async function GET(request: NextRequest) {
 
     if (userError) throw userError;
 
-    // 2. Get transaction history
     const { data: history, error: historyError } = await supabase
       .from("platform_payments")
       .select("*")
@@ -66,13 +62,11 @@ export async function GET(request: NextRequest) {
 
     if (historyError) throw historyError;
 
-    // === 3. GET ADMIN BANK CONFIG FROM APP_SETTINGS ===
     const { data: appSettings } = await supabase
       .from("app_settings")
       .select("key, value")
       .in("key", ["BANK_ID", "ACCOUNT_NO", "ACCOUNT_NAME", "QR_TEMPLATE"]);
 
-    // Convert array to object for easier usage
     const systemBankInfo = {
       bankId: appSettings?.find((s) => s.key === "BANK_ID")?.value || "MB",
       accountNo: appSettings?.find((s) => s.key === "ACCOUNT_NO")?.value || "",
@@ -81,14 +75,13 @@ export async function GET(request: NextRequest) {
       template:
         appSettings?.find((s) => s.key === "QR_TEMPLATE")?.value || "compact2",
     };
-    // =======================================================
 
     return NextResponse.json(
       {
         balance: user.balance,
         bankInfo: user.bank_info,
         history: history || [],
-        systemBankInfo, // Return to client
+        systemBankInfo,
       },
       { status: 200 }
     );
@@ -97,7 +90,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ... (POST part remains as before)
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -117,7 +109,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // DEPOSIT
     if (type === "deposit") {
       const { data, error } = await supabase
         .from("platform_payments")
@@ -136,10 +127,7 @@ export async function POST(request: NextRequest) {
         { message: "Deposit request created.", payment: data },
         { status: 201 }
       );
-    }
-
-    // WITHDRAWAL
-    else if (type === "withdrawal") {
+    } else if (type === "withdrawal") {
       if (
         !bankInfo?.bankName ||
         !bankInfo?.accountNo ||
@@ -177,7 +165,6 @@ export async function POST(request: NextRequest) {
         .select()
         .single();
 
-      // Deduct balance immediately
       await supabase
         .from("users")
         .update({ balance: user.balance - amount })

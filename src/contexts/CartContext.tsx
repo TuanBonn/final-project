@@ -1,4 +1,3 @@
-// src/contexts/CartContext.tsx
 "use client";
 
 import React, {
@@ -33,7 +32,6 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  // Load cart
   useEffect(() => {
     const savedCart = localStorage.getItem("cart");
     if (savedCart) {
@@ -45,7 +43,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Save cart
   useEffect(() => {
     localStorage.setItem("cart", JSON.stringify(items));
   }, [items]);
@@ -54,7 +51,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const existingItem = prev.find((item) => item.id === newItem.id);
       if (existingItem) {
-        // Safe fallback if maxQuantity is undefined
         const safeMax = existingItem.maxQuantity ?? 999;
 
         const newQty = Math.min(
@@ -80,7 +76,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          // Safe fallback
           const safeMax = item.maxQuantity ?? 999;
           const validQty = Math.max(1, Math.min(newQuantity, safeMax));
           return { ...item, quantity: validQty };

@@ -1,4 +1,3 @@
-// src/components/BuyProductDialog.tsx
 "use client";
 
 import { useState } from "react";

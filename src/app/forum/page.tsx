@@ -1,13 +1,12 @@
-// src/app/forum/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, Search, MessageSquarePlus } from "lucide-react";
-// === IMPORT COMPONENT ===
+
 import { ForumPostCard } from "@/components/ForumPostCard";
-// ====================
+
 import { useUser } from "@/contexts/UserContext";
 import { useRouter } from "next/navigation";
 import {
@@ -21,7 +20,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-// (Interface stays the same)
 interface ForumPost {
   id: string;
   title: string;
@@ -45,7 +43,6 @@ export default function ForumPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // State for Create Post
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
@@ -89,7 +86,7 @@ export default function ForumPage() {
       setNewTitle("");
       setNewContent("");
       setCreateOpen(false);
-      fetchPosts(); // Reload list
+      fetchPosts();
       alert("Post created successfully!");
     } catch (error) {
       alert("An error occurred while creating the post.");

@@ -1,4 +1,3 @@
-// src/components/admin/TransactionActions.tsx
 "use client";
 
 import { useState } from "react";
@@ -42,14 +41,12 @@ export function TransactionActions({
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionConfig, setActionConfig] = useState<{
-    // Admin only cares about these 2 final states
     newStatus: "completed" | "cancelled";
     title: string;
     desc: string;
     isDestructive?: boolean;
   } | null>(null);
 
-  // Prepare action
   const setupAction = (
     status: "completed" | "cancelled",
     title: string,
@@ -60,7 +57,6 @@ export function TransactionActions({
     setDialogOpen(true);
   };
 
-  // Execute API call
   const executeAction = async () => {
     if (!actionConfig) return;
     setIsLoading(true);
@@ -84,7 +80,6 @@ export function TransactionActions({
     }
   };
 
-  // If transaction is already in a final state, no further actions
   const isFinal =
     transaction.status === "completed" || transaction.status === "cancelled";
 

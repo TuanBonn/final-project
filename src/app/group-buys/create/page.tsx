@@ -1,4 +1,3 @@
-// src/app/group-buys/create/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -53,23 +52,20 @@ export default function CreateGroupBuyPage() {
     setLoading(true);
 
     try {
-      // 1. Upload images
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
       const imageUrls = await Promise.all(uploadPromises);
 
-      // 2. Call API to create group buy
       const res = await fetch("/api/group-buys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productName: formData.productName,
           description: formData.productDescription,
-          price: formData.pricePerUnit, // API will sanitize non-digit chars
+          price: formData.pricePerUnit,
           targetQuantity: formData.targetQuantity,
           imageUrls: imageUrls,
-          // No deadline sent
         }),
       });
 

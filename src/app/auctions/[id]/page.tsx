@@ -46,7 +46,7 @@ interface AuctionDetail {
   end_time: string;
   winning_bidder_id: string | null;
   isJoined: boolean;
-  orderId: string | null; // Order ID if already created
+  orderId: string | null;
   product: {
     id: string;
     name: string;
@@ -69,7 +69,6 @@ const formatCurrency = (val: number) =>
     val
   );
 
-// Countdown Component
 const Countdown = ({
   targetDate,
   onExpire,
@@ -132,7 +131,6 @@ export default function AuctionDetailPage() {
   const [joining, setJoining] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
 
-  // Ref to avoid stale closure in setInterval
   const auctionRef = useRef(auction);
   useEffect(() => {
     auctionRef.current = auction;
@@ -142,7 +140,6 @@ export default function AuctionDetailPage() {
     async (isSilent = false) => {
       if (!isSilent) setLoading(true);
       try {
-        // Add timestamp to avoid cache
         const res = await fetch(
           `/api/auctions/${id}?t=${new Date().getTime()}`
         );
@@ -152,7 +149,6 @@ export default function AuctionDetailPage() {
         }
         const data = await res.json();
 
-        // Update state if there is new data
         setAuction((prev) => {
           if (JSON.stringify(prev) !== JSON.stringify(data.auction)) {
             return data.auction;
@@ -172,7 +168,6 @@ export default function AuctionDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // Polling fallback (every 3s if active)
   useEffect(() => {
     const interval = setInterval(() => {
       if (auctionRef.current?.status === "active") {
@@ -182,7 +177,6 @@ export default function AuctionDetailPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Realtime listener
   useEffect(() => {
     if (!id) return;
     console.log("Listening to realtime channel:", `auction_room:${id}`);
@@ -191,7 +185,7 @@ export default function AuctionDetailPage() {
       .on(
         "postgres_changes",
         {
-          event: "*", // Listen to all events
+          event: "*",
           schema: "public",
           table: "bids",
           filter: `auction_id=eq.${id}`,
@@ -305,7 +299,6 @@ export default function AuctionDetailPage() {
     new Date(auction.end_time).getTime() + 24 * 60 * 60 * 1000
   );
 
-  // === CHECK IF ORDER EXISTS ===
   const hasOrder = !!auction.orderId;
 
   return (

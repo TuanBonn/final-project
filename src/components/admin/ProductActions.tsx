@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, EyeOff, Eye, Loader2, Lock } from "lucide-react"; // <-- Đã xóa Edit
+import { MoreHorizontal, EyeOff, Eye, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,7 +21,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-// Đã xóa import Link vì không còn dùng
 
 type ProductRow = {
   id: string;
@@ -45,7 +44,6 @@ export function ProductActions({
   const isHidden = product.status === "hidden";
   const isAuction = product.status === "auction";
 
-  // Dịch action sang tiếng Anh
   const currentAction = isHidden ? "Restore (Unhide)" : "Hide (Admin Ban)";
   const newStatus = isHidden ? "available" : "hidden";
 

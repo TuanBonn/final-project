@@ -1,4 +1,3 @@
-// src/lib/mail.ts
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
@@ -11,7 +10,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// 1. Send order confirmation email
 export const sendOrderConfirmationEmail = async (
   toEmail: string,
   orderId: string,
@@ -63,7 +61,6 @@ export const sendOrderConfirmationEmail = async (
   }
 };
 
-// 2. Send wallet transaction email
 export const sendWalletTransactionEmail = async (
   toEmail: string,
   type: "deposit" | "withdrawal",
@@ -94,7 +91,6 @@ export const sendWalletTransactionEmail = async (
       color = "#dc2626";
     }
   } else {
-    // Withdrawal
     if (isSuccess) {
       title = "Withdrawal Successful";
       message = `Admin has transferred <strong>${formattedAmount}</strong> to your bank account. Please check your banking app.`;
@@ -140,7 +136,6 @@ export const sendWalletTransactionEmail = async (
   }
 };
 
-// 3. Send Reset Password email
 export const sendPasswordResetEmail = async (
   toEmail: string,
   token: string,

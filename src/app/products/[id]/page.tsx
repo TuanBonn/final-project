@@ -1,6 +1,6 @@
-// src/app/products/[id]/page.tsx
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,7 @@ export default async function ProductDetailPage({
   }
 
   const isAvailable = product.status === "available" && product.quantity > 0;
+  const profileUrl = `/users/${product.seller.id}`;
 
   return (
     <div className="container mx-auto py-6 max-w-6xl px-4">
@@ -127,16 +128,24 @@ export default async function ProductDetailPage({
           {/* Seller Info */}
           <div className="bg-muted/30 p-4 rounded-lg border hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-4">
-              <Avatar className="h-12 w-12 border-2 border-background">
-                <AvatarImage src={product.seller.avatar_url || ""} />
-                <AvatarFallback>
-                  {getInitials(
-                    product.seller.full_name || product.seller.username
-                  )}
-                </AvatarFallback>
-              </Avatar>
+              {/* Avatar clickable → profile */}
+              <Link href={profileUrl}>
+                <Avatar className="h-12 w-12 border-2 border-background cursor-pointer">
+                  <AvatarImage src={product.seller.avatar_url || ""} />
+                  <AvatarFallback>
+                    {getInitials(
+                      product.seller.full_name || product.seller.username
+                    )}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
+
               <div className="flex-1">
-                <div className="flex items-center gap-2">
+                {/* Username clickable → profile */}
+                <Link
+                  href={profileUrl}
+                  className="flex items-center gap-2 hover:underline"
+                >
                   <p className="font-semibold text-lg">
                     {product.seller.username}
                   </p>
@@ -146,7 +155,7 @@ export default async function ProductDetailPage({
                       aria-label="Verified"
                     />
                   )}
-                </div>
+                </Link>
                 <p className="text-sm text-muted-foreground">
                   Joined:{" "}
                   {new Date(product.seller.created_at).toLocaleDateString(
@@ -154,13 +163,19 @@ export default async function ProductDetailPage({
                   )}
                 </p>
               </div>
+
               <div className="text-right">
                 <div className="flex items-center gap-1 text-sm font-medium justify-end">
                   <ShieldCheck className="h-4 w-4 text-blue-600" /> Reputation:{" "}
                   {product.seller.reputation_score}
                 </div>
-                <Button variant="link" size="sm" className="px-0 h-auto mt-1">
-                  View Profile
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="px-0 h-auto mt-1"
+                  asChild
+                >
+                  <Link href={profileUrl}>View Profile</Link>
                 </Button>
               </div>
             </div>

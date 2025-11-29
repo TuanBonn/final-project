@@ -24,7 +24,6 @@ export function UpgradeAccount() {
   const [loading, setLoading] = useState(false);
   const [fees, setFees] = useState({ verify: 0, dealer: 0 });
 
-  // Fetch fees from settings API
   useEffect(() => {
     const getFees = async () => {
       try {
@@ -84,7 +83,6 @@ export function UpgradeAccount() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      {/* VERIFY CARD */}
       <Card
         className={`border-2 ${
           user.is_verified ? "border-green-200 bg-green-50" : "border-muted"
@@ -142,7 +140,6 @@ export function UpgradeAccount() {
         </CardFooter>
       </Card>
 
-      {/* DEALER CARD */}
       <Card
         className={`border-2 ${
           user.role === "dealer"

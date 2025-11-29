@@ -11,7 +11,7 @@ interface BidFormProps {
   auctionId: string;
   currentPrice: number;
   minStep?: number;
-  onSuccess?: () => void; // Callback when bid succeeds
+  onSuccess?: () => void;
 }
 
 const formatCurrency = (val: number) =>
@@ -19,7 +19,6 @@ const formatCurrency = (val: number) =>
     val
   );
 
-// === NOTE: Using Named Export ===
 export function BidForm({
   auctionId,
   currentPrice,

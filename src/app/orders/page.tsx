@@ -1,4 +1,3 @@
-// src/app/orders/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -196,10 +195,7 @@ export default function OrdersPage() {
       return (
         <span className="text-sm text-muted-foreground">Processing...</span>
       );
-    }
-
-    // --- SELLER ---
-    else {
+    } else {
       const AddressButton = (
         <OrderDetailsDialog
           shippingAddress={order.shipping_address}

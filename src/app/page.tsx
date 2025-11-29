@@ -1,4 +1,3 @@
-// src/app/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -13,18 +12,15 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State cho Phân trang
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // State cho Bộ lọc & Tìm kiếm
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("created_at_desc");
   const [filterVerified, setFilterVerified] = useState(false);
   const [filterConditions, setFilterConditions] = useState<string[]>([]);
   const [filterBrands, setFilterBrands] = useState<string[]>([]);
 
-  // Khi thay đổi bộ lọc -> Reset về trang 1
   const handleFilterChange = useCallback(() => {
     setPage(1);
   }, []);

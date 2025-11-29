@@ -1,4 +1,3 @@
-// src/components/ImageUploadPreview.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -25,7 +24,6 @@ export function ImageUploadPreview({
 
     let newFiles = Array.from(files);
 
-    // Limit number of files
     if (selectedFiles.length + newFiles.length > maxFiles) {
       alert(`You can only select up to ${maxFiles} images.`);
       newFiles = newFiles.slice(0, maxFiles - selectedFiles.length);
@@ -40,7 +38,6 @@ export function ImageUploadPreview({
       setSelectedFiles(updatedFiles);
       onFilesChange(updatedFiles);
 
-      // Create preview URLs
       const newPreviews = validImageFiles.map((file) =>
         URL.createObjectURL(file)
       );

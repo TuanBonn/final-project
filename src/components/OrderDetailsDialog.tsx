@@ -1,4 +1,3 @@
-// src/components/OrderDetailsDialog.tsx
 "use client";
 
 import {

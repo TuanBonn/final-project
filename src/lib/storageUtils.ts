@@ -1,5 +1,3 @@
-// src/lib/storageUtils.ts
-
 /**
  * Uploads a file via /api/upload.
  * @param bucketName Target bucket ('avatars', 'products', etc.).
@@ -21,13 +19,9 @@ export async function uploadFileViaApi(
 
   try {
     const response = await fetch("/api/upload", {
-      // Call your API
       method: "POST",
       body: formData,
-      // === ADD THIS LINE TO FORCE COOKIE TO BE SENT ===
       credentials: "include",
-      // =================================================
-      // No need to set 'Content-Type', browser handles FormData automatically
     });
 
     const data = await response.json();

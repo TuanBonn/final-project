@@ -1,4 +1,3 @@
-// src/app/forum/[id]/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -18,7 +17,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useUser } from "@/contexts/UserContext";
-import { LikeButton } from "@/components/LikeButton"; // Import LikeButton
+import { LikeButton } from "@/components/LikeButton";
 
 interface PostDetail {
   id: string;
@@ -60,13 +59,11 @@ export default function ForumPostDetailPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      // Fetch Post
       const postRes = await fetch(`/api/forum/posts/${postId}`);
       if (!postRes.ok) throw new Error("Post not found");
       const postData = await postRes.json();
       setPost(postData.post);
 
-      // Fetch Comments
       const commentsRes = await fetch(`/api/forum/posts/${postId}/comments`);
       const commentsData = await commentsRes.json();
       setComments(commentsData.comments || []);

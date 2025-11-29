@@ -1,4 +1,3 @@
-// src/components/ProductImageGallery.tsx
 "use client";
 
 import { useState } from "react";
@@ -36,7 +35,6 @@ export function ProductImageGallery({
         />
       </div>
 
-      {/* Thumbnail list */}
       {imageList.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-2 snap-x scrollbar-hide">
           {imageList.map((url, index) => (

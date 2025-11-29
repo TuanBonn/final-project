@@ -1,4 +1,3 @@
-// src/app/group-buys/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -24,7 +23,7 @@ interface GroupBuy {
   price: number;
   target: number;
   current: number;
-  status: string; // "open", "successful", "completed", "failed"
+  status: string;
   host: {
     username: string;
     avatar_url: string | null;
@@ -57,7 +56,6 @@ export default function GroupBuysPage() {
     fetchData();
   }, []);
 
-  // Client-side filtering
   const filteredList = groupBuys.filter((gb) =>
     gb.name.toLowerCase().includes(search.toLowerCase())
   );

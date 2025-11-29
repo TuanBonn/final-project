@@ -1,4 +1,3 @@
-// src/components/admin/AuctionActions.tsx
 "use client";
 
 import { useState } from "react";
@@ -43,7 +42,6 @@ export function AuctionActions({
     }
   };
 
-  // Nếu đã kết thúc -> Khóa nút (Disabled)
   const isEnded = auction.status === "ended";
 
   return (
@@ -52,7 +50,7 @@ export function AuctionActions({
         <Button
           variant="ghost"
           className="h-8 w-8 p-0"
-          disabled={isLoading || isEnded} // <--- KHÓA TẠI ĐÂY
+          disabled={isLoading || isEnded}
         >
           {isLoading ? (
             <Loader2 className="animate-spin h-4 w-4" />
@@ -66,7 +64,6 @@ export function AuctionActions({
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        {/* Chỉ hiện Cancel nếu chưa cancel */}
         {auction.status !== "cancelled" && (
           <DropdownMenuItem
             onClick={() => updateStatus("cancelled")}
@@ -76,7 +73,6 @@ export function AuctionActions({
           </DropdownMenuItem>
         )}
 
-        {/* Cho phép khôi phục nếu đã Cancel */}
         {auction.status === "cancelled" && (
           <DropdownMenuItem
             onClick={() => updateStatus("active")}

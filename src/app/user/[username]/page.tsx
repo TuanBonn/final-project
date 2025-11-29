@@ -1,4 +1,3 @@
-// src/app/user/[username]/page.tsx
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -21,7 +20,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// --- Supabase configuration ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -114,7 +112,6 @@ export default async function PublicProfilePage({
   const decodedUsername = decodeURIComponent(username);
   const supabase = getSupabaseAdmin();
 
-  // 1. Fetch user info
   const { data: profile, error: profileError } = await supabase
     .from("users")
     .select(
@@ -127,7 +124,6 @@ export default async function PublicProfilePage({
     return notFound();
   }
 
-  // 2. Query products (with search filter)
   const currentPage = Number(page) || 1;
   const limit = 12;
   const from = (currentPage - 1) * limit;
@@ -146,7 +142,6 @@ export default async function PublicProfilePage({
     .eq("seller_id", profile.id)
     .in("status", ["available", "auction"]);
 
-  // Apply search condition
   if (searchQuery) {
     query = query.ilike("name", `%${searchQuery}%`);
   }

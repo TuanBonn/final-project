@@ -1,4 +1,3 @@
-// src/components/ReviewDialog.tsx
 "use client";
 
 import { useState } from "react";
@@ -47,7 +46,7 @@ export function ReviewDialog({
 
       alert("Thank you for your review!");
       setIsOpen(false);
-      onSuccess(); // Refresh list
+      onSuccess();
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -71,7 +70,6 @@ export function ReviewDialog({
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* Rating stars */}
           <div className="flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -101,7 +99,6 @@ export function ReviewDialog({
               : "Poor"}
           </p>
 
-          {/* Comment input */}
           <div className="space-y-2">
             <Label>Your review</Label>
             <Textarea

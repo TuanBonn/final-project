@@ -1,4 +1,3 @@
-// src/contexts/UserContext.tsx
 "use client";
 
 import React, {
@@ -11,7 +10,6 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 
-// Định nghĩa kiểu dữ liệu User
 interface User {
   id: string;
   email: string;
@@ -21,8 +19,7 @@ interface User {
   role: "user" | "dealer" | "admin";
   is_verified: boolean;
   balance: number;
-  reputation_score: number; // Thêm trường này
-  // Các trường bổ sung (Cho phép any hoặc define kỹ)
+  reputation_score: number;
   shipping_info?: any;
   bank_info?: any;
 }
@@ -41,7 +38,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const fetchUserData = useCallback(async () => {
-    // Không set loadingUser=true ở đây để tránh nhấp nháy giao diện khi update ngầm
     try {
       const res = await fetch("/api/profile/me", {
         // Dùng API profile để lấy full info

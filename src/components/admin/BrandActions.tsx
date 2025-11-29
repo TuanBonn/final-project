@@ -1,4 +1,3 @@
-// src/components/admin/BrandActions.tsx
 "use client";
 
 import { useState } from "react";
@@ -66,7 +65,6 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
 
     const trimmedName = name.trim();
 
-    // === VALIDATION CLIENT-SIDE ===
     if (trimmedName.length === 0) {
       setError("Brand name is required.");
       return;
@@ -82,7 +80,6 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
       );
       return;
     }
-    // ==============================
 
     setIsLoading(true);
     try {
@@ -129,7 +126,6 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
     }
   };
 
-  // Render nút Create (cho trang chính)
   if (isCreating) {
     return (
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
@@ -157,11 +153,11 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
                   value={name}
                   onChange={(e) => {
                     setName(e.target.value);
-                    setError(null); // Clear error on typing
+                    setError(null);
                   }}
                   className="col-span-3"
                   placeholder="e.g. MiniGT"
-                  maxLength={12} // HTML restrict
+                  maxLength={12}
                   required
                 />
               </div>
@@ -183,7 +179,6 @@ export function BrandActions({ brand, onActionSuccess }: BrandActionsProps) {
     );
   }
 
-  // Render Actions cho từng dòng
   return (
     <>
       {/* Edit Dialog */}

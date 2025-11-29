@@ -1,8 +1,5 @@
-// src/components/LogoutButton.tsx
 "use client";
 
-// NO need to import createClient anymore
-// import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "./ui/button";
 
@@ -11,7 +8,6 @@ export default function LogoutButton() {
 
   const handleLogout = async () => {
     try {
-      // Call your logout API
       const response = await fetch("/api/auth/logout", {
         method: "POST",
       });
@@ -21,10 +17,9 @@ export default function LogoutButton() {
         throw new Error(data.error || "Logout failed.");
       }
 
-      // Logout successful
-      console.log("Successfully logged out from client."); // Debug log
-      router.replace("/"); // Back to homepage
-      router.refresh(); // Refresh page to update UI (Header receives user = null)
+      console.log("Successfully logged out from client.");
+      router.replace("/");
+      router.refresh();
     } catch (error: unknown) {
       console.error("Logout error:", error);
       let errorMessage = "An error occurred.";

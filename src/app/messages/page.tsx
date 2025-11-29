@@ -18,7 +18,6 @@ import {
 import { useUser } from "@/contexts/UserContext";
 import { useSearchParams, useRouter } from "next/navigation";
 
-// Khởi tạo Client Supabase
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -88,7 +87,6 @@ export default function MessagesPage() {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Filter conversations when search changes
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredConversations(conversations);
@@ -116,7 +114,6 @@ export default function MessagesPage() {
     }
   }, []);
 
-  // Realtime
   useEffect(() => {
     if (!activeConvId) return;
 

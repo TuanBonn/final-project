@@ -1,4 +1,3 @@
-// src/lib/notification.ts
 import { SupabaseClient } from "@supabase/supabase-js";
 
 interface CreateNotificationParams {
@@ -24,7 +23,5 @@ export async function createNotification(
     });
   } catch (error) {
     console.error("Error creating notification:", error);
-    // Do not throw to avoid breaking the main flow
-    // (e.g. an order should still succeed even if notification fails)
   }
 }
