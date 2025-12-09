@@ -31,19 +31,20 @@ export function UpgradeAccount() {
         const data = await res.json();
         const settings = data.settings || [];
 
+        // Updated: Removed hardcoded fallbacks ("50000", "200000")
+        // Now defaults to "0" if the key is not found in App Settings
         const vFee =
-          settings.find((s: any) => s.key === "verification_fee")?.value ||
-          "50000";
+          settings.find((s: any) => s.key === "verification_fee")?.value || "0";
         const dFee =
           settings.find((s: any) => s.key === "dealer_subscription")?.value ||
-          "200000";
+          "0";
 
         setFees({
           verify: parseInt(vFee.toString().replace(/\D/g, "")),
           dealer: parseInt(dFee.toString().replace(/\D/g, "")),
         });
       } catch (e) {
-        console.error(e);
+        console.error("Failed to fetch upgrade fees:", e);
       }
     };
     getFees();
