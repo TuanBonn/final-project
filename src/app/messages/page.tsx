@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,8 @@ interface Message {
   created_at: string;
 }
 
-export default function MessagesPage() {
+// === Tách logic chính vào component con ===
+function MessagesContent() {
   const { user } = useUser();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -393,5 +394,20 @@ export default function MessagesPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+// === Component chính export ra ngoài ===
+export default function MessagesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <MessagesContent />
+    </Suspense>
   );
 }
