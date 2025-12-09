@@ -1,86 +1,88 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Loader2, Ban, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AuctionStatus } from "@prisma/client";
+import { MoreHorizontal, Ban, Loader2 } from "lucide-react";
 
 interface AuctionActionsProps {
-  auction: { id: string; status: AuctionStatus };
-  onActionSuccess: () => void;
+  auctionId: string;
+  currentStatus: string;
+  onUpdate: () => void;
 }
 
 export function AuctionActions({
-  auction,
-  onActionSuccess,
+  auctionId,
+  currentStatus,
+  onUpdate,
 }: AuctionActionsProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const updateStatus = async (newStatus: AuctionStatus) => {
-    if (!confirm("Are you sure you want to change the status?")) return;
-    setIsLoading(true);
+  const handleCancelAuction = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to cancel this auction? Participants will be refunded."
+      )
+    )
+      return;
+
+    setLoading(true);
     try {
-      const res = await fetch(`/api/admin/auctions/${auction.id}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/auctions/${auctionId}/finalize`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: "cancelled", isAdmin: true }),
       });
-      if (!res.ok) throw new Error("Update failed");
-      onActionSuccess();
+
+      if (res.ok) {
+        alert("Auction cancelled successfully.");
+        onUpdate();
+      } else {
+        const errorData = await res.json();
+        alert(`Error: ${errorData.error || "Failed to cancel auction"}`);
+      }
     } catch (error) {
-      alert("An error occurred");
+      console.error(error);
+      alert("Connection error.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const isEnded = auction.status === "ended";
+  // Chỉ hiển thị Action nếu trạng thái là "active"
+  if (currentStatus !== "active") {
+    return (
+      <Button variant="ghost" size="icon" disabled className="opacity-50">
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          disabled={isLoading || isEnded}
-        >
-          {isLoading ? (
-            <Loader2 className="animate-spin h-4 w-4" />
+        <Button variant="ghost" className="h-8 w-8 p-0">
+          <span className="sr-only">Open menu</span>
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <MoreHorizontal className="h-4 w-4" />
           )}
         </Button>
       </DropdownMenuTrigger>
-
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-
-        {auction.status !== "cancelled" && (
-          <DropdownMenuItem
-            onClick={() => updateStatus("cancelled")}
-            className="text-red-600"
-          >
-            <Ban className="mr-2 h-4 w-4" /> Cancel Auction
-          </DropdownMenuItem>
-        )}
-
-        {auction.status === "cancelled" && (
-          <DropdownMenuItem
-            onClick={() => updateStatus("active")}
-            className="text-blue-600"
-          >
-            <CheckCircle className="mr-2 h-4 w-4" /> Restore (Set Active)
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem
+          className="text-red-600 focus:text-red-600 cursor-pointer"
+          onClick={handleCancelAuction}
+          disabled={loading}
+        >
+          <Ban className="mr-2 h-4 w-4" /> Cancel Auction
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

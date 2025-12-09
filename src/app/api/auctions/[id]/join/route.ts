@@ -47,6 +47,29 @@ export async function POST(
   const supabase = getSupabaseAdmin();
 
   try {
+    // === 0. [MỚI] KIỂM TRA CHỦ SỞ HỮU (Chặn tự tham gia) ===
+    const { data: auction } = await supabase
+      .from("auctions")
+      .select("seller_id")
+      .eq("id", auctionId)
+      .single();
+
+    if (!auction) {
+      return NextResponse.json(
+        { error: "Auction not found." },
+        { status: 404 }
+      );
+    }
+
+    // Nếu người dùng hiện tại là người bán -> Trả về lỗi
+    if (auction.seller_id === userId) {
+      return NextResponse.json(
+        { error: "You cannot join your own auction." },
+        { status: 403 }
+      );
+    }
+    // ========================================================
+
     // 1. Lấy phí tham gia từ cài đặt
     const { data: feeSetting } = await supabase
       .from("app_settings")
@@ -97,7 +120,7 @@ export async function POST(
     await supabase.from("platform_payments").insert({
       user_id: userId,
       amount: fee,
-      payment_for_type: "auction_creation_fee", // Có thể dùng loại phí khác nếu muốn
+      payment_for_type: "auction_creation_fee", // Hoặc loại phí phù hợp trong enum
       status: "succeeded",
       currency: "VND",
       related_id: auctionId,

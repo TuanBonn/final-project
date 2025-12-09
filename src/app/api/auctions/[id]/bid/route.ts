@@ -159,7 +159,7 @@ export async function POST(
     const timeRemaining = endTime - now.getTime();
 
     if (timeRemaining < 2 * 60 * 1000) {
-      const newEndTime = new Date(endTime + 2 * 60 * 1000); // Cộng thêm 2 phút
+      const newEndTime = new Date(endTime + 2 * 60 * 1000);
       await supabase
         .from("auctions")
         .update({ end_time: newEndTime.toISOString() })

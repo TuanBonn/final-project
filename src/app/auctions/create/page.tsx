@@ -1,34 +1,14 @@
-// src/app/auctions/create/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useUser } from "@/contexts/UserContext";
-import { uploadFileViaApi } from "@/lib/storageUtils";
-import { Brand } from "@prisma/client";
-import { ImageUploadPreview } from "@/components/ImageUploadPreview";
+import * as z from "zod";
+import { format } from "date-fns";
+import { Calendar as CalendarIcon, Loader2, ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Form,
   FormControl,
@@ -38,299 +18,334 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Loader2, Gavel, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { ImageUploadPreview } from "@/components/ImageUploadPreview";
+import Link from "next/link";
 
-// Format tiền có dấu chấm
-const formatCurrencyForInput = (value: string | number): string => {
-  if (typeof value === "number") value = value.toString();
-  const numericValue = value.replace(/\D/g, "");
-  if (numericValue === "") return "";
-  return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
-};
-
-const auctionSchema = z.object({
+// Validation Schema
+const formSchema = z.object({
   name: z.string().min(5, "Product name must be at least 5 characters"),
-  description: z.string().optional(),
-  brand_id: z.string({ required_error: "Please select a brand" }),
-  condition: z.enum(["new", "used", "like_new", "custom"], {
-    required_error: "Please select a condition",
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  brand_id: z.string().min(1, "Please select a brand"),
+  condition: z.enum(["new", "used", "like_new", "custom"]),
+  startingBid: z
+    .string()
+    .refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+      message: "Starting bid must be a positive number",
+    }),
+  endTime: z.date().refine((date) => date > new Date(), {
+    message: "End time must be in the future",
   }),
-  startingBid: z.string().min(1, "Enter starting bid"),
-  startTime: z.string().refine((val) => val !== "", "Select start time"),
-  endTime: z.string().refine((val) => val !== "", "Select end time"),
+  images: z.array(z.string()).min(1, "Please upload at least 1 image"),
 });
-
-type AuctionFormValues = z.infer<typeof auctionSchema>;
 
 export default function CreateAuctionPage() {
   const router = useRouter();
-  const { user } = useUser();
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // State lưu file từ component
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-
-  const form = useForm<AuctionFormValues>({
-    resolver: zodResolver(auctionSchema),
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       description: "",
+      brand_id: "",
+      condition: "new",
       startingBid: "",
-      startTime: "",
-      endTime: "",
+      images: [],
     },
   });
 
   useEffect(() => {
+    // Fetch brands
     const fetchBrands = async () => {
       try {
         const res = await fetch("/api/admin/brands");
-        const data = await res.json();
-        setBrands(data.brands || []);
-      } catch (error) {
-        console.error(error);
+        if (res.ok) {
+          const data = await res.json();
+          setBrands(data.brands || []);
+        }
+      } catch (e) {
+        console.error(e);
       }
     };
     fetchBrands();
   }, []);
 
-  const onSubmit = async (values: AuctionFormValues) => {
-    setIsSubmitting(true);
-    setServerError(null);
-
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setLoading(true);
     try {
-      // 1. Validate
-      if (selectedFiles.length === 0)
-        throw new Error("Please select at least 1 product image.");
-
-      // 2. Upload song song
-      const uploadPromises = selectedFiles.map((file) =>
-        uploadFileViaApi("products", file)
-      );
-      const imageUrls = await Promise.all(uploadPromises);
-
-      // 3. Submit API
-      const payload = { ...values, imageUrls };
       const res = await fetch("/api/auctions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...values,
+          imageUrls: values.images,
+          endTime: values.endTime.toISOString(),
+        }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create auction.");
 
-      alert("Auction created successfully!");
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create auction");
+      }
+
+      alert("Auction started successfully!");
       router.push("/auctions");
     } catch (error: any) {
-      setServerError(error.message);
+      alert(error.message);
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
-  if (!user) return <div className="text-center py-20">Please log in.</div>;
+  // Helper to convert File to Base64 string
+  const convertFilesToBase64 = async (files: File[]): Promise<string[]> => {
+    const promises = files.map((file) => {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+      });
+    });
+    return Promise.all(promises);
+  };
 
   return (
-    <div className="container mx-auto py-8 max-w-2xl">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-2xl">
-            <Gavel className="h-6 w-6 text-primary" /> Create Auction Listing
-          </CardTitle>
-          <CardDescription>
-            List your rare or custom die-cast cars on the auction marketplace.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <div className="container mx-auto py-10 max-w-3xl px-4">
+      <Button variant="ghost" asChild className="mb-6">
+        <Link href="/auctions">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Auctions
+        </Link>
+      </Button>
+
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Create New Auction</h1>
+          <p className="text-muted-foreground">
+            Start a new auction immediately. Fill in the product details below.
+          </p>
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            {/* Images Field - FIXED for compatibility */}
+            <FormField
+              control={form.control}
+              name="images"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Product Images</FormLabel>
+                  <FormControl>
+                    {/* Sử dụng đúng tên prop 'onFilesChange' và xử lý chuyển đổi File -> Base64 */}
+                    <ImageUploadPreview
+                      // Nếu component cũ của bạn hỗ trợ 'value' để hiển thị ảnh đã chọn, hãy giữ lại.
+                      // Nếu không, có thể bỏ dòng value={...} để tránh lỗi type.
+                      // value={field.value}
+
+                      // Quan trọng: Mapping đúng tên prop
+                      onFilesChange={async (files: any[]) => {
+                        // Kiểm tra nếu files là mảng File object thì convert
+                        if (files.length > 0 && files[0] instanceof File) {
+                          const base64Images = await convertFilesToBase64(
+                            files
+                          );
+                          field.onChange(base64Images);
+                        } else {
+                          // Trường hợp component trả về mảng rỗng hoặc định dạng khác
+                          field.onChange(files);
+                        }
+                      }}
+                      maxFiles={5}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Product Name */}
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Product name *</FormLabel>
+                  <FormItem className="col-span-2">
+                    <FormLabel>Product Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="E.g. R34 Z-Tune Custom" {...field} />
+                      <Input placeholder="e.g. Hotwheels RLC 2024" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* COMPONENT CHỌN ẢNH */}
-              <FormItem>
-                <FormLabel>Product images *</FormLabel>
-                <FormControl>
-                  <ImageUploadPreview
-                    onFilesChange={setSelectedFiles}
-                    maxFiles={5}
-                  />
-                </FormControl>
-                <FormDescription>
-                  Choose up to 5 images. The first one will be used as the
-                  cover.
-                </FormDescription>
-              </FormItem>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="brand_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Brand</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select brand" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {brands.map((b) => (
-                            <SelectItem key={b.id} value={b.id}>
-                              {b.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="condition"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Condition</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select condition" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="new">New</SelectItem>
-                          <SelectItem value="like_new">Like new</SelectItem>
-                          <SelectItem value="used">Used</SelectItem>
-                          <SelectItem value="custom">
-                            Custom (modified)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
+              {/* Brand */}
               <FormField
                 control={form.control}
-                name="description"
+                name="brand_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Detailed description</FormLabel>
+                    <FormLabel>Brand</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select brand" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {brands.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Condition */}
+              <FormField
+                control={form.control}
+                name="condition"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Condition</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select condition" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="new">New (Sealed)</SelectItem>
+                        <SelectItem value="like_new">Like New</SelectItem>
+                        <SelectItem value="used">Used</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Starting Bid */}
+              <FormField
+                control={form.control}
+                name="startingBid"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Starting Bid (VND)</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Describe the condition and details..."
-                        {...field}
-                      />
+                      <Input type="number" placeholder="50000" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="border-t pt-4 space-y-4">
-                <h3 className="font-semibold">Auction settings</h3>
-                <FormField
-                  control={form.control}
-                  name="startingBid"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Starting bid (VND) *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="E.g. 50,000"
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(
-                              formatCurrencyForInput(e.target.value)
-                            )
-                          }
-                          value={formatCurrencyForInput(field.value)}
-                          className="font-mono text-lg"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="startTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Start time</FormLabel>
+              {/* End Time */}
+              <FormField
+                control={form.control}
+                name="endTime"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>End Time</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
                         <FormControl>
-                          <Input type="datetime-local" {...field} />
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP HH:mm")
+                            ) : (
+                              <span>Pick a date & time</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="endTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>End time</FormLabel>
-                        <FormControl>
-                          <Input type="datetime-local" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {serverError && (
-                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-md text-sm">
-                  <AlertCircle className="h-4 w-4" /> {serverError}
-                </div>
-              )}
-
-              <Button
-                type="submit"
-                className="w-full text-lg py-6"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                ) : (
-                  <Gavel className="mr-2 h-5 w-5" />
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="p-4 bg-background border rounded-md">
+                          <Input
+                            type="datetime-local"
+                            onChange={(e) =>
+                              field.onChange(new Date(e.target.value))
+                            }
+                            min={new Date().toISOString().slice(0, 16)}
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <FormDescription>
+                      The auction will start immediately and end at this time.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )}
-                {isSubmitting ? "Creating..." : "Create auction now"}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+              />
+            </div>
+
+            {/* Description */}
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Describe your item details..."
+                      className="resize-none min-h-[150px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={loading}
+            >
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Start Auction Now
+            </Button>
+          </form>
+        </Form>
+      </div>
     </div>
   );
 }

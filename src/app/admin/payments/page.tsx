@@ -1,4 +1,3 @@
-// src/app/admin/payments/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -19,14 +18,26 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input"; // Import Input
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Loader2,
   ArrowDownCircle,
   ArrowUpCircle,
   ShoppingBag,
   CreditCard,
-  Search, // Import Search Icon
+  Search,
+  MoreHorizontal,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { PaymentStatus, PaymentForType } from "@prisma/client";
 
@@ -41,11 +52,6 @@ interface PaymentRow {
     username: string | null;
     email: string;
   } | null;
-  withdrawal_info?: {
-    bankName: string;
-    accountNo: string;
-    accountName: string;
-  };
 }
 
 const formatCurrency = (val: number) =>
@@ -60,7 +66,8 @@ const isNegativeTransaction = (type: string) => {
     type.includes("fee") ||
     type === "auction_bid_fee" ||
     type === "dealer_subscription" ||
-    type === "verification_fee"
+    type === "verification_fee" ||
+    type === "auction_fee_refund"
   );
 };
 
@@ -73,11 +80,15 @@ const getTypeInfo = (type: string) => {
     return {
       icon: ArrowDownCircle,
       color: "text-green-600",
-      label: "Inflow", // Tiếng Anh
+      label: "Inflow",
     };
   }
-  if (type === "withdrawal") {
-    return { icon: ArrowUpCircle, color: "text-red-600", label: "Withdrawal" };
+  if (type === "withdrawal" || type === "auction_fee_refund") {
+    return {
+      icon: ArrowUpCircle,
+      color: "text-red-600",
+      label: "Withdrawal/Refund",
+    };
   }
   if (type === "group_buy_order") {
     return {
@@ -107,7 +118,6 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState("all");
 
-  // State cho Search
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -121,9 +131,11 @@ export default function AdminPaymentsPage() {
         if (currentTab !== "all") params.append("status", currentTab);
         if (searchTerm) params.append("search", searchTerm);
 
-        const res = await fetch(`/api/admin/payments?${params.toString()}`);
+        const res = await fetch(
+          `/api/admin/system-wallet?${params.toString()}`
+        );
         const data = await res.json();
-        setPayments(data.payments || []);
+        setPayments(data.logs || []);
       } catch (error) {
         console.error(error);
       } finally {
@@ -134,18 +146,46 @@ export default function AdminPaymentsPage() {
     [currentTab]
   );
 
-  // 1. Initial Load & Tab Change
   useEffect(() => {
     fetchData(search, true);
-  }, [currentTab]); // Khi đổi tab thì fetch lại
+  }, [currentTab]);
 
-  // 2. Debounced Search
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchData(search, false);
     }, 500);
     return () => clearTimeout(timeout);
-  }, [search]); // Khi search đổi thì fetch lại (giữ nguyên tab)
+  }, [search]);
+
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: "succeeded" | "failed"
+  ) => {
+    if (
+      !confirm(
+        `Are you sure you want to mark this as ${newStatus.toUpperCase()}?`
+      )
+    )
+      return;
+
+    try {
+      const res = await fetch(`/api/admin/payments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update status");
+      }
+
+      alert("Updated successfully!");
+      fetchData(search, false);
+    } catch (error: any) {
+      alert(error.message);
+    }
+  };
 
   return (
     <Card>
@@ -158,7 +198,6 @@ export default function AdminPaymentsPage() {
             </CardDescription>
           </div>
 
-          {/* Search Bar */}
           <div className="relative w-full md:w-80">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -206,13 +245,14 @@ export default function AdminPaymentsPage() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {payments.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="text-center py-10 text-muted-foreground"
                     >
                       No transactions found.
@@ -260,15 +300,67 @@ export default function AdminPaymentsPage() {
                                 ? "default"
                                 : pay.status === "failed"
                                 ? "destructive"
-                                : "secondary"
+                                : "outline"
                             }
-                            className="capitalize"
+                            className={`capitalize ${
+                              pay.status === "pending"
+                                ? "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200"
+                                : ""
+                            }`}
                           >
                             {pay.status}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
                           {new Date(pay.created_at).toLocaleString("en-GB")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  navigator.clipboard.writeText(pay.id)
+                                }
+                              >
+                                Copy ID
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+
+                              {pay.status === "pending" ? (
+                                <>
+                                  <DropdownMenuItem
+                                    className="text-green-600 focus:text-green-700 cursor-pointer"
+                                    onClick={() =>
+                                      handleUpdateStatus(pay.id, "succeeded")
+                                    }
+                                  >
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                    Approve
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-700 cursor-pointer"
+                                    onClick={() =>
+                                      handleUpdateStatus(pay.id, "failed")
+                                    }
+                                  >
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    Reject
+                                  </DropdownMenuItem>
+                                </>
+                              ) : (
+                                <DropdownMenuItem disabled>
+                                  No actions available
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );

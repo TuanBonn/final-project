@@ -99,7 +99,6 @@ export default function AuctionsPage() {
         )}
       </div>
 
-      {/* Mobile button */}
       {user && (
         <div className="sm:hidden mb-6">
           <Button asChild className="w-full">
@@ -132,7 +131,6 @@ export default function AuctionsPage() {
               key={auction.id}
               className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow"
             >
-              {/* Image */}
               <div className="relative aspect-[4/3] bg-muted">
                 {auction.productImage ? (
                   <Image
@@ -159,15 +157,24 @@ export default function AuctionsPage() {
               </div>
 
               <CardHeader className="p-4 pb-0">
+                {/* [CẬP NHẬT] Link tới Profile */}
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                  <Avatar className="h-5 w-5">
-                    <AvatarImage src={auction.sellerAvatar || ""} />
-                    <AvatarFallback>
-                      <UserIcon className="h-3 w-3" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>{auction.sellerName}</span>
+                  <Link href={`/user/${auction.sellerName}`}>
+                    <Avatar className="h-5 w-5 cursor-pointer hover:opacity-80">
+                      <AvatarImage src={auction.sellerAvatar || ""} />
+                      <AvatarFallback>
+                        <UserIcon className="h-3 w-3" />
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Link
+                    href={`/user/${auction.sellerName}`}
+                    className="hover:underline hover:text-primary"
+                  >
+                    {auction.sellerName}
+                  </Link>
                 </div>
+
                 <CardTitle className="text-base line-clamp-2 h-12 leading-snug">
                   <Link
                     href={`/auctions/${auction.id}`}

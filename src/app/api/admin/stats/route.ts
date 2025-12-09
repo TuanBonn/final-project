@@ -39,39 +39,39 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
 
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
+    if (!supabaseAdmin) throw new Error("Supabase Admin Client Error");
 
-    // 1. Đếm Users
+    // 1. Count Users
     const { count: userCount } = await supabaseAdmin
       .from("users")
       .select("*", { count: "exact", head: true });
 
-    // 2. Đếm Sản phẩm (Chỉ đếm sản phẩm đang bán)
+    // 2. Count Products (Available)
     const { count: productCount } = await supabaseAdmin
       .from("products")
       .select("*", { count: "exact", head: true })
       .eq("status", "available");
 
-    // 3. Đếm Giao dịch thành công
+    // 3. Count Completed Transactions
     const { count: transactionCount } = await supabaseAdmin
       .from("transactions")
       .select("*", { count: "exact", head: true })
       .eq("status", "completed");
 
-    // 4. Đếm Đấu giá active
+    // 4. Count Active Auctions
     const { count: auctionCount } = await supabaseAdmin
       .from("auctions")
       .select("*", { count: "exact", head: true })
       .eq("status", "active");
 
-    // 5. TÍNH TỔNG DOANH THU (Platform Commission + Fees)
+    // 5. CALCULATE TOTAL REVENUE (Net)
 
-    // A. Hoa hồng từ giao dịch
+    // A. Revenue from Commissions
     const { data: txRevenue } = await supabaseAdmin
       .from("transactions")
       .select("platform_commission")
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         0
       ) || 0;
 
-    // B. Các loại phí thu trực tiếp (Đấu giá, Verify, Dealer)
+    // B. Revenue from Direct Fees
     const { data: feeRevenue } = await supabaseAdmin
       .from("platform_payments")
       .select("amount")
@@ -91,14 +91,25 @@ export async function GET(request: NextRequest) {
       .in("payment_for_type", [
         "auction_creation_fee",
         "auction_bid_fee",
-        "dealer_subscription", // <--- MỚI
-        "verification_fee", // <--- MỚI
+        "dealer_subscription",
+        "verification_fee",
       ]);
 
     const otherFeesRevenue =
       feeRevenue?.reduce((acc, item) => acc + Number(item.amount || 0), 0) || 0;
 
-    const totalRevenue = commissionRevenue + otherFeesRevenue;
+    // C. [NEW] Subtract Refunds
+    const { data: feeRefunds } = await supabaseAdmin
+      .from("platform_payments")
+      .select("amount")
+      .eq("status", "succeeded")
+      .eq("payment_for_type", "auction_fee_refund");
+
+    const totalRefunds =
+      feeRefunds?.reduce((acc, item) => acc + Number(item.amount || 0), 0) || 0;
+
+    // Net Revenue = Commission + Fees - Refunds
+    const totalRevenue = commissionRevenue + otherFeesRevenue - totalRefunds;
 
     const stats = {
       userCount: userCount ?? 0,
@@ -111,7 +122,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ stats }, { status: 200 });
   } catch (error: unknown) {
     return NextResponse.json(
-      { error: "Lỗi server lấy stats." },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }

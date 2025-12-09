@@ -1,3 +1,5 @@
+// src/prisma/schema.prisma
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -7,6 +9,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// --- Enums ---
 enum UserRole {
   user
   dealer
@@ -32,7 +35,7 @@ enum ProductStatus {
 
 enum AuctionStatus {
   draft
-  scheduled
+  waiting  
   active
   ended
   cancelled
@@ -62,7 +65,7 @@ enum ParticipantStatus {
   pending_payment
   paid
   shipped
-  received
+  received      
   refunded
   @@map("participant_status")
 }
@@ -78,6 +81,7 @@ enum PaymentForType {
   group_buy_refund
   group_buy_payout
   verification_fee
+  auction_fee_refund
   @@map("payment_for_type_enum")
 }
 
@@ -101,6 +105,8 @@ enum PaymentMethod {
   @@map("payment_method_enum")
 }
 
+// --- Models ---
+
 model User {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   username         String?  @unique
@@ -113,21 +119,32 @@ model User {
   reputation_score Int      @default(0)
   status           UserStatus @default(active)
   shipping_info    Json?    @db.JsonB
+  
   balance          Decimal  @default(0) @db.Decimal
   bank_info        Json?    @db.JsonB
-  reset_token          String?   @unique
-  reset_token_expiry   DateTime? @db.Timestamptz
+
+  reset_token        String?   @unique
+  reset_token_expiry DateTime? @db.Timestamptz
+
   created_at       DateTime @default(now()) @db.Timestamptz
-  products              Product[]                 
-  posts                 Post[]                    
-  comments              Comment[]                 
-  auctionsAsSeller      Auction[]                 
-  auctionsAsWinner      Auction[]                 
+
+  // Relations
+  products              Product[]                 @relation("SellerProducts")
+  posts                 Post[]                    @relation("AuthorPosts")
+  comments              Comment[]                 @relation("AuthorComments")
+  wallPosts             WallPost[]                @relation("AuthorWallPosts")
+  wallPostLikes         WallPostLike[]
+  wallPostComments      WallPostComment[]
+  
+  // [SỬA LỖI P1012] Thêm tên relation cụ thể
+  auctionsAsSeller      Auction[]                 @relation("AuctionSeller") 
+  auctionsAsWinner      Auction[]                 @relation("AuctionWinner")
+
   bids                  Bid[]
-  transactionsAsBuyer   Transaction[]             
-  transactionsAsSeller  Transaction[]             
-  reviewsGiven          Review[]                  
-  reviewsReceived       Review[]                  
+  transactionsAsBuyer   Transaction[]             @relation("TransactionBuyer")
+  transactionsAsSeller  Transaction[]             @relation("TransactionSeller")
+  reviewsGiven          Review[]                  @relation("Reviewer")
+  reviewsReceived       Review[]                  @relation("Reviewee")
   forumPostLikes        ForumPostLike[]
   conversationParts     ConversationParticipant[]
   sentMessages          Message[]
@@ -136,6 +153,7 @@ model User {
   platformPayments      PlatformPayment[]
   auctionParticipations AuctionParticipant[]
   notifications         Notification[]
+
   @@map("users")
 }
 
@@ -144,6 +162,7 @@ model Brand {
   name       String    @unique
   created_at DateTime  @default(now()) @db.Timestamptz
   products   Product[]
+
   @@map("brands")
 }
 
@@ -155,14 +174,18 @@ model Product {
   description String?
   price       Decimal  @db.Decimal
   quantity    Int      @default(1)
+
   brand_id    String?  @db.Uuid 
   brand       Brand?   @relation(fields: [brand_id], references: [id], onDelete: SetNull)
+
   condition   ProductCondition?
   status      ProductStatus     @default(available)
   image_urls  Json?             @db.JsonB
   created_at  DateTime          @default(now()) @db.Timestamptz
+
   auctions     Auction[]
   transactions Transaction[]
+
   @@map("products")
 }
 
@@ -202,19 +225,62 @@ model Comment {
   @@map("comments")
 }
 
+model WallPost {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author     User     @relation("AuthorWallPosts", fields: [user_id], references: [id])
+  user_id    String   @db.Uuid
+  caption    String?
+  image_urls Json?    @db.JsonB
+  created_at DateTime @default(now()) @db.Timestamptz
+  likes      WallPostLike[]
+  comments   WallPostComment[]
+  @@map("wall_posts")
+}
+
+model WallPostLike {
+  user_id    String   @db.Uuid
+  post_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post       WallPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  @@id([user_id, post_id])
+  @@map("wall_post_likes")
+}
+
+model WallPostComment {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post              WallPost           @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  post_id           String             @db.Uuid
+  author            User               @relation(fields: [author_id], references: [id])
+  author_id         String             @db.Uuid
+  content           String
+  created_at        DateTime           @default(now()) @db.Timestamptz
+  parent            WallPostComment?   @relation("WallReplies", fields: [parent_comment_id], references: [id])
+  parent_comment_id String?            @db.Uuid
+  replies           WallPostComment[]  @relation("WallReplies")
+  @@map("wall_post_comments")
+}
+
 model Auction {
   id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   product           Product                @relation(fields: [product_id], references: [id])
   product_id        String                 @db.Uuid
+  
+  // [SỬA LỖI] Khớp relation name với User model
   seller            User                   @relation("AuctionSeller", fields: [seller_id], references: [id])
   seller_id         String                 @db.Uuid
+  
   start_time        DateTime               @db.Timestamptz
   end_time          DateTime               @db.Timestamptz
   starting_bid      Decimal                @db.Decimal
   status            AuctionStatus          @default(draft)
+  
+  // [SỬA LỖI] Khớp relation name với User model
   winning_bidder    User?                  @relation("AuctionWinner", fields: [winning_bidder_id], references: [id])
   winning_bidder_id String?                @db.Uuid
+  
   created_at        DateTime               @default(now()) @db.Timestamptz
+
   bids              Bid[]
   participants      AuctionParticipant[]
   @@map("auctions")
@@ -254,10 +320,13 @@ model Transaction {
   platform_commission Decimal           @default(0) @db.Decimal
   status              TransactionStatus @default(initiated)
   quantity            Int               @default(1)
+
   group_buy_id        String?           @db.Uuid
   auction_id          String?           @db.Uuid
+  
   payment_method      PaymentMethod     @default(cod)
   shipping_address    Json?             @db.JsonB
+
   created_at          DateTime          @default(now()) @db.Timestamptz
   updated_at          DateTime          @default(now()) @db.Timestamptz
   review              Review?
@@ -347,6 +416,7 @@ model PlatformPayment {
   status                 PaymentStatus  @default(pending)
   gateway_transaction_id String?
   withdrawal_info        Json?          @db.JsonB
+
   created_at             DateTime       @default(now()) @db.Timestamptz
   updated_at             DateTime       @default(now()) @db.Timestamptz
   @@map("platform_payments")
@@ -370,5 +440,6 @@ model Notification {
   link       String?
   is_read    Boolean  @default(false)
   created_at DateTime @default(now()) @db.Timestamptz
+
   @@map("notifications")
 }

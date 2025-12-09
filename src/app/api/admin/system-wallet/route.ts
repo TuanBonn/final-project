@@ -1,4 +1,3 @@
-// src/app/api/admin/system-wallet/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -38,9 +37,12 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search");
 
-    // Query logs
+    // Lấy các tham số filter
+    const search = searchParams.get("search");
+    const status = searchParams.get("status");
+
+    // 1. Query Logs (Danh sách giao dịch để hiển thị bảng)
     let query = supabase!
       .from("platform_payments")
       .select(
@@ -52,9 +54,13 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(50);
 
-    // === LOGIC TÌM KIẾM ===
+    // [LOGIC 1] Lọc theo Status (Để chia tab hoạt động)
+    if (status && status !== "all") {
+      query = query.eq("status", status);
+    }
+
+    // [LOGIC 2] Tìm kiếm theo User (Giữ nguyên logic cũ của bạn)
     if (search) {
-      // 1. Tìm User ID khớp với từ khóa search
       const { data: foundUsers } = await supabase!
         .from("users")
         .select("id")
@@ -63,42 +69,41 @@ export async function GET(request: NextRequest) {
       const userIds = foundUsers?.map((u) => u.id) || [];
 
       if (userIds.length > 0) {
-        // 2. Lọc payments theo user_id
         query = query.in("user_id", userIds);
       } else {
-        // Không tìm thấy user nào -> Trả về list rỗng (nhưng vẫn trả về summary tổng)
-        // (Hoặc có thể trả về rỗng luôn, tùy logic. Ở đây ta trả về logs rỗng)
-        // Tuy nhiên, Summary (Tổng nạp/rút) thường là số liệu toàn hệ thống,
-        // nên ta vẫn tính Summary GLOBAL, chỉ lọc Logs hiển thị.
-
-        // Logic dưới đây sẽ tiếp tục chạy để lấy summary, nhưng logs sẽ rỗng.
-        query = query.eq("id", "00000000-0000-0000-0000-000000000000"); // Fake ID để trả về rỗng
+        // Nếu không tìm thấy user nào -> Trả về rỗng bằng cách query ID không tồn tại
+        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
       }
     }
-    // ======================
 
     const { data: logs, error } = await query;
     if (error) throw error;
 
-    // === TÍNH TOÁN TỔNG QUAN (GLOBAL SUMMARY) ===
-    // Lưu ý: Summary này là TỔNG TOÀN HỆ THỐNG, không bị ảnh hưởng bởi Search
-    // để Admin luôn nắm được tình hình tài chính tổng quát.
+    // === 2. TÍNH TOÁN TỔNG QUAN (GLOBAL SUMMARY) ===
+    // Phần này tính trên TOÀN BỘ dữ liệu (không bị ảnh hưởng bởi filter status/search)
+    // để các thẻ Card ở trên cùng luôn hiển thị đúng tổng tài sản hệ thống.
 
-    // 1. Tổng tiền khách nạp (Liability)
+    // A. Tổng tiền vào (Inflow: Nạp + Giữ hộ)
     const { data: deposits } = await supabase!
       .from("platform_payments")
       .select("amount")
-      .eq("payment_for_type", "deposit")
+      .in("payment_for_type", ["deposit", "group_buy_order"])
       .eq("status", "succeeded");
+
     const totalDeposits =
       deposits?.reduce((a, b) => a + Number(b.amount), 0) || 0;
 
-    // 2. Tổng tiền khách rút (Cash Out)
+    // B. Tổng tiền ra (Outflow: Rút + Hoàn trả)
     const { data: withdrawals } = await supabase!
       .from("platform_payments")
       .select("amount")
-      .eq("payment_for_type", "withdrawal")
+      .in("payment_for_type", [
+        "withdrawal",
+        "group_buy_refund",
+        "auction_fee_refund", // Bao gồm cả hoàn phí đấu giá mới thêm
+      ])
       .eq("status", "succeeded");
+
     const totalWithdrawals =
       withdrawals?.reduce((a, b) => a + Number(b.amount), 0) || 0;
 

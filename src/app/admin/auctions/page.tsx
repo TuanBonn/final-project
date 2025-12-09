@@ -20,14 +20,14 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input"; // Import Input
+import { Input } from "@/components/ui/input";
 import {
   Loader2,
-  AlertCircle,
   Gavel,
   Clock,
   ShieldAlert,
   Search,
+  RefreshCw, // Icon cho nút mới
 } from "lucide-react";
 import { AuctionActions } from "@/components/admin/AuctionActions";
 import { AuctionStatus } from "@prisma/client";
@@ -54,8 +54,8 @@ export default function AdminAuctionsPage() {
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState("all");
   const [scanning, setScanning] = useState(false);
+  const [scanningExpired, setScanningExpired] = useState(false); // State mới cho nút Expired
 
-  // Search State
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -82,12 +82,10 @@ export default function AdminAuctionsPage() {
     [currentTab]
   );
 
-  // Initial Load & Tab Change
   useEffect(() => {
     fetchData(search, true);
   }, [currentTab]);
 
-  // Debounce Search
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchData(search, false);
@@ -95,14 +93,10 @@ export default function AdminAuctionsPage() {
     return () => clearTimeout(timeout);
   }, [search]);
 
+  // Xử lý Scan Overdue (Hủy đơn chưa thanh toán)
   const handleScanOverdue = async () => {
-    if (
-      !confirm(
-        "System will scan auctions ended > 24h unpaid and penalize reputation. Continue?"
-      )
-    )
+    if (!confirm("Scan 'Waiting' auctions overdue (24h) to cancel & penalize?"))
       return;
-
     setScanning(true);
     try {
       const res = await fetch("/api/admin/auctions/check-overdue", {
@@ -118,6 +112,45 @@ export default function AdminAuctionsPage() {
     }
   };
 
+  // [MỚI] Xử lý Scan Expired (Active -> Waiting/Cancelled)
+  const handleScanExpired = async () => {
+    setScanningExpired(true);
+    try {
+      const res = await fetch("/api/admin/auctions/scan-expired", {
+        method: "POST",
+      });
+      const data = await res.json();
+      alert(data.message || "Expired auctions processed.");
+      fetchData(search, false); // Reload lại bảng
+    } catch (error) {
+      console.error(error);
+      alert("Failed to scan expired auctions.");
+    } finally {
+      setScanningExpired(false);
+    }
+  };
+
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return (
+          <Badge className="bg-green-600 hover:bg-green-700">Active</Badge>
+        );
+      case "waiting":
+        return (
+          <Badge className="bg-orange-500 hover:bg-orange-600">
+            Waiting Payment
+          </Badge>
+        );
+      case "ended":
+        return <Badge variant="secondary">Ended</Badge>;
+      case "cancelled":
+        return <Badge variant="destructive">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -129,7 +162,6 @@ export default function AdminAuctionsPage() {
             </CardDescription>
           </div>
 
-          {/* Search Bar */}
           <div className="relative w-full md:w-80">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -146,20 +178,37 @@ export default function AdminAuctionsPage() {
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap gap-2">
+          {/* Nút 1: Scan Expired (MỚI) */}
+          <Button
+            variant="default" // Nút chính màu đen/xanh
+            size="sm"
+            onClick={handleScanExpired}
+            disabled={scanningExpired}
+            className="gap-2"
+          >
+            {scanningExpired ? (
+              <Loader2 className="animate-spin h-4 w-4" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Scan Expired (Active → Waiting)
+          </Button>
+
+          {/* Nút 2: Scan Overdue (CŨ) */}
           <Button
             variant="destructive"
             size="sm"
             onClick={handleScanOverdue}
             disabled={scanning}
-            className="gap-2 w-full md:w-auto"
+            className="gap-2"
           >
             {scanning ? (
               <Loader2 className="animate-spin h-4 w-4" />
             ) : (
               <ShieldAlert className="h-4 w-4" />
             )}
-            Scan Overdue (24h)
+            Scan Overdue (Waiting → Cancel)
           </Button>
         </div>
       </CardHeader>
@@ -171,7 +220,9 @@ export default function AdminAuctionsPage() {
             <TabsTrigger value="active" className="text-green-600">
               Active
             </TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
+            <TabsTrigger value="waiting" className="text-orange-600">
+              Waiting Payment
+            </TabsTrigger>
             <TabsTrigger value="ended">Ended</TabsTrigger>
             <TabsTrigger value="cancelled" className="text-red-600">
               Cancelled
@@ -202,7 +253,7 @@ export default function AdminAuctionsPage() {
                   <TableRow key={au.id}>
                     <TableCell
                       className="font-medium max-w-[200px] truncate"
-                      title={au.product?.name}
+                      title={au.product?.name || ""}
                     >
                       {au.product?.name || "---"}
                     </TableCell>
@@ -217,26 +268,16 @@ export default function AdminAuctionsPage() {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
+                        <Clock className="h-3 w-3" />{" "}
                         {new Date(au.end_time).toLocaleString("en-GB")}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={au.status === "active" ? "default" : "outline"}
-                        className={
-                          au.status === "cancelled"
-                            ? "text-red-600 border-red-200"
-                            : ""
-                        }
-                      >
-                        {au.status}
-                      </Badge>
-                    </TableCell>
+                    <TableCell>{renderStatusBadge(au.status)}</TableCell>
                     <TableCell className="text-right">
                       <AuctionActions
-                        auction={au}
-                        onActionSuccess={() => fetchData(search, false)}
+                        auctionId={au.id}
+                        currentStatus={au.status}
+                        onUpdate={() => fetchData(search, false)}
                       />
                     </TableCell>
                   </TableRow>

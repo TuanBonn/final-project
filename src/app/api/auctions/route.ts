@@ -1,6 +1,6 @@
 // src/app/api/auctions/route.ts
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
 
@@ -36,10 +36,21 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET: Lấy danh sách đấu giá ===
-export async function GET() {
+// === GET: List Auctions (No Auto-Cleanup) ===
+export async function GET(request: NextRequest) {
+  const supabase = getSupabaseAdmin();
+  const { searchParams } = new URL(request.url);
+
+  // Filter params
+  const statusFilter =
+    searchParams.getAll("status").length > 0
+      ? searchParams.getAll("status")
+      : ["active", "waiting"];
+
+  const limit = parseInt(searchParams.get("limit") || "20");
+
   try {
-    const supabase = getSupabaseAdmin();
+    // Chỉ thực hiện truy vấn lấy dữ liệu, KHÔNG update gì cả
     const { data: auctions, error } = await supabase
       .from("auctions")
       .select(
@@ -54,9 +65,9 @@ export async function GET() {
         bids:bids ( bid_amount )
       `
       )
-      // Chỉ lấy phiên đang hoạt động hoặc sắp diễn ra
-      .in("status", ["active", "scheduled"])
-      .order("end_time", { ascending: true });
+      .in("status", statusFilter)
+      .order("end_time", { ascending: true }) // Sắp xếp cái nào sắp hết giờ lên đầu
+      .limit(limit);
 
     if (error) throw error;
 
@@ -87,15 +98,16 @@ export async function GET() {
       { status: 200 }
     );
   } catch (error: any) {
+    console.error("GET Auctions Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// === POST: Tạo đấu giá mới ===
+// === POST: Create Auction ===
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
-    return NextResponse.json({ error: "Vui lòng đăng nhập." }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const supabase = getSupabaseAdmin();
 
@@ -108,40 +120,28 @@ export async function POST(request: NextRequest) {
       condition,
       imageUrls,
       startingBid,
-      startTime,
       endTime,
     } = body;
 
-    if (
-      !name ||
-      !startingBid ||
-      !startTime ||
-      !endTime ||
-      !brand_id ||
-      !condition
-    ) {
+    // Validation
+    if (!name || !startingBid || !endTime || !brand_id || !condition) {
       return NextResponse.json(
-        { error: "Thiếu thông tin bắt buộc." },
+        { error: "Missing required fields." },
         { status: 400 }
       );
     }
 
-    const start = new Date(startTime);
+    const start = new Date();
     const end = new Date(endTime);
-    const now = new Date();
 
-    if (end <= start)
+    if (end <= start) {
       return NextResponse.json(
-        { error: "Thời gian kết thúc phải sau bắt đầu." },
+        { error: "End time must be in the future." },
         { status: 400 }
       );
-    if (end <= now)
-      return NextResponse.json(
-        { error: "Thời gian kết thúc không hợp lệ." },
-        { status: 400 }
-      );
+    }
 
-    // 1. Tạo sản phẩm mới với trạng thái 'auction' (Bị khóa ngay lập tức)
+    // 1. Create Product
     const { data: newProduct, error: prodError } = await supabase
       .from("products")
       .insert({
@@ -152,24 +152,17 @@ export async function POST(request: NextRequest) {
         brand_id: brand_id,
         condition: condition,
         image_urls: imageUrls || [],
-        status: "auction", // <--- SET STATUS LÀ AUCTION
+        status: "auction",
       })
       .select()
       .single();
 
     if (prodError || !newProduct) {
-      console.error("Lỗi tạo sản phẩm:", prodError);
-      throw new Error("Không thể tạo sản phẩm cho phiên đấu giá.");
+      console.error("Product creation error:", prodError);
+      throw new Error("Failed to create product for auction.");
     }
 
-    let initialStatus = "draft";
-    if (start <= now) {
-      initialStatus = "active";
-    } else {
-      initialStatus = "scheduled";
-    }
-
-    // 2. Tạo phiên đấu giá
+    // 2. Create Auction
     const { data: newAuction, error: auctionError } = await supabase
       .from("auctions")
       .insert({
@@ -178,19 +171,19 @@ export async function POST(request: NextRequest) {
         starting_bid: startingBid.replace(/\D/g, ""),
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        status: initialStatus,
+        status: "active",
       })
       .select()
       .single();
 
     if (auctionError) {
-      // Rollback nếu tạo auction lỗi
+      // Rollback product
       await supabase.from("products").delete().eq("id", newProduct.id);
       throw auctionError;
     }
 
     return NextResponse.json(
-      { message: "Tạo phiên đấu giá thành công!", auction: newAuction },
+      { message: "Auction started successfully!", auction: newAuction },
       { status: 201 }
     );
   } catch (error: any) {

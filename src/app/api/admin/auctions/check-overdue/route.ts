@@ -1,19 +1,21 @@
 // src/app/api/admin/auctions/check-overdue/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { parse as parseCookie } from "cookie";
-import jwt from "jsonwebtoken";
 import { createNotification } from "@/lib/notification";
 
 export const runtime = "nodejs";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const JWT_SECRET = process.env.JWT_SECRET;
-const COOKIE_NAME = "auth-token";
 
-const DEFAULT_PENALTY_SCORE = 20;
+// === CONFIGURATION ===
+// 1. Thời gian chờ thanh toán (Set cứng theo yêu cầu của bạn)
+// Đổi thành 0 để test ngay lập tức với các phiên đang waiting.
+// Đổi thành 24 khi chạy thực tế.
 const PAYMENT_WINDOW_HOURS = 24;
+
+// 2. Điểm phạt mặc định (Nếu chưa cấu hình trong DB)
+const FALLBACK_PENALTY_SCORE = 20;
 
 function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey, {
@@ -21,119 +23,185 @@ function getSupabaseAdmin() {
   });
 }
 
-async function verifyAdmin(request: NextRequest): Promise<boolean> {
-  if (!JWT_SECRET) return false;
-  try {
-    let token: string | undefined;
-    const cookieHeader = request.headers.get("cookie");
-    if (cookieHeader) token = parseCookie(cookieHeader)[COOKIE_NAME];
-    if (!token) return false;
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    return decoded.role === "admin";
-  } catch {
-    return false;
+// === HÀM HOÀN TIỀN (REFUND HELPER) ===
+async function processRefunds(
+  supabase: SupabaseClient,
+  auctionId: string,
+  productName: string,
+  excludeUserId?: string
+) {
+  // Lấy danh sách người tham gia
+  const { data: participants } = await supabase
+    .from("auction_participants")
+    .select("user_id")
+    .eq("auction_id", auctionId);
+
+  if (participants && participants.length > 0) {
+    const PARTICIPATION_FEE = 50000; // Phí tham gia cố định
+
+    await Promise.all(
+      participants.map(async (p) => {
+        // Không hoàn tiền cho người bị loại trừ (Winner bùng kèo)
+        if (p.user_id === excludeUserId) return;
+
+        // 1. Lấy số dư hiện tại
+        const { data: user } = await supabase
+          .from("users")
+          .select("balance")
+          .eq("id", p.user_id)
+          .single();
+
+        if (user) {
+          // 2. Cộng lại tiền vào ví
+          await supabase
+            .from("users")
+            .update({ balance: Number(user.balance) + PARTICIPATION_FEE })
+            .eq("id", p.user_id);
+
+          // 3. Ghi log hoàn tiền (Để hiển thị Dashboard/Ví)
+          await supabase.from("platform_payments").insert({
+            user_id: p.user_id,
+            amount: PARTICIPATION_FEE,
+            currency: "VND",
+            payment_for_type: "auction_fee_refund", // Loại giao dịch hoàn tiền
+            status: "succeeded",
+            withdrawal_info: {
+              description: `Refund (Winner unpaid): ${productName}`,
+              auction_id: auctionId,
+            },
+          });
+
+          // 4. Gửi thông báo
+          await createNotification(supabase, {
+            userId: p.user_id,
+            title: "💰 Auction Refund",
+            message: `Auction "${productName}" cancelled due to unpaid winner. Participation fee refunded.`,
+            type: "wallet",
+            link: "/wallet",
+          });
+        }
+      })
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
-  }
-
   const supabase = getSupabaseAdmin();
 
   try {
-    const { data: setting } = await supabase
+    // === 1. LẤY CẤU HÌNH ĐIỂM PHẠT TỪ DB ===
+    const { data: settings } = await supabase
       .from("app_settings")
       .select("value")
       .eq("key", "AUCTION_PENALTY_SCORE")
       .single();
 
-    const penaltyScore = setting?.value
-      ? parseInt(setting.value)
-      : DEFAULT_PENALTY_SCORE;
+    const penaltyScore = settings?.value
+      ? Number(settings.value)
+      : FALLBACK_PENALTY_SCORE;
 
-    const deadline = new Date();
-    deadline.setHours(deadline.getHours() - PAYMENT_WINDOW_HOURS);
+    // === 2. TÍNH TOÁN THỜI GIAN QUÁ HẠN ===
+    // Logic: Nếu (Hiện tại - Giờ kết thúc) > Window => Quá hạn
+    // Tương đương: Giờ kết thúc < (Hiện tại - Window)
+    const deadline = new Date(
+      Date.now() - PAYMENT_WINDOW_HOURS * 60 * 60 * 1000
+    ).toISOString();
 
-    const { data: auctions, error } = await supabase
+    console.log(`[Scan Overdue] Checking auctions ended before: ${deadline}`);
+
+    // === 3. TÌM CÁC PHIÊN QUÁ HẠN ===
+    // [FIX] Query đơn giản hóa để tránh lỗi 500 do sai tên relation
+    const { data: overdueAuctions, error } = await supabase
       .from("auctions")
       .select(
         `
-        id, product_id, winning_bidder_id, end_time, status, seller_id,
-        product:products ( name ),
-        winner:users!winning_bidder_id ( username, reputation_score )
+        id, winning_bidder_id, seller_id, 
+        product:products(name)
       `
       )
-      .eq("status", "ended")
-      .lt("end_time", deadline.toISOString())
-      .not("winning_bidder_id", "is", null);
+      .eq("status", "waiting")
+      .lt("end_time", deadline);
 
-    if (error) throw error;
-
-    let processedCount = 0;
-
-    for (const auction of auctions || []) {
-      const { data: transaction } = await supabase
-        .from("transactions")
-        .select("id")
-        .eq("product_id", auction.product_id)
-        .eq("buyer_id", auction.winning_bidder_id)
-        .neq("status", "cancelled")
-        .maybeSingle();
-
-      if (transaction) continue;
-
-      console.log(`Phát hiện bùng kèo: Auction ${auction.id}`);
-
-      // 1. Trừ điểm
-      const newScore = (auction.winner.reputation_score || 0) - penaltyScore;
-      await supabase
-        .from("users")
-        .update({ reputation_score: newScore })
-        .eq("id", auction.winning_bidder_id);
-
-      // 2. Hủy phiên
-      await supabase
-        .from("auctions")
-        .update({ status: "cancelled" })
-        .eq("id", auction.id);
-
-      // 3. Set status sản phẩm thành 'auction' (Lock vĩnh viễn như yêu cầu)
-      await supabase
-        .from("products")
-        .update({ status: "auction" })
-        .eq("id", auction.product_id);
-
-      // 4. Thông báo
-      await createNotification(supabase, {
-        userId: auction.winning_bidder_id,
-        title: "🚫 BẠN ĐÃ BỊ TRỪ ĐIỂM UY TÍN",
-        message: `Bạn đã không thanh toán cho sản phẩm "${auction.product?.name}" trong vòng 24h.`,
-        type: "system",
-        link: "/profile",
-      });
-
-      await createNotification(supabase, {
-        userId: auction.seller_id,
-        title: "⚠️ Người thắng không thanh toán",
-        message: `Người thắng đấu giá "${auction.product?.name}" đã bỏ cuộc. Sản phẩm đã được chuyển sang trạng thái 'Auction Products' (Đã lưu kho).`,
-        type: "auction",
-        link: "/auctions",
-      });
-
-      processedCount++;
+    if (error) {
+      console.error("Query Error:", error);
+      throw new Error(error.message);
     }
 
-    return NextResponse.json(
-      {
-        message: `Đã quét xong. Xử lý ${processedCount} trường hợp.`,
-        processed: processedCount,
-      },
-      { status: 200 }
+    if (!overdueAuctions || overdueAuctions.length === 0) {
+      return NextResponse.json({
+        message: "No overdue auctions found.",
+        config: { penaltyScore, paymentWindowHours: PAYMENT_WINDOW_HOURS },
+      });
+    }
+
+    let count = 0;
+
+    // === 4. XỬ LÝ TỪNG PHIÊN ===
+    await Promise.all(
+      overdueAuctions.map(async (auction) => {
+        const productName = auction.product?.name || "Product";
+        const winnerId = auction.winning_bidder_id;
+
+        // A. Hủy phiên đấu giá (Chuyển sang cancelled)
+        await supabase
+          .from("auctions")
+          .update({ status: "cancelled" })
+          .eq("id", auction.id);
+
+        // B. Phạt người thắng (Nếu có)
+        if (winnerId) {
+          // Lấy điểm uy tín hiện tại của người thắng để trừ
+          const { data: winner } = await supabase
+            .from("users")
+            .select("reputation_score")
+            .eq("id", winnerId)
+            .single();
+
+          const currentScore = winner?.reputation_score || 0;
+          const newScore = Math.max(0, currentScore - penaltyScore);
+
+          // Cập nhật điểm uy tín mới
+          await supabase
+            .from("users")
+            .update({ reputation_score: newScore })
+            .eq("id", winnerId);
+
+          // Thông báo phạt
+          await createNotification(supabase, {
+            userId: winnerId,
+            title: "🚫 Auction Penalty",
+            message: `You failed to pay for "${productName}". ${penaltyScore} reputation points deducted.`,
+            type: "system",
+          });
+        }
+
+        // C. Hoàn tiền cho những người khác (Trừ người thắng vi phạm)
+        await processRefunds(
+          supabase,
+          auction.id,
+          productName,
+          winnerId || undefined
+        );
+
+        // D. Thông báo cho người bán
+        await createNotification(supabase, {
+          userId: auction.seller_id,
+          title: "⚠️ Auction Cancelled",
+          message: `Winner failed to pay for "${productName}" after ${PAYMENT_WINDOW_HOURS}h. Auction cancelled.`,
+          type: "auction",
+          link: `/auctions/${auction.id}`,
+        });
+
+        count++;
+      })
     );
+
+    return NextResponse.json({
+      message: `Processed ${count} overdue auctions.`,
+      config: { penaltyScore, paymentWindowHours: PAYMENT_WINDOW_HOURS },
+    });
   } catch (error: any) {
-    console.error("Error scanning overdue auctions:", error);
+    console.error("Scan Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

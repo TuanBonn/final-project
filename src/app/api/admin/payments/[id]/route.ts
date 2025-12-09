@@ -1,139 +1,9 @@
-// // src/app/api/admin/payments/[id]/route.ts
-// import { NextResponse, type NextRequest } from "next/server";
-// import { createClient, SupabaseClient } from "@supabase/supabase-js";
-// import { parse as parseCookie } from "cookie";
-// import jwt from "jsonwebtoken";
-// // Import hàm gửi mail
-// import { sendWalletTransactionEmail } from "@/lib/mail";
-
-// export const runtime = "nodejs";
-
-// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-// const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-// const JWT_SECRET = process.env.JWT_SECRET;
-// const COOKIE_NAME = "auth-token";
-
-// function getSupabaseAdmin(): SupabaseClient | null {
-//   if (!supabaseUrl || !supabaseServiceKey) return null;
-//   return createClient(supabaseUrl, supabaseServiceKey, {
-//     auth: { persistSession: false },
-//   });
-// }
-
-// async function verifyAdmin(request: NextRequest): Promise<boolean> {
-//   if (!JWT_SECRET) return false;
-//   try {
-//     let token: string | undefined;
-//     const cookieHeader = request.headers.get("cookie");
-//     if (cookieHeader) token = parseCookie(cookieHeader)[COOKIE_NAME];
-//     if (!token) return false;
-//     const decoded = jwt.verify(token, JWT_SECRET) as any;
-//     return decoded.role === "admin";
-//   } catch {
-//     return false;
-//   }
-// }
-
-// export async function PATCH(
-//   request: NextRequest,
-//   { params }: { params: Promise<{ id: string }> }
-// ) {
-//   if (!(await verifyAdmin(request))) {
-//     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-//   }
-
-//   const { id } = await params;
-//   const supabase = getSupabaseAdmin();
-
-//   try {
-//     const { status } = await request.json(); // 'succeeded' hoặc 'failed'
-
-//     // 1. Lấy thông tin payment + Thông tin User (để lấy email)
-//     const { data: payment } = await supabase!
-//       .from("platform_payments")
-//       .select("*, user:users(email, username, balance)") // <-- Lấy thêm email, username
-//       .eq("id", id)
-//       .single();
-
-//     if (!payment)
-//       return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-//     // Chỉ xử lý nếu đang pending
-//     if (payment.status !== "pending") {
-//       return NextResponse.json(
-//         { error: "Giao dịch này đã được xử lý rồi." },
-//         { status: 400 }
-//       );
-//     }
-
-//     const userId = payment.user_id;
-//     const amount = Number(payment.amount);
-//     // Lấy thông tin user từ relation
-//     // @ts-ignore
-//     const userEmail = payment.user?.email;
-//     // @ts-ignore
-//     const userName = payment.user?.username || "User";
-//     // @ts-ignore
-//     const currentBalance = Number(payment.user?.balance || 0);
-
-//     if (userId) {
-//       // === LOGIC 1: DUYỆT NẠP TIỀN (Deposit -> Succeeded) ===
-//       if (payment.payment_for_type === "deposit" && status === "succeeded") {
-//         await supabase!
-//           .from("users")
-//           .update({ balance: currentBalance + amount })
-//           .eq("id", userId);
-//       }
-
-//       // === LOGIC 2: TỪ CHỐI RÚT TIỀN (Withdrawal -> Failed) ===
-//       else if (
-//         payment.payment_for_type === "withdrawal" &&
-//         status === "failed"
-//       ) {
-//         await supabase!
-//           .from("users")
-//           .update({ balance: currentBalance + amount })
-//           .eq("id", userId);
-//       }
-//     }
-
-//     // 3. Cập nhật trạng thái payment
-//     const { error } = await supabase!
-//       .from("platform_payments")
-//       .update({ status })
-//       .eq("id", id);
-
-//     if (error) throw error;
-
-//     // === 4. GỬI EMAIL THÔNG BÁO (MỚI) ===
-//     if (userEmail) {
-//       sendWalletTransactionEmail(
-//         userEmail,
-//         payment.payment_for_type, // 'deposit' | 'withdrawal'
-//         status, // 'succeeded' | 'failed'
-//         amount,
-//         userName
-//       ).catch((err) => console.error("Lỗi gửi mail wallet:", err));
-//     }
-//     // ====================================
-
-//     return NextResponse.json(
-//       { message: "Cập nhật thành công" },
-//       { status: 200 }
-//     );
-//   } catch (error: any) {
-//     console.error("Error processing payment:", error);
-//     return NextResponse.json({ error: error.message }, { status: 500 });
-//   }
-// }
-
 // src/app/api/admin/payments/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
-import { sendWalletTransactionEmail } from "@/lib/mail";
-import { createNotification } from "@/lib/notification"; // <-- Import helper
+import { createNotification } from "@/lib/notification";
 
 export const runtime = "nodejs";
 
@@ -142,8 +12,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
 const COOKIE_NAME = "auth-token";
 
-function getSupabaseAdmin(): SupabaseClient | null {
-  if (!supabaseUrl || !supabaseServiceKey) return null;
+function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false },
   });
@@ -152,10 +21,9 @@ function getSupabaseAdmin(): SupabaseClient | null {
 async function verifyAdmin(request: NextRequest): Promise<boolean> {
   if (!JWT_SECRET) return false;
   try {
-    let token: string | undefined;
     const cookieHeader = request.headers.get("cookie");
-    if (cookieHeader) token = parseCookie(cookieHeader)[COOKIE_NAME];
-    if (!token) return false;
+    if (!cookieHeader) return false;
+    const token = parseCookie(cookieHeader)[COOKIE_NAME];
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     return decoded.role === "admin";
   } catch {
@@ -165,133 +33,117 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await ctx.params;
+
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await params;
   const supabase = getSupabaseAdmin();
+  const { status } = await request.json(); // status: 'succeeded' | 'failed'
+
+  if (!["succeeded", "failed"].includes(status)) {
+    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  }
 
   try {
-    const { status } = await request.json(); // 'succeeded' hoặc 'failed'
-
-    // 1. Lấy thông tin payment + Thông tin User
-    const { data: payment } = await supabase!
+    // 1. Lấy thông tin giao dịch hiện tại
+    const { data: payment } = await supabase
       .from("platform_payments")
-      .select("*, user:users(email, username, balance)")
+      .select("*")
       .eq("id", id)
       .single();
 
-    if (!payment)
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!payment) {
+      return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+    }
 
     if (payment.status !== "pending") {
       return NextResponse.json(
-        { error: "Giao dịch này đã được xử lý rồi." },
+        { error: "Only pending payments can be updated." },
         { status: 400 }
       );
     }
 
     const userId = payment.user_id;
     const amount = Number(payment.amount);
-    // @ts-ignore
-    const userEmail = payment.user?.email;
-    // @ts-ignore
-    const userName = payment.user?.username || "User";
-    // @ts-ignore
-    const currentBalance = Number(payment.user?.balance || 0);
 
-    const formattedAmount = new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(amount);
-
-    if (userId) {
-      // === LOGIC 1: DUYỆT NẠP TIỀN ===
+    // 2. Xử lý Logic cộng/trừ tiền theo loại giao dịch
+    // === TRƯỜNG HỢP DUYỆT (APPROVE / SUCCEEDED) ===
+    if (status === "succeeded") {
       if (payment.payment_for_type === "deposit") {
-        if (status === "succeeded") {
-          // Cộng tiền
-          await supabase!
-            .from("users")
-            .update({ balance: currentBalance + amount })
-            .eq("id", userId);
+        // Nạp tiền thành công -> Cộng tiền vào ví
+        const { data: user } = await supabase
+          .from("users")
+          .select("balance")
+          .eq("id", userId)
+          .single();
 
-          // Gửi thông báo
-          createNotification(supabase!, {
-            userId: userId,
-            title: "✅ Nạp tiền thành công",
-            message: `Số tiền ${formattedAmount} đã được cộng vào ví của bạn.`,
-            type: "wallet",
-            link: "/wallet",
-          });
-        } else {
-          // Từ chối
-          createNotification(supabase!, {
-            userId: userId,
-            title: "❌ Nạp tiền thất bại",
-            message: `Yêu cầu nạp ${formattedAmount} của bạn bị từ chối.`,
-            type: "wallet",
-            link: "/wallet",
-          });
+        if (user) {
+          await supabase
+            .from("users")
+            .update({ balance: Number(user.balance) + amount })
+            .eq("id", userId);
         }
       }
-      // === LOGIC 2: RÚT TIỀN ===
-      else if (payment.payment_for_type === "withdrawal") {
-        if (status === "succeeded") {
-          // Gửi thông báo
-          createNotification(supabase!, {
-            userId: userId,
-            title: "✅ Rút tiền thành công",
-            message: `Admin đã chuyển khoản ${formattedAmount} vào tài khoản của bạn.`,
-            type: "wallet",
-            link: "/wallet",
-          });
-        } else {
-          // Hoàn tiền
-          await supabase!
-            .from("users")
-            .update({ balance: currentBalance + amount })
-            .eq("id", userId);
-
-          // Gửi thông báo
-          createNotification(supabase!, {
-            userId: userId,
-            title: "❌ Rút tiền bị hoàn trả",
-            message: `Yêu cầu rút tiền của bạn bị từ chối. Tiền đã hoàn về ví.`,
-            type: "wallet",
-            link: "/wallet",
-          });
-        }
-      }
+      // Nếu là withdrawal: Tiền đã trừ lúc tạo lệnh, nên duyệt chỉ là đổi status, không cần trừ thêm.
     }
 
-    // 3. Cập nhật trạng thái payment
-    const { error } = await supabase!
+    // === TRƯỜNG HỢP HỦY (REJECT / FAILED) ===
+    if (status === "failed") {
+      if (payment.payment_for_type === "withdrawal") {
+        // Rút tiền thất bại (Admin từ chối) -> Hoàn tiền lại vào ví
+        const { data: user } = await supabase
+          .from("users")
+          .select("balance")
+          .eq("id", userId)
+          .single();
+
+        if (user) {
+          await supabase
+            .from("users")
+            .update({ balance: Number(user.balance) + amount })
+            .eq("id", userId);
+        }
+      }
+      // Nếu là deposit: Hủy lệnh nạp thì không làm gì cả (vì chưa cộng tiền).
+    }
+
+    // 3. Cập nhật trạng thái Payment
+    const { error: updateError } = await supabase
       .from("platform_payments")
       .update({ status })
       .eq("id", id);
 
-    if (error) throw error;
+    if (updateError) throw updateError;
 
-    // 4. Gửi Email (Background)
-    if (userEmail) {
-      sendWalletTransactionEmail(
-        userEmail,
-        payment.payment_for_type,
-        status,
-        amount,
-        userName
-      ).catch((err) => console.error("Lỗi gửi mail wallet:", err));
-    }
+    // 4. Gửi thông báo cho User
+    const title =
+      status === "succeeded"
+        ? "✅ Giao dịch thành công"
+        : "❌ Giao dịch thất bại";
+    const message =
+      status === "succeeded"
+        ? `Yêu cầu ${
+            payment.payment_for_type
+          } ${amount.toLocaleString()} VND đã được duyệt.`
+        : `Yêu cầu ${
+            payment.payment_for_type
+          } ${amount.toLocaleString()} VND đã bị từ chối/hủy.`;
 
-    return NextResponse.json(
-      { message: "Cập nhật thành công" },
-      { status: 200 }
-    );
+    await createNotification(supabase, {
+      userId: userId,
+      title,
+      message,
+      type: "wallet",
+      link: "/wallet",
+    });
+
+    return NextResponse.json({ message: "Update success" }, { status: 200 });
   } catch (error: any) {
-    console.error("Error processing payment:", error);
+    console.error("Update Payment Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

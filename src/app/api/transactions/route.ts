@@ -106,7 +106,18 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (!auction)
-        return NextResponse.json({ error: "Đấu giá lỗi." }, { status: 404 });
+        return NextResponse.json(
+          { error: "Đấu giá lỗi hoặc không tồn tại." },
+          { status: 404 }
+        );
+
+      // [QUAN TRỌNG] Chỉ cho phép thanh toán nếu đang 'active' hoặc 'waiting'
+      if (auction.status !== "active" && auction.status !== "waiting") {
+        return NextResponse.json(
+          { error: "Phiên đấu giá đã kết thúc hoặc bị hủy." },
+          { status: 400 }
+        );
+      }
 
       // Validate Winner
       if (auction.winning_bidder_id !== buyerId) {
@@ -120,8 +131,7 @@ export async function POST(request: NextRequest) {
       const { data: existingTx } = await supabaseAdmin
         .from("transactions")
         .select("id")
-        .eq("product_id", productId)
-        .eq("buyer_id", buyerId)
+        .eq("auction_id", auctionId) // Check theo auction_id chuẩn xác hơn
         .neq("status", "cancelled")
         .maybeSingle();
 
@@ -135,7 +145,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Lấy giá thắng
+      // Lấy giá thắng cao nhất
       const { data: highestBid } = await supabaseAdmin
         .from("bids")
         .select("bid_amount")
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
         : Number(auction.starting_bid);
     } else {
       // --- MUA THƯỜNG ---
-      // Chấp nhận status 'auction' nếu là sản phẩm vừa chốt từ đấu giá/groupbuy
+      // Chấp nhận status 'auction' nếu là sản phẩm vừa chốt từ đấu giá/groupbuy (phòng hờ)
       if (product.status !== "available" && product.status !== "auction") {
         return NextResponse.json(
           { error: "Sản phẩm này không khả dụng." },
@@ -207,7 +217,7 @@ export async function POST(request: NextRequest) {
 
     let finalProductStatus;
     if (auctionId) {
-      finalProductStatus = "auction";
+      finalProductStatus = "auction"; // Giữ nguyên flag auction
     } else {
       finalProductStatus = newStock === 0 ? "sold" : "available";
     }
@@ -230,9 +240,7 @@ export async function POST(request: NextRequest) {
         quantity: buyQty,
         platform_commission: 0,
         shipping_address: buyer.shipping_info,
-        // === CẬP NHẬT QUAN TRỌNG: Lưu auction_id ===
         auction_id: auctionId || null,
-        // ============================================
       })
       .select()
       .single();
@@ -245,6 +253,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // [QUAN TRỌNG] Cập nhật AUCTION -> ENDED (Để ẩn khỏi danh sách)
     if (auctionId) {
       await supabaseAdmin
         .from("auctions")

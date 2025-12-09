@@ -3,13 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useRouter } from "next/navigation"; // Import useRouter
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,6 +35,7 @@ export default function GroupBuysPage() {
   const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const router = useRouter(); // Hook
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,9 +56,16 @@ export default function GroupBuysPage() {
     gb.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Helper
+  const handleHostClick = (e: React.MouseEvent, username: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(`/user/${username}`);
+  };
+
   return (
     <div className="container mx-auto py-8 px-4">
-      {/* HEADER */}
+      {/* HEADER & SEARCH (Giữ nguyên) */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold">Group Buy Marketplace</h1>
@@ -77,7 +80,6 @@ export default function GroupBuysPage() {
         </Button>
       </div>
 
-      {/* SEARCH */}
       <div className="relative mb-8 max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -88,7 +90,6 @@ export default function GroupBuysPage() {
         />
       </div>
 
-      {/* LIST */}
       {loading ? (
         <div className="flex justify-center py-20">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -143,21 +144,30 @@ export default function GroupBuysPage() {
                       {formatCurrency(gb.price)}
                     </p>
 
-                    {/* PROGRESS */}
                     <div className="flex items-center text-xs font-medium bg-muted px-2 py-1 rounded text-muted-foreground">
                       <Users className="h-3 w-3 mr-1" />
                       {gb.current}/{gb.target}
                     </div>
                   </div>
 
+                  {/* [CẬP NHẬT] Host Info */}
                   <div className="flex items-center gap-2 pt-3 border-t mt-2">
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={gb.host.avatar_url || ""} />
-                      <AvatarFallback>H</AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs text-muted-foreground truncate flex-1">
+                    <div
+                      onClick={(e) => handleHostClick(e, gb.host.username)}
+                      className="cursor-pointer hover:opacity-80"
+                    >
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={gb.host.avatar_url || ""} />
+                        <AvatarFallback>H</AvatarFallback>
+                      </Avatar>
+                    </div>
+
+                    <span
+                      className="text-xs text-muted-foreground truncate flex-1 cursor-pointer group/host"
+                      onClick={(e) => handleHostClick(e, gb.host.username)}
+                    >
                       Host:{" "}
-                      <span className="font-medium text-foreground">
+                      <span className="font-medium text-foreground group-hover/host:text-primary group-hover/host:underline">
                         {gb.host.username}
                       </span>
                     </span>

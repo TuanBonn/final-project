@@ -41,8 +41,9 @@ const formatCurrency = (val: number) =>
     val
   );
 
+// Helper phân loại màu sắc
 const getLogTypeStyle = (type: string) => {
-  // Revenue (Fees)
+  // Revenue (Fees - Doanh thu)
   if (
     [
       "transaction_commission",
@@ -58,23 +59,26 @@ const getLogTypeStyle = (type: string) => {
       icon: DollarSign,
     };
   }
-  // Inflow (Deposits/Holdings)
+  // Inflow (Deposits - Tiền vào)
   if (type === "deposit" || type === "group_buy_order") {
     return {
-      label: "Inflow (Holding)",
+      label: "Inflow (Deposit/Hold)",
       color: "text-blue-600 bg-blue-50",
       icon: ArrowDownLeft,
     };
   }
-  // Outflow (Withdrawals/Refunds)
-  if (type === "withdrawal" || type === "group_buy_refund") {
+  // Outflow (Withdrawals/Refunds - Tiền ra)
+  if (
+    type === "withdrawal" ||
+    type === "group_buy_refund" ||
+    type === "auction_fee_refund" // <--- Hiển thị hoàn tiền đấu giá là Outflow
+  ) {
     return {
-      label: "Outflow (Return)",
+      label: "Outflow (Withdraw/Refund)",
       color: "text-red-600 bg-red-50",
       icon: ArrowUpRight,
     };
   }
-  // Other
   return { label: "Other", color: "text-gray-600", icon: Wallet };
 };
 
@@ -85,8 +89,6 @@ export default function AdminSystemWalletPage() {
     totalWithdrawals: 0,
   });
   const [loading, setLoading] = useState(true);
-
-  // Search State
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
@@ -115,12 +117,10 @@ export default function AdminSystemWalletPage() {
     []
   );
 
-  // 1. Initial Load
   useEffect(() => {
     fetchWallet("", true);
   }, [fetchWallet]);
 
-  // 2. Debounce Search
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchWallet(search, false);
@@ -146,12 +146,12 @@ export default function AdminSystemWalletPage() {
         </div>
       </div>
 
-      {/* Cards Tổng quan */}
+      {/* Cards Summary */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total User Deposits
+              Total Inflow
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -159,14 +159,14 @@ export default function AdminSystemWalletPage() {
               {formatCurrency(summary.totalDeposits)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Total funds entered the system
+              Deposits + Group Buy Holdings
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total User Withdrawals
+              Total Outflow
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -174,7 +174,7 @@ export default function AdminSystemWalletPage() {
               {formatCurrency(summary.totalWithdrawals)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Total funds returned to users
+              Withdrawals + Refunds
             </p>
           </CardContent>
         </Card>
@@ -189,25 +189,21 @@ export default function AdminSystemWalletPage() {
               {formatCurrency(summary.totalDeposits - summary.totalWithdrawals)}
             </div>
             <p className="text-xs text-green-600">
-              Actual cash holding (Deposits - Withdrawals)
+              Current System Liability (In - Out)
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Bảng Log Giao dịch */}
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div>
               <CardTitle>Transaction Logs (Recent 50)</CardTitle>
               <CardDescription>
-                Includes deposits, withdrawals, fees, and group buy
-                transactions.
+                Includes deposits, withdrawals, fees, and refunds.
               </CardDescription>
             </div>
-
-            {/* Search Bar */}
             <div className="relative w-full md:w-80">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
