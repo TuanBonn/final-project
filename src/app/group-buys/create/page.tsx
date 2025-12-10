@@ -2,16 +2,82 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Loader2, UploadCloud, Users } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useUser } from "@/contexts/UserContext";
 import { uploadFileViaApi } from "@/lib/storageUtils";
 import { ImageUploadPreview } from "@/components/ImageUploadPreview";
-import { useUser } from "@/contexts/UserContext";
+import { Loader2, Users } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from "@/components/ui/form";
+
+// 1. Define Zod Schema
+const groupBuySchema = z.object({
+  productName: z
+    .string()
+    .trim()
+    .min(5, { message: "Product name must be at least 5 characters." })
+    .max(150, { message: "Product name is too long (max 150 characters)." }),
+
+  description: z
+    .string()
+    .trim()
+    .min(20, { message: "Description must be at least 20 characters." })
+    .max(5000, { message: "Description is too long (max 5000 characters)." }),
+
+  pricePerUnit: z
+    .string()
+    .min(1, { message: "Please enter price." })
+    .refine(
+      (val) => {
+        const numericVal = parseInt(val.replace(/\D/g, ""), 10);
+        return !isNaN(numericVal) && numericVal >= 1000;
+      },
+      { message: "Price must be at least 1,000 VND." }
+    ),
+
+  targetQuantity: z
+    .string()
+    .min(1, { message: "Please enter target quantity." })
+    .refine(
+      (val) => {
+        const num = parseInt(val, 10);
+        return !isNaN(num) && num >= 2;
+      },
+      { message: "Target quantity must be at least 2." }
+    )
+    .refine(
+      (val) => {
+        const num = parseInt(val, 10);
+        return num <= 1000;
+      },
+      { message: "Quantity seems too high for a group buy (max 1000)." }
+    ),
+});
+
+// Infer TS Type from Schema
+type GroupBuyFormValues = z.infer<typeof groupBuySchema>;
+
+// Helper to format currency display
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
   const numericValue = value.replace(/\D/g, "");
@@ -24,18 +90,21 @@ export default function CreateGroupBuyPage() {
   const { user } = useUser();
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState({
-    productName: "",
-    productDescription: "",
-    pricePerUnit: "",
-    targetQuantity: "",
-  });
-
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 2. Setup Hook Form
+  const form = useForm<GroupBuyFormValues>({
+    resolver: zodResolver(groupBuySchema),
+    defaultValues: {
+      productName: "",
+      description: "",
+      pricePerUnit: "",
+      targetQuantity: "",
+    },
+  });
+
+  // 3. Handle Submit
+  const onSubmit = async (values: GroupBuyFormValues) => {
     setServerError(null);
 
     if (!user) {
@@ -44,6 +113,7 @@ export default function CreateGroupBuyPage() {
       return;
     }
 
+    // Manual validation for files (since it's not a text input)
     if (selectedFiles.length === 0) {
       setServerError("Please select at least 1 image.");
       return;
@@ -52,19 +122,21 @@ export default function CreateGroupBuyPage() {
     setLoading(true);
 
     try {
+      // Upload Images
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
       const imageUrls = await Promise.all(uploadPromises);
 
+      // Call API
       const res = await fetch("/api/group-buys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productName: formData.productName,
-          description: formData.productDescription,
-          price: formData.pricePerUnit,
-          targetQuantity: formData.targetQuantity,
+          productName: values.productName,
+          description: values.description,
+          price: values.pricePerUnit, // sending raw string, API cleans it
+          targetQuantity: values.targetQuantity,
           imageUrls: imageUrls,
         }),
       });
@@ -75,7 +147,7 @@ export default function CreateGroupBuyPage() {
       alert("Group buy created successfully!");
       router.push("/group-buys");
     } catch (error: any) {
-      setServerError(error.message);
+      setServerError(error.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -88,92 +160,135 @@ export default function CreateGroupBuyPage() {
           <CardTitle className="flex items-center gap-2 text-2xl">
             <Users className="h-6 w-6 text-orange-600" /> Create Group Buy
           </CardTitle>
+          <CardDescription>
+            Start a new group buy campaign for the community.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Product name */}
-            <div className="space-y-2">
-              <Label>Product name *</Label>
-              <Input
-                required
-                value={formData.productName}
-                onChange={(e) =>
-                  setFormData({ ...formData, productName: e.target.value })
-                }
-                placeholder="Example: Set of 5 Tomica Limited cars..."
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Product Name */}
+              <FormField
+                control={form.control}
+                name="productName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product name *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Example: Set of 5 Tomica Limited cars..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            {/* Images */}
-            <div className="space-y-2">
-              <Label>Images *</Label>
-              <ImageUploadPreview
-                onFilesChange={setSelectedFiles}
-                maxFiles={5}
-              />
-            </div>
-
-            {/* Price & Quantity */}
-            <div className="grid grid-cols-2 gap-4">
+              {/* Images (Manual Handling) */}
               <div className="space-y-2">
-                <Label>Price per slot (VND) *</Label>
-                <Input
-                  required
-                  value={formData.pricePerUnit}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      pricePerUnit: formatCurrencyForInput(e.target.value),
-                    })
+                <FormLabel
+                  className={
+                    serverError && selectedFiles.length === 0
+                      ? "text-red-500"
+                      : ""
                   }
-                  placeholder="100,000"
+                >
+                  Images *
+                </FormLabel>
+                <ImageUploadPreview
+                  onFilesChange={setSelectedFiles}
+                  maxFiles={5}
+                />
+                <FormDescription>
+                  Upload up to 5 images clearly showing the product.
+                </FormDescription>
+              </div>
+
+              {/* Price & Quantity Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="pricePerUnit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price per slot (VND) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="100,000"
+                          onChange={(e) =>
+                            field.onChange(
+                              formatCurrencyForInput(e.target.value)
+                            )
+                          }
+                          value={formatCurrencyForInput(field.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="targetQuantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Target quantity *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="2"
+                          placeholder="10"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Target quantity *</Label>
-                <Input
-                  required
-                  type="number"
-                  min="1"
-                  value={formData.targetQuantity}
-                  onChange={(e) =>
-                    setFormData({ ...formData, targetQuantity: e.target.value })
-                  }
-                  placeholder="10"
-                />
-              </div>
-            </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label>Detailed description & terms *</Label>
-              <Textarea
-                required
-                className="h-32"
-                value={formData.productDescription}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    productDescription: e.target.value,
-                  })
-                }
-                placeholder="Describe the product, deposit rules, host commitments..."
+              {/* Description */}
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Detailed description & terms *</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="h-32"
+                        placeholder="Describe the product, deposit rules, host commitments..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            {serverError && (
-              <p className="text-red-500 text-sm">{serverError}</p>
-            )}
+              {/* Server Error Display */}
+              {serverError && (
+                <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                  <p className="text-red-600 text-sm font-medium">
+                    {serverError}
+                  </p>
+                </div>
+              )}
 
-            <Button
-              type="submit"
-              className="w-full py-6 text-lg bg-orange-600 hover:bg-orange-700"
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="animate-spin mr-2" /> : null}
-              Create Group Buy
-            </Button>
-          </form>
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                className="w-full py-6 text-lg bg-orange-600 hover:bg-orange-700"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="animate-spin mr-2" /> : null}
+                Create Group Buy
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>

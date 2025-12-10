@@ -1,16 +1,119 @@
-// src/app/api/admin/users/route.ts
-// Đã SỬA LỖI: Đảo Filter lên trước Order + 'runtime = nodejs'
+// // src/app/api/admin/users/route.ts
+// // Đã SỬA LỖI: Đảo Filter lên trước Order + 'runtime = nodejs'
 
+// import { NextResponse, type NextRequest } from "next/server";
+// import { createClient, SupabaseClient } from "@supabase/supabase-js";
+// import { parse as parseCookie } from "cookie";
+// import jwt from "jsonwebtoken";
+
+// // === GHIM VÀO NODE.JS ===
+// export const runtime = "nodejs";
+// // ======================
+
+// // --- Cấu hình ---
+// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+// const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// const JWT_SECRET = process.env.JWT_SECRET;
+// const COOKIE_NAME = "auth-token";
+
+// interface JwtPayload {
+//   role?: string;
+//   [key: string]: unknown;
+// }
+
+// // --- Hàm khởi tạo Admin Client (Dùng Service Key) ---
+// function getSupabaseAdmin(): SupabaseClient | null {
+//   if (!supabaseUrl || !supabaseServiceKey) {
+//     console.error("API Admin/Users: Thiếu Supabase URL hoặc Service Key!");
+//     return null;
+//   }
+//   try {
+//     return createClient(supabaseUrl, supabaseServiceKey, {
+//       auth: { persistSession: false },
+//     });
+//   } catch (error) {
+//     console.error("API Admin/Users: Lỗi tạo Admin Client:", error);
+//     return null;
+//   }
+// }
+
+// // --- Hàm xử lý GET request (ĐÃ SỬA) ---
+// export async function GET(request: NextRequest) {
+//   // 1. Kiểm tra cấu hình
+//   if (!JWT_SECRET) {
+//     /* ... check config ... */
+//   }
+
+//   // 2. Xác thực Admin (Đọc cookie thủ công)
+//   try {
+//     let token: string | undefined = undefined;
+//     const cookieHeader = request.headers.get("cookie");
+//     if (cookieHeader) {
+//       const cookies = parseCookie(cookieHeader);
+//       token = cookies[COOKIE_NAME];
+//     }
+//     if (!token)
+//       return NextResponse.json({ error: "Yêu cầu xác thực." }, { status: 401 });
+//     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+//     if (decoded.role !== "admin") {
+//       return NextResponse.json(
+//         { error: "Không có quyền truy cập." },
+//         { status: 403 }
+//       );
+//     }
+//   } catch (error) {
+//     return NextResponse.json({ error: "Token không hợp lệ." }, { status: 401 });
+//   }
+
+//   // 3. Lấy dữ liệu (Dùng Admin Client)
+//   try {
+//     const search = request.nextUrl.searchParams.get("search");
+//     const supabaseAdmin = getSupabaseAdmin();
+//     if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");
+
+//     let query = supabaseAdmin
+//       .from("users")
+//       .select(
+//         "id, username, full_name, email, role, is_verified, status, created_at"
+//       ); // <-- Bỏ order ở đây
+
+//     // === LỌC TRƯỚC ===
+//     if (search) {
+//       console.log(`API Admin/Users: Đang tìm kiếm với: "${search}"`);
+//       query = query.or(
+//         `username.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`
+//       );
+//     }
+//     // ===================
+
+//     // === SẮP XẾP SAU ===
+//     query = query.order("created_at", { ascending: false });
+//     // ===================
+
+//     const { data: users, error } = await query;
+//     if (error) {
+//       console.error("API Admin/Users: Lỗi query DB:", error);
+//       throw error;
+//     }
+
+//     return NextResponse.json({ users: users || [] }, { status: 200 });
+//   } catch (error: unknown) {
+//     console.error("API Admin/Users: Lỗi bất ngờ:", error);
+//     let message = "Lỗi server khi lấy danh sách user.";
+//     if (error instanceof Error) message = error.message;
+//     return NextResponse.json({ error: message }, { status: 500 });
+//   }
+// }
+
+// src/app/api/admin/users/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
 
-// === GHIM VÀO NODE.JS ===
 export const runtime = "nodejs";
-// ======================
 
-// --- Cấu hình ---
+// --- Configuration ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -21,10 +124,9 @@ interface JwtPayload {
   [key: string]: unknown;
 }
 
-// --- Hàm khởi tạo Admin Client (Dùng Service Key) ---
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("API Admin/Users: Thiếu Supabase URL hoặc Service Key!");
+    console.error("API Admin/Users: Missing Supabase URL or Service Key!");
     return null;
   }
   try {
@@ -32,19 +134,21 @@ function getSupabaseAdmin(): SupabaseClient | null {
       auth: { persistSession: false },
     });
   } catch (error) {
-    console.error("API Admin/Users: Lỗi tạo Admin Client:", error);
+    console.error("API Admin/Users: Error creating Admin Client:", error);
     return null;
   }
 }
 
-// --- Hàm xử lý GET request (ĐÃ SỬA) ---
 export async function GET(request: NextRequest) {
-  // 1. Kiểm tra cấu hình
+  // 1. Validate Config
   if (!JWT_SECRET) {
-    /* ... check config ... */
+    return NextResponse.json(
+      { error: "Server misconfiguration." },
+      { status: 500 }
+    );
   }
 
-  // 2. Xác thực Admin (Đọc cookie thủ công)
+  // 2. Auth Check
   try {
     let token: string | undefined = undefined;
     const cookieHeader = request.headers.get("cookie");
@@ -53,53 +157,76 @@ export async function GET(request: NextRequest) {
       token = cookies[COOKIE_NAME];
     }
     if (!token)
-      return NextResponse.json({ error: "Yêu cầu xác thực." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Authentication required." },
+        { status: 401 }
+      );
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     if (decoded.role !== "admin") {
-      return NextResponse.json(
-        { error: "Không có quyền truy cập." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Access denied." }, { status: 403 });
     }
   } catch (error) {
-    return NextResponse.json({ error: "Token không hợp lệ." }, { status: 401 });
+    return NextResponse.json({ error: "Invalid token." }, { status: 401 });
   }
 
-  // 3. Lấy dữ liệu (Dùng Admin Client)
+  // 3. Fetch Data with Pagination
   try {
-    const search = request.nextUrl.searchParams.get("search");
-    const supabaseAdmin = getSupabaseAdmin();
-    if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search");
 
+    // Pagination Params
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    const supabaseAdmin = getSupabaseAdmin();
+    if (!supabaseAdmin) throw new Error("Failed to init Admin Client");
+
+    // Select with count
     let query = supabaseAdmin
       .from("users")
       .select(
-        "id, username, full_name, email, role, is_verified, status, created_at"
-      ); // <-- Bỏ order ở đây
+        "id, username, full_name, email, role, is_verified, status, created_at",
+        { count: "exact" }
+      );
 
-    // === LỌC TRƯỚC ===
+    // === FILTER ===
     if (search) {
-      console.log(`API Admin/Users: Đang tìm kiếm với: "${search}"`);
+      // Safety limit for text search (similar to products) to prevent timeouts
+      // We apply the limit to the query logic itself implicitly by how many rows pass the filter
+      // But Supabase doesn't support sub-query limiting easily in OR filters without raw SQL.
+      // For now, simple text search is fine, but standard practice is to rely on paginated response.
+
       query = query.or(
         `username.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`
       );
     }
-    // ===================
 
-    // === SẮP XẾP SAU ===
-    query = query.order("created_at", { ascending: false });
-    // ===================
+    // === SORT & PAGINATE ===
+    query = query.order("created_at", { ascending: false }).range(from, to);
 
-    const { data: users, error } = await query;
+    const { data: users, error, count } = await query;
+
     if (error) {
-      console.error("API Admin/Users: Lỗi query DB:", error);
+      console.error("API Admin/Users: DB Error:", error);
       throw error;
     }
 
-    return NextResponse.json({ users: users || [] }, { status: 200 });
+    const totalPages = count ? Math.ceil(count / limit) : 1;
+
+    return NextResponse.json(
+      {
+        users: users || [],
+        totalPages,
+        currentPage: page,
+        totalUsers: count,
+      },
+      { status: 200 }
+    );
   } catch (error: unknown) {
-    console.error("API Admin/Users: Lỗi bất ngờ:", error);
-    let message = "Lỗi server khi lấy danh sách user.";
+    console.error("API Admin/Users: Unexpected Error:", error);
+    let message = "Server error while fetching users.";
     if (error instanceof Error) message = error.message;
     return NextResponse.json({ error: message }, { status: 500 });
   }
