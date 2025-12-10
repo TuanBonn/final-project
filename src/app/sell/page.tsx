@@ -36,7 +36,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -53,6 +53,7 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Helper to format display value
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
   const numericValue = value.replace(/\D/g, "");
@@ -60,16 +61,65 @@ const formatCurrencyForInput = (value: string | number): string => {
   return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
 };
 
+// Updated Validation Schema
 const productSchema = z.object({
-  name: z.string().min(5, { message: "Name must be at least 5 characters." }),
-  description: z.string().optional(),
-  price: z.string().min(1, { message: "Please enter price." }),
-  brand_id: z.string({ required_error: "Please select a brand." }),
+  name: z
+    .string()
+    .trim()
+    .min(5, { message: "Name must be at least 5 characters." })
+    .max(150, { message: "Name is too long (max 150 characters)." }),
+
+  description: z
+    .string()
+    .trim()
+    .max(3000, { message: "Description is too long (max 3000 characters)." })
+    .optional(),
+
+  price: z
+    .string()
+    .min(1, { message: "Please enter price." })
+    .refine(
+      (val) => {
+        const numericVal = parseInt(val.replace(/\D/g, ""), 10);
+        return !isNaN(numericVal) && numericVal >= 1000;
+      },
+      { message: "Price must be at least 1,000 VND." }
+    )
+    .refine(
+      (val) => {
+        const numericVal = parseInt(val.replace(/\D/g, ""), 10);
+        return numericVal <= 10000000000; // 10 Billion limit
+      },
+      { message: "Price is too high. Please check again." }
+    ),
+
+  brand_id: z
+    .string({ required_error: "Please select a brand." })
+    .min(1, "Please select a brand."),
+
   condition: z.enum(["new", "used", "like_new", "custom"], {
     required_error: "Please select condition.",
   }),
-  quantity: z.string().min(1, { message: "Enter quantity." }),
+
+  quantity: z
+    .string()
+    .min(1, { message: "Enter quantity." })
+    .refine(
+      (val) => {
+        const num = parseInt(val, 10);
+        return !isNaN(num) && num >= 1;
+      },
+      { message: "Quantity must be at least 1." }
+    )
+    .refine(
+      (val) => {
+        const num = parseInt(val, 10);
+        return num <= 10000;
+      },
+      { message: "Quantity cannot exceed 10,000 items." }
+    ),
 });
+
 type ProductFormValues = z.infer<typeof productSchema>;
 
 export default function SellPage() {
@@ -116,21 +166,37 @@ export default function SellPage() {
     }
 
     try {
-      if (selectedFiles.length === 0)
-        throw new Error("Select at least 1 image.");
+      // 1. Validate Images Strict Check
+      if (selectedFiles.length === 0) {
+        throw new Error("Please upload at least 1 image of the product.");
+      }
+      if (selectedFiles.length > 10) {
+        throw new Error("You can only upload a maximum of 10 images.");
+      }
 
+      // Check file size (limit 5MB per file)
+      for (const file of selectedFiles) {
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`File "${file.name}" is too large. Max size is 5MB.`);
+        }
+      }
+
+      // 2. Upload Images
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
       const imageUrls = await Promise.all(uploadPromises);
 
+      // 3. Submit Data
       const response = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...values,
-          price: values.price.replace(/\D/g, ""),
-          quantity: values.quantity,
+          name: values.name.trim(),
+          description: values.description?.trim(),
+          price: values.price.replace(/\D/g, ""), // Clean currency string
+          quantity: parseInt(values.quantity, 10),
           imageUrls: imageUrls,
         }),
       });
@@ -141,7 +207,7 @@ export default function SellPage() {
       alert("Listed successfully!");
       router.push("/");
     } catch (err: unknown) {
-      setServerError(err instanceof Error ? err.message : "Error.");
+      setServerError(err instanceof Error ? err.message : "An error occurred.");
     } finally {
       setIsSubmitting(false);
     }
@@ -157,6 +223,7 @@ export default function SellPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Product Name */}
               <FormField
                 control={form.control}
                 name="name"
@@ -164,13 +231,17 @@ export default function SellPage() {
                   <FormItem>
                     <FormLabel>Product Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Tomica..." {...field} />
+                      <Input
+                        placeholder="e.g. Tomica Limited Vintage..."
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              {/* Price and Quantity */}
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -181,6 +252,7 @@ export default function SellPage() {
                       <FormControl>
                         <Input
                           {...field}
+                          placeholder="0"
                           onChange={(e) =>
                             field.onChange(
                               formatCurrencyForInput(e.target.value)
@@ -209,6 +281,7 @@ export default function SellPage() {
                 />
               </div>
 
+              {/* Brand Selection */}
               <FormField
                 control={form.control}
                 name="brand_id"
@@ -269,6 +342,7 @@ export default function SellPage() {
                 )}
               />
 
+              {/* Condition */}
               <FormField
                 control={form.control}
                 name="condition"
@@ -296,6 +370,7 @@ export default function SellPage() {
                 )}
               />
 
+              {/* Description */}
               <FormField
                 control={form.control}
                 name="description"
@@ -304,7 +379,7 @@ export default function SellPage() {
                     <FormLabel>Description</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Detailed description..."
+                        placeholder="Detailed description about the product state, origin, etc."
                         {...field}
                       />
                     </FormControl>
@@ -313,18 +388,24 @@ export default function SellPage() {
                 )}
               />
 
+              {/* Images */}
               <FormItem>
                 <FormLabel>Images *</FormLabel>
                 <FormControl>
                   <ImageUploadPreview onFilesChange={setSelectedFiles} />
                 </FormControl>
                 <FormDescription>
-                  You can select multiple images.
+                  Upload at least 1 image. Max size 5MB/file.
                 </FormDescription>
               </FormItem>
 
+              {/* Server Error Message */}
               {serverError && (
-                <p className="text-red-600 text-sm">{serverError}</p>
+                <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                  <p className="text-red-600 text-sm font-medium">
+                    {serverError}
+                  </p>
+                </div>
               )}
 
               <Button type="submit" disabled={isSubmitting} className="w-full">

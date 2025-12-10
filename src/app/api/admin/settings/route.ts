@@ -50,12 +50,20 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
 
 // === GET METHOD ===
 export async function GET(request: NextRequest) {
-  // Check if the requester is an admin
+  // 1. Check if the requester is an admin
   const isAdmin = await verifyAdmin(request);
 
-  // Define keys that are public/visible to regular users
-  // These are needed for the UpgradeAccount component
-  const PUBLIC_KEYS = ["verification_fee", "dealer_subscription"];
+  // 2. Define keys that are public/visible to regular users
+  // IMPORTANT: Add any new fee/config you want users to see here
+  const PUBLIC_KEYS = [
+    "verification_fee", // Fee for account verification
+    "dealer_subscription", // Fee for upgrading to Dealer
+    "auction_creation_fee", // Fee to create an auction
+    "auction_bid_fee", // Fee per bid (if any)
+    "AUCTION_PARTICIPATION_FEE", // Deposit fee to join auction
+    "TRANSACTION_COMMISSION_PERCENT", // Platform commission percentage
+    "withdraw_fee", // Fee for withdrawal (optional)
+  ];
 
   try {
     const supabaseAdmin = getSupabaseAdmin();
@@ -66,7 +74,7 @@ export async function GET(request: NextRequest) {
       .select("*")
       .order("key", { ascending: true });
 
-    // If NOT admin, filter to return ONLY public keys
+    // 3. If NOT admin, filter to return ONLY public keys
     if (!isAdmin) {
       query = query.in("key", PUBLIC_KEYS);
     }
@@ -83,9 +91,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === PATCH METHOD (Update settings) ===
+// === PATCH METHOD (Update settings - ADMIN ONLY) ===
 export async function PATCH(request: NextRequest) {
-  // Strictly allow ONLY admins to update settings
   if (!(await verifyAdmin(request))) {
     return NextResponse.json(
       { error: "Forbidden. Admin access required." },
@@ -107,21 +114,27 @@ export async function PATCH(request: NextRequest) {
 
     // === DATA TRANSFORMATION LOGIC ===
     const transformedSettings = settingsToUpdate.map((setting) => {
-      // 1. Logic for PERCENT keys
+      // 1. Logic for PERCENT keys (e.g. 5% -> 0.05)
       const percentKeys = ["TRANSACTION_COMMISSION_PERCENT"];
       if (percentKeys.includes(setting.key) && setting.value) {
         const numericValue = parseFloat(setting.value);
         if (!isNaN(numericValue)) {
-          return { ...setting, value: (numericValue / 100).toString() }; // "5" -> "0.05"
+          // Store as decimal (e.g., 5 becomes 0.05)
+          // Note: Adjust this logic if your frontend sends 0.05 directly
+          return { ...setting, value: (numericValue / 100).toString() };
         }
       }
 
-      // 2. Logic for CURRENCY keys (VND)
+      // 2. Logic for CURRENCY keys (Remove non-digits like dots/commas)
       const currencyKeys = [
         "verification_fee",
-        "AUCTION_PARTICIPATION_FEE",
         "dealer_subscription",
+        "auction_creation_fee",
+        "auction_bid_fee",
+        "AUCTION_PARTICIPATION_FEE",
+        "withdraw_fee",
       ];
+
       if (currencyKeys.includes(setting.key) && setting.value) {
         const rawValue = setting.value.replace(/\D/g, ""); // "10.000.000" -> "10000000"
         return { ...setting, value: rawValue };
@@ -129,7 +142,6 @@ export async function PATCH(request: NextRequest) {
 
       return setting;
     });
-    // === END TRANSFORMATION LOGIC ===
 
     const { data: updatedSettings, error } = await supabaseAdmin
       .from("app_settings")

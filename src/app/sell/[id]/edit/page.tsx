@@ -1,13 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useUser } from "@/contexts/UserContext";
+import { uploadFileViaApi } from "@/lib/storageUtils";
+import { Brand } from "@prisma/client";
+import { ImageUploadPreview } from "@/components/ImageUploadPreview";
+
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -16,279 +28,530 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2,
-  ArrowLeft,
-  Save,
-  Trash2,
-  X,
-  AlertTriangle,
-} from "lucide-react";
-import { uploadFileViaApi } from "@/lib/storageUtils";
-import { ImageUploadPreview } from "@/components/ImageUploadPreview";
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Loader2, Save, ArrowLeft, X, Undo2 } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// --- VALIDATION SCHEMA ---
+const formatCurrencyForInput = (value: string | number): string => {
+  if (typeof value === "number") value = value.toString();
+  const numericValue = value.replace(/\D/g, "");
+  if (numericValue === "") return "";
+  return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
+};
+
+const productSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(5, { message: "Name must be at least 5 characters." })
+    .max(150, { message: "Name is too long (max 150 characters)." }),
+  // .regex(/^[a-zA-Z0-9_]+$/, "No special characters"),
+
+  description: z
+    .string()
+    .trim()
+    .max(3000, { message: "Description is too long (max 3000 characters)." })
+    .optional(),
+
+  price: z
+    .string()
+    .min(1, { message: "Please enter price." })
+    .refine(
+      (val) => {
+        const numericVal = parseInt(val.replace(/\D/g, ""), 10);
+        return !isNaN(numericVal) && numericVal >= 1000;
+      },
+      { message: "Price must be at least 1,000 VND." }
+    )
+    .refine(
+      (val) => {
+        const numericVal = parseInt(val.replace(/\D/g, ""), 10);
+        return numericVal <= 10000000000;
+      },
+      { message: "Price is too high." }
+    ),
+
+  brand_id: z.string().min(1, "Please select a brand."),
+
+  condition: z.enum(["new", "used", "like_new", "custom"], {
+    required_error: "Please select condition.",
+  }),
+
+  quantity: z
+    .string()
+    .min(1, { message: "Enter quantity." })
+    .refine(
+      (val) => {
+        const num = parseInt(val, 10);
+        return !isNaN(num) && num >= 1;
+      },
+      { message: "Quantity must be at least 1." }
+    )
+    .refine(
+      (val) => {
+        const num = parseInt(val, 10);
+        return num <= 10000;
+      },
+      { message: "Quantity cannot exceed 10,000 items." }
+    ),
+});
+
+type ProductFormValues = z.infer<typeof productSchema>;
 
 export default function EditProductPage() {
-  const { id } = useParams();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const params = useParams();
+  const { user } = useUser();
+  const productId = params?.id as string;
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    price: "",
-    quantity: "",
-    condition: "new",
-    status: "available",
-    brand_id: "",
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
+  // Quản lý ảnh: Ảnh cũ (URL) và Ảnh mới (File)
+  const [initialImages, setInitialImages] = useState<string[]>([]);
+  const [keptOldImages, setKeptOldImages] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      price: "0",
+      quantity: "1",
+      condition: "new",
+      brand_id: "",
+    },
   });
 
-  const [currentImageUrls, setCurrentImageUrls] = useState<string[]>([]);
-  const [newFiles, setNewFiles] = useState<File[]>([]);
-
+  // 1. Load dữ liệu ban đầu
   useEffect(() => {
-    const fetchData = async () => {
+    const initData = async () => {
       try {
-        const res = await fetch(`/api/products/${id}`);
-        if (!res.ok) throw new Error("Could not load product.");
-        const data = await res.json();
-        const p = data.product;
+        setIsLoading(true);
 
-        setFormData({
-          name: p.name,
-          description: p.description || "",
-          price: p.price.toString(),
-          quantity: p.quantity.toString(),
-          condition: p.condition,
-          status: p.status,
-          brand_id: p.brand_id || "",
+        // Fetch brands
+        const brandRes = await fetch("/api/admin/brands");
+        const brandData = await brandRes.json();
+        setBrands(brandData.brands || []);
+
+        // Fetch product details
+        const productRes = await fetch(`/api/products/${productId}`);
+        if (!productRes.ok) throw new Error("Product not found");
+        const productData = await productRes.json();
+        const product = productData.product;
+
+        // Điền vào form
+        form.reset({
+          name: product.name,
+          description: product.description || "",
+          price: formatCurrencyForInput(product.price),
+          quantity: product.quantity.toString(),
+          brand_id: product.brand_id || "",
+          condition: product.condition,
         });
 
-        setCurrentImageUrls(p.image_urls || []);
+        // Xử lý ảnh cũ
+        let images: string[] = [];
+        if (Array.isArray(product.image_urls)) {
+          images = product.image_urls;
+        } else if (typeof product.image_urls === "string") {
+          try {
+            images = JSON.parse(product.image_urls);
+          } catch {}
+        }
+
+        setInitialImages(images);
+        setKeptOldImages(images); // Mặc định giữ tất cả ảnh cũ
       } catch (error) {
-        alert("Error loading product data.");
-        router.push("/my-products");
+        console.error("Error fetching data:", error);
+        setServerError("Failed to load product data.");
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
-    fetchData();
-  }, [id, router]);
+    if (user && productId) {
+      initData();
+    }
+  }, [productId, user, form]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+  const onSubmit = async (values: ProductFormValues) => {
+    setIsSubmitting(true);
+    setServerError(null);
 
     try {
-      const uploadedUrls = [];
-      for (const file of newFiles) {
-        const url = await uploadFileViaApi("products", file);
-        if (url) uploadedUrls.push(url);
+      const totalImages = keptOldImages.length + selectedFiles.length;
+      if (totalImages === 0) {
+        throw new Error("Please have at least 1 image for the product.");
+      }
+      if (totalImages > 10) {
+        throw new Error("Maximum 10 images allowed.");
       }
 
-      const finalImageUrls = [...currentImageUrls, ...uploadedUrls];
+      // Check size ảnh mới
+      for (const file of selectedFiles) {
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`File "${file.name}" is too large (max 5MB).`);
+        }
+      }
 
-      const res = await fetch(`/api/products/${id}`, {
+      // 2. Upload ảnh mới
+      let newImageUrls: string[] = [];
+      if (selectedFiles.length > 0) {
+        const uploadPromises = selectedFiles.map((file) =>
+          uploadFileViaApi("products", file)
+        );
+        newImageUrls = await Promise.all(uploadPromises);
+      }
+
+      // Gộp ảnh cũ giữ lại + ảnh mới
+      const finalImageUrls = [...keptOldImages, ...newImageUrls];
+
+      // 3. Gửi Request Update
+      const response = await fetch(`/api/products/${productId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: formData.name,
-          description: formData.description,
-          price: formData.price,
-          quantity: formData.quantity,
-          condition: formData.condition,
+          ...values,
+          name: values.name.trim(),
+          description: values.description?.trim(),
+          price: values.price.replace(/\D/g, ""),
+          quantity: parseInt(values.quantity, 10),
           imageUrls: finalImageUrls,
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Update failed.");
 
-      alert("Update successful!");
-      router.push("/my-products");
-    } catch (error: any) {
-      alert(error.message);
+      alert("Product updated successfully!");
+      router.back();
+    } catch (err: unknown) {
+      setServerError(err instanceof Error ? err.message : "An error occurred.");
     } finally {
-      setSaving(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      alert(data.message);
-      router.push("/my-products");
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading)
+  if (isLoading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="animate-spin h-10 w-10" />
+      <div className="flex h-[50vh] justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
 
   return (
-    <div className="container mx-auto py-8 max-w-3xl px-4">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+    <div className="max-w-2xl mx-auto py-6">
+      <Button
+        variant="ghost"
+        className="mb-4 pl-0 hover:bg-transparent"
+        onClick={() => router.back()}
+      >
         <ArrowLeft className="mr-2 h-4 w-4" /> Back
       </Button>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle>Edit Product</CardTitle>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDelete}
-            disabled={saving}
-          >
-            <Trash2 className="mr-2 h-4 w-4" /> Delete Product
-          </Button>
+          <CardDescription>Update your product details.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label>Product Name</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                required
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Name */}
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Tomica..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            <div className="space-y-2">
-              <Label>Images</Label>
-              <div className="flex flex-wrap gap-4 mb-4">
-                {currentImageUrls.map((url, idx) => (
-                  <div
-                    key={idx}
-                    className="relative w-24 h-24 border rounded overflow-hidden group"
-                  >
-                    <img
-                      src={url}
-                      alt="Old"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      className="absolute top-0 right-0 bg-red-600 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() =>
-                        setCurrentImageUrls((prev) =>
-                          prev.filter((_, i) => i !== idx)
-                        )
-                      }
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <ImageUploadPreview onFilesChange={setNewFiles} maxFiles={5} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Price (VND)</Label>
-                <Input
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) =>
-                    setFormData({ ...formData, price: e.target.value })
-                  }
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Stock Quantity</Label>
-                <Input
-                  type="number"
-                  value={formData.quantity}
-                  onChange={(e) =>
-                    setFormData({ ...formData, quantity: e.target.value })
-                  }
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Condition</Label>
-                <Select
-                  value={formData.condition}
-                  onValueChange={(val) =>
-                    setFormData({ ...formData, condition: val })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New 100%</SelectItem>
-                    <SelectItem value="like_new">Like New</SelectItem>
-                    <SelectItem value="used">Used</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Current Status</Label>
-                <div className="flex items-center h-10">
-                  {formData.status === "hidden" ? (
-                    <Badge variant="destructive" className="bg-red-600">
-                      Hidden by Admin (Locked)
-                    </Badge>
-                  ) : formData.status === "sold" || formData.quantity == "0" ? (
-                    <Badge variant="secondary">Out of Stock / Hidden</Badge>
-                  ) : (
-                    <Badge variant="default" className="bg-green-600">
-                      Active
-                    </Badge>
+              {/* Price & Quantity */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price (VND) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(
+                              formatCurrencyForInput(e.target.value)
+                            )
+                          }
+                          value={formatCurrencyForInput(field.value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </div>
-              </div>
-            </div>
+                />
 
-            {formData.status === "hidden" && (
-              <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-md text-sm flex items-start gap-2">
-                <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-                <p>
-                  This product is hidden by Admin due to violation. You can edit
-                  the content but it will remain hidden until Admin unhides it.
-                </p>
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantity *</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-            )}
 
-            <div className="space-y-2">
-              <Label>Detailed Description</Label>
-              <Textarea
-                className="h-32"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+              {/* Brand */}
+              <FormField
+                control={form.control}
+                name="brand_id"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Brand *</FormLabel>
+                    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value
+                              ? brands.find((b) => b.id === field.value)?.name
+                              : "Select brand..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search brand..." />
+                          <CommandList>
+                            <CommandEmpty>Not found.</CommandEmpty>
+                            <CommandGroup>
+                              {brands.map((b) => (
+                                <CommandItem
+                                  value={b.name}
+                                  key={b.id}
+                                  onSelect={() => {
+                                    form.setValue("brand_id", b.id);
+                                    setPopoverOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      b.id === field.value
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                  {b.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            <Button type="submit" className="w-full" disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Changes
-            </Button>
-          </form>
+              {/* Condition */}
+              <FormField
+                control={form.control}
+                name="condition"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Condition *</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select condition" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="like_new">Like New</SelectItem>
+                        <SelectItem value="used">Used</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Description */}
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="h-32"
+                        placeholder="Detailed description..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Images Management */}
+              <FormItem>
+                <FormLabel>Images *</FormLabel>
+                <div className="space-y-4">
+                  {/* Current Images List */}
+                  {initialImages.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground font-medium">
+                        Current Images:
+                      </p>
+                      <div className="grid grid-cols-4 gap-3">
+                        {initialImages.map((url, idx) => {
+                          const isKept = keptOldImages.includes(url);
+                          return (
+                            <div
+                              key={idx}
+                              className="relative group aspect-square rounded-md overflow-hidden border"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={url}
+                                alt="Product"
+                                className={cn(
+                                  "w-full h-full object-cover transition-all",
+                                  !isKept && "opacity-30 grayscale blur-[1px]"
+                                )}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                                {isKept ? (
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full shadow-md"
+                                    onClick={() =>
+                                      setKeptOldImages((prev) =>
+                                        prev.filter((img) => img !== url)
+                                      )
+                                    }
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full shadow-md"
+                                    onClick={() =>
+                                      setKeptOldImages((prev) => [...prev, url])
+                                    }
+                                  >
+                                    <Undo2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                              {!isKept && (
+                                <div className="absolute inset-x-0 bottom-0 bg-red-600 text-white text-[10px] text-center py-0.5">
+                                  Removed
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add New Images */}
+                  <div>
+                    <p className="text-sm text-muted-foreground font-medium mb-2">
+                      Add New Images:
+                    </p>
+                    <FormControl>
+                      <ImageUploadPreview onFilesChange={setSelectedFiles} />
+                    </FormControl>
+                  </div>
+                </div>
+                <FormDescription>
+                  Keep or upload at least 1 image. Total max 10 images.
+                </FormDescription>
+              </FormItem>
+
+              {serverError && (
+                <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                  <p className="text-red-600 text-sm font-medium">
+                    {serverError}
+                  </p>
+                </div>
+              )}
+
+              <Button type="submit" disabled={isSubmitting} className="w-full">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" /> Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" /> Save Changes
+                  </>
+                )}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>
