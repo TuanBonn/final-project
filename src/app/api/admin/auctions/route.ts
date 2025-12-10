@@ -48,9 +48,15 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const search = searchParams.get("search"); // <--- Lấy param search
+    const search = searchParams.get("search");
 
-    // Query cơ bản
+    // --- PAGINATION PARAMS ---
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    // Query initialization
     let query = supabaseAdmin
       .from("auctions")
       .select(
@@ -64,19 +70,20 @@ export async function GET(request: NextRequest) {
         product:products ( name ),
         seller:users!seller_id ( username ),
         bids:bids ( count )
-      `
+      `,
+        { count: "exact" } // Fetch total count for pagination
       )
       .order("created_at", { ascending: false });
 
-    // === LOGIC TÌM KIẾM ===
+    // === SEARCH LOGIC ===
     if (search) {
-      // 1. Tìm Product ID có tên khớp
+      // 1. Find Product IDs with matching name
       const { data: products } = await supabaseAdmin
         .from("products")
         .select("id")
         .ilike("name", `%${search}%`);
 
-      // 2. Tìm Seller ID có username khớp
+      // 2. Find Seller IDs with matching username
       const { data: sellers } = await supabaseAdmin
         .from("users")
         .select("id")
@@ -94,7 +101,7 @@ export async function GET(request: NextRequest) {
       if (conditions.length > 0) {
         query = query.or(conditions.join(","));
       } else {
-        // Search không ra kết quả nào -> Trả về rỗng bằng cách query ID không tồn tại
+        // Search yields no results -> Return empty by querying non-existent ID
         query = query.eq("id", "00000000-0000-0000-0000-000000000000");
       }
     }
@@ -104,7 +111,10 @@ export async function GET(request: NextRequest) {
       query = query.eq("status", status);
     }
 
-    const { data: auctions, error } = await query;
+    // Apply pagination range
+    query = query.range(from, to);
+
+    const { data: auctions, error, count } = await query;
 
     if (error) throw error;
 
@@ -114,8 +124,15 @@ export async function GET(request: NextRequest) {
       bid_count: auction.bids?.[0]?.count || 0,
     }));
 
+    const totalPages = count ? Math.ceil(count / limit) : 0;
+
     return NextResponse.json(
-      { auctions: formattedAuctions || [] },
+      {
+        auctions: formattedAuctions || [],
+        totalPages,
+        currentPage: page,
+        totalCount: count,
+      },
       { status: 200 }
     );
   } catch (error: any) {

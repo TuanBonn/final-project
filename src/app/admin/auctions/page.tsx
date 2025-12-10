@@ -27,10 +27,11 @@ import {
   Clock,
   ShieldAlert,
   Search,
-  RefreshCw, // Icon cho nút mới
+  RefreshCw,
 } from "lucide-react";
 import { AuctionActions } from "@/components/admin/AuctionActions";
 import { AuctionStatus } from "@prisma/client";
+import { Pagination } from "@/components/Pagination";
 
 interface AuctionRow {
   id: string;
@@ -54,13 +55,17 @@ export default function AdminAuctionsPage() {
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState("all");
   const [scanning, setScanning] = useState(false);
-  const [scanningExpired, setScanningExpired] = useState(false); // State mới cho nút Expired
+  const [scanningExpired, setScanningExpired] = useState(false);
 
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   const fetchData = useCallback(
-    async (searchTerm = "", isInitial = false) => {
+    async (searchTerm = "", currentPage = 1, isInitial = false) => {
       if (isInitial) setLoading(true);
       else setIsSearching(true);
 
@@ -69,9 +74,15 @@ export default function AdminAuctionsPage() {
         if (currentTab !== "all") params.append("status", currentTab);
         if (searchTerm) params.append("search", searchTerm);
 
+        // Add pagination params
+        params.append("page", currentPage.toString());
+        params.append("limit", "10");
+
         const res = await fetch(`/api/admin/auctions?${params.toString()}`);
         const data = await res.json();
+
         setAuctions(data.auctions || []);
+        setTotalPages(data.totalPages || 1);
       } catch (error) {
         console.error(error);
       } finally {
@@ -82,18 +93,27 @@ export default function AdminAuctionsPage() {
     [currentTab]
   );
 
+  // Reset to page 1 when tab changes
   useEffect(() => {
-    fetchData(search, true);
+    setPage(1);
+    fetchData(search, 1, true);
   }, [currentTab]);
 
+  // Reset to page 1 when search changes
   useEffect(() => {
     const timeout = setTimeout(() => {
-      fetchData(search, false);
+      setPage(1);
+      fetchData(search, 1, false);
     }, 500);
     return () => clearTimeout(timeout);
   }, [search]);
 
-  // Xử lý Scan Overdue (Hủy đơn chưa thanh toán)
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    fetchData(search, newPage, false);
+  };
+
+  // Logic: Scan Overdue (Waiting -> Cancelled)
   const handleScanOverdue = async () => {
     if (!confirm("Scan 'Waiting' auctions overdue (24h) to cancel & penalize?"))
       return;
@@ -104,7 +124,7 @@ export default function AdminAuctionsPage() {
       });
       const data = await res.json();
       alert(data.message || "Scan completed.");
-      fetchData(search, false);
+      fetchData(search, page, false); // Reload current page
     } catch (error) {
       alert("Scan error.");
     } finally {
@@ -112,7 +132,7 @@ export default function AdminAuctionsPage() {
     }
   };
 
-  // [MỚI] Xử lý Scan Expired (Active -> Waiting/Cancelled)
+  // Logic: Scan Expired (Active -> Waiting/Ended)
   const handleScanExpired = async () => {
     setScanningExpired(true);
     try {
@@ -121,7 +141,7 @@ export default function AdminAuctionsPage() {
       });
       const data = await res.json();
       alert(data.message || "Expired auctions processed.");
-      fetchData(search, false); // Reload lại bảng
+      fetchData(search, page, false); // Reload current page
     } catch (error) {
       console.error(error);
       alert("Failed to scan expired auctions.");
@@ -179,9 +199,9 @@ export default function AdminAuctionsPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {/* Nút 1: Scan Expired (MỚI) */}
+          {/* Button 1: Scan Expired */}
           <Button
-            variant="default" // Nút chính màu đen/xanh
+            variant="default"
             size="sm"
             onClick={handleScanExpired}
             disabled={scanningExpired}
@@ -195,7 +215,7 @@ export default function AdminAuctionsPage() {
             Scan Expired (Active → Waiting)
           </Button>
 
-          {/* Nút 2: Scan Overdue (CŨ) */}
+          {/* Button 2: Scan Overdue */}
           <Button
             variant="destructive"
             size="sm"
@@ -235,66 +255,77 @@ export default function AdminAuctionsPage() {
             <Loader2 className="animate-spin" />
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Seller</TableHead>
-                  <TableHead>Start Price</TableHead>
-                  <TableHead>Bids</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {auctions.map((au) => (
-                  <TableRow key={au.id}>
-                    <TableCell
-                      className="font-medium max-w-[200px] truncate"
-                      title={au.product?.name || ""}
-                    >
-                      {au.product?.name || "---"}
-                    </TableCell>
-                    <TableCell>@{au.seller?.username}</TableCell>
-                    <TableCell className="font-mono text-primary font-bold">
-                      {formatCurrency(au.starting_bid)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Gavel className="h-3 w-3" /> {au.bid_count}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />{" "}
-                        {new Date(au.end_time).toLocaleString("en-GB")}
-                      </div>
-                    </TableCell>
-                    <TableCell>{renderStatusBadge(au.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <AuctionActions
-                        auctionId={au.id}
-                        currentStatus={au.status}
-                        onUpdate={() => fetchData(search, false)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {auctions.length === 0 && (
+          <>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-10 text-muted-foreground"
-                    >
-                      No auctions found.
-                    </TableCell>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Seller</TableHead>
+                    <TableHead>Start Price</TableHead>
+                    <TableHead>Bids</TableHead>
+                    <TableHead>End Time</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {auctions.map((au) => (
+                    <TableRow key={au.id}>
+                      <TableCell
+                        className="font-medium max-w-[200px] truncate"
+                        title={au.product?.name || ""}
+                      >
+                        {au.product?.name || "---"}
+                      </TableCell>
+                      <TableCell>@{au.seller?.username}</TableCell>
+                      <TableCell className="font-mono text-primary font-bold">
+                        {formatCurrency(au.starting_bid)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Gavel className="h-3 w-3" /> {au.bid_count}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />{" "}
+                          {new Date(au.end_time).toLocaleString("en-GB")}
+                        </div>
+                      </TableCell>
+                      <TableCell>{renderStatusBadge(au.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <AuctionActions
+                          auctionId={au.id}
+                          currentStatus={au.status}
+                          onUpdate={() => fetchData(search, page, false)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {auctions.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="text-center py-10 text-muted-foreground"
+                      >
+                        No auctions found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="mt-4">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                loading={loading || isSearching}
+              />
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

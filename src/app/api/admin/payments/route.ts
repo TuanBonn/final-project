@@ -43,7 +43,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const search = searchParams.get("search"); // <--- Lấy search param
+    const search = searchParams.get("search");
+
+    // Pagination params
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
     let query = supabaseAdmin
       .from("platform_payments")
@@ -57,13 +63,13 @@ export async function GET(request: NextRequest) {
         created_at,
         withdrawal_info,
         user:users ( username, email )
-      `
+      `,
+        { count: "exact" }
       )
       .order("created_at", { ascending: false });
 
-    // === LOGIC TÌM KIẾM ===
+    // === SEARCH LOGIC ===
     if (search) {
-      // 1. Tìm user có username hoặc email trùng khớp
       const { data: foundUsers } = await supabaseAdmin
         .from("users")
         .select("id")
@@ -72,24 +78,38 @@ export async function GET(request: NextRequest) {
       const userIds = foundUsers?.map((u) => u.id) || [];
 
       if (userIds.length > 0) {
-        // 2. Lọc payment theo danh sách user_id tìm được
         query = query.in("user_id", userIds);
       } else {
-        // Không tìm thấy user nào -> Trả về rỗng
-        return NextResponse.json({ payments: [] }, { status: 200 });
+        return NextResponse.json(
+          { payments: [], totalPages: 0 },
+          { status: 200 }
+        );
       }
     }
-    // ======================
+    // ====================
 
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
 
-    const { data: payments, error } = await query;
+    // Apply pagination range
+    query = query.range(from, to);
+
+    const { data: payments, error, count } = await query;
 
     if (error) throw error;
 
-    return NextResponse.json({ payments: payments || [] }, { status: 200 });
+    const totalPages = count ? Math.ceil(count / limit) : 0;
+
+    return NextResponse.json(
+      {
+        payments: payments || [],
+        totalPages,
+        currentPage: page,
+        totalCount: count,
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Server Error" },

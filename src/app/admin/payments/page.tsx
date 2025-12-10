@@ -40,6 +40,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { PaymentStatus, PaymentForType } from "@prisma/client";
+import { Pagination } from "@/components/Pagination";
 
 interface PaymentRow {
   id: string;
@@ -121,8 +122,12 @@ export default function AdminPaymentsPage() {
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   const fetchData = useCallback(
-    async (searchTerm = "", isInitial = false) => {
+    async (searchTerm = "", currentPage = 1, isInitial = false) => {
       if (isInitial) setLoading(true);
       else setIsSearching(true);
 
@@ -131,11 +136,16 @@ export default function AdminPaymentsPage() {
         if (currentTab !== "all") params.append("status", currentTab);
         if (searchTerm) params.append("search", searchTerm);
 
-        const res = await fetch(
-          `/api/admin/system-wallet?${params.toString()}`
-        );
+        // Add pagination params
+        params.append("page", currentPage.toString());
+        params.append("limit", "10");
+
+        // Updated endpoint to /api/admin/payments
+        const res = await fetch(`/api/admin/payments?${params.toString()}`);
         const data = await res.json();
-        setPayments(data.logs || []);
+
+        setPayments(data.payments || []);
+        setTotalPages(data.totalPages || 1);
       } catch (error) {
         console.error(error);
       } finally {
@@ -146,16 +156,25 @@ export default function AdminPaymentsPage() {
     [currentTab]
   );
 
+  // Reset page to 1 when tab changes
   useEffect(() => {
-    fetchData(search, true);
+    setPage(1);
+    fetchData(search, 1, true);
   }, [currentTab]);
 
+  // Debounce search
   useEffect(() => {
     const timeout = setTimeout(() => {
-      fetchData(search, false);
+      setPage(1); // Reset page on new search
+      fetchData(search, 1, false);
     }, 500);
     return () => clearTimeout(timeout);
   }, [search]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    fetchData(search, newPage, false);
+  };
 
   const handleUpdateStatus = async (
     id: string,
@@ -181,7 +200,7 @@ export default function AdminPaymentsPage() {
       }
 
       alert("Updated successfully!");
-      fetchData(search, false);
+      fetchData(search, page, false); // Refresh current page
     } catch (error: any) {
       alert(error.message);
     }
@@ -236,139 +255,153 @@ export default function AdminPaymentsPage() {
             <Loader2 className="animate-spin" />
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.length === 0 ? (
+          <>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-center py-10 text-muted-foreground"
-                    >
-                      No transactions found.
-                    </TableCell>
+                    <TableHead>User</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  payments.map((pay) => {
-                    const isNegative = isNegativeTransaction(
-                      pay.payment_for_type
-                    );
-                    const typeInfo = getTypeInfo(pay.payment_for_type);
-                    const TypeIcon = typeInfo.icon;
+                </TableHeader>
+                <TableBody>
+                  {payments.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-center py-10 text-muted-foreground"
+                      >
+                        No transactions found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    payments.map((pay) => {
+                      const isNegative = isNegativeTransaction(
+                        pay.payment_for_type
+                      );
+                      const typeInfo = getTypeInfo(pay.payment_for_type);
+                      const TypeIcon = typeInfo.icon;
 
-                    return (
-                      <TableRow key={pay.id}>
-                        <TableCell>
-                          <div className="font-medium">
-                            {pay.user?.username || "Unknown"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {pay.user?.email}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="capitalize flex w-fit gap-1"
-                          >
-                            <TypeIcon className={`h-3 w-3 ${typeInfo.color}`} />
-                            {typeInfo.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell
-                          className={`font-mono font-bold ${
-                            isNegative ? "text-red-600" : "text-green-600"
-                          }`}
-                        >
-                          {isNegative ? "-" : "+"}
-                          {formatCurrency(pay.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              pay.status === "succeeded"
-                                ? "default"
-                                : pay.status === "failed"
-                                ? "destructive"
-                                : "outline"
-                            }
-                            className={`capitalize ${
-                              pay.status === "pending"
-                                ? "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200"
-                                : ""
+                      return (
+                        <TableRow key={pay.id}>
+                          <TableCell>
+                            <div className="font-medium">
+                              {pay.user?.username || "Unknown"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {pay.user?.email}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className="capitalize flex w-fit gap-1"
+                            >
+                              <TypeIcon
+                                className={`h-3 w-3 ${typeInfo.color}`}
+                              />
+                              {typeInfo.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell
+                            className={`font-mono font-bold ${
+                              isNegative ? "text-red-600" : "text-green-600"
                             }`}
                           >
-                            {pay.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">
-                          {new Date(pay.created_at).toLocaleString("en-GB")}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  navigator.clipboard.writeText(pay.id)
-                                }
-                              >
-                                Copy ID
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-
-                              {pay.status === "pending" ? (
-                                <>
-                                  <DropdownMenuItem
-                                    className="text-green-600 focus:text-green-700 cursor-pointer"
-                                    onClick={() =>
-                                      handleUpdateStatus(pay.id, "succeeded")
-                                    }
-                                  >
-                                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                                    Approve
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-red-600 focus:text-red-700 cursor-pointer"
-                                    onClick={() =>
-                                      handleUpdateStatus(pay.id, "failed")
-                                    }
-                                  >
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    Reject
-                                  </DropdownMenuItem>
-                                </>
-                              ) : (
-                                <DropdownMenuItem disabled>
-                                  No actions available
+                            {isNegative ? "-" : "+"}
+                            {formatCurrency(pay.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                pay.status === "succeeded"
+                                  ? "default"
+                                  : pay.status === "failed"
+                                  ? "destructive"
+                                  : "outline"
+                              }
+                              className={`capitalize ${
+                                pay.status === "pending"
+                                  ? "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200"
+                                  : ""
+                              }`}
+                            >
+                              {pay.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">
+                            {new Date(pay.created_at).toLocaleString("en-GB")}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <span className="sr-only">Open menu</span>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    navigator.clipboard.writeText(pay.id)
+                                  }
+                                >
+                                  Copy ID
                                 </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                                <DropdownMenuSeparator />
+
+                                {pay.status === "pending" ? (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="text-green-600 focus:text-green-700 cursor-pointer"
+                                      onClick={() =>
+                                        handleUpdateStatus(pay.id, "succeeded")
+                                      }
+                                    >
+                                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                                      Approve
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-red-600 focus:text-red-700 cursor-pointer"
+                                      onClick={() =>
+                                        handleUpdateStatus(pay.id, "failed")
+                                      }
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Reject
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : (
+                                  <DropdownMenuItem disabled>
+                                    No actions available
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Component */}
+            <div className="mt-4">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                loading={loading || isSearching}
+              />
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
