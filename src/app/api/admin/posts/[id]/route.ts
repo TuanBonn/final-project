@@ -1,4 +1,3 @@
-// src/app/api/admin/posts/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -32,7 +31,6 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === DELETE ===
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }

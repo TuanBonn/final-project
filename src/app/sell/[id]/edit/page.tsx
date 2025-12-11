@@ -53,7 +53,6 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// --- VALIDATION SCHEMA ---
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
   const numericValue = value.replace(/\D/g, "");
@@ -133,7 +132,6 @@ export default function EditProductPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
-  // Quản lý ảnh: Ảnh cũ (URL) và Ảnh mới (File)
   const [initialImages, setInitialImages] = useState<string[]>([]);
   const [keptOldImages, setKeptOldImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -150,24 +148,20 @@ export default function EditProductPage() {
     },
   });
 
-  // 1. Load dữ liệu ban đầu
   useEffect(() => {
     const initData = async () => {
       try {
         setIsLoading(true);
 
-        // Fetch brands
         const brandRes = await fetch("/api/admin/brands");
         const brandData = await brandRes.json();
         setBrands(brandData.brands || []);
 
-        // Fetch product details
         const productRes = await fetch(`/api/products/${productId}`);
         if (!productRes.ok) throw new Error("Product not found");
         const productData = await productRes.json();
         const product = productData.product;
 
-        // Điền vào form
         form.reset({
           name: product.name,
           description: product.description || "",
@@ -177,7 +171,6 @@ export default function EditProductPage() {
           condition: product.condition,
         });
 
-        // Xử lý ảnh cũ
         let images: string[] = [];
         if (Array.isArray(product.image_urls)) {
           images = product.image_urls;
@@ -188,7 +181,7 @@ export default function EditProductPage() {
         }
 
         setInitialImages(images);
-        setKeptOldImages(images); // Mặc định giữ tất cả ảnh cũ
+        setKeptOldImages(images);
       } catch (error) {
         console.error("Error fetching data:", error);
         setServerError("Failed to load product data.");
@@ -215,14 +208,12 @@ export default function EditProductPage() {
         throw new Error("Maximum 10 images allowed.");
       }
 
-      // Check size ảnh mới
       for (const file of selectedFiles) {
         if (file.size > 5 * 1024 * 1024) {
           throw new Error(`File "${file.name}" is too large (max 5MB).`);
         }
       }
 
-      // 2. Upload ảnh mới
       let newImageUrls: string[] = [];
       if (selectedFiles.length > 0) {
         const uploadPromises = selectedFiles.map((file) =>
@@ -231,10 +222,8 @@ export default function EditProductPage() {
         newImageUrls = await Promise.all(uploadPromises);
       }
 
-      // Gộp ảnh cũ giữ lại + ảnh mới
       const finalImageUrls = [...keptOldImages, ...newImageUrls];
 
-      // 3. Gửi Request Update
       const response = await fetch(`/api/products/${productId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

@@ -1,4 +1,3 @@
-// src/app/api/group-buys/[id]/join/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -57,7 +56,6 @@ export async function POST(
         { status: 400 }
       );
 
-    // 1. Kiểm tra kèo
     const { data: groupBuy } = await supabase
       .from("group_buys")
       .select("status, join_deadline, price_per_unit, product_name")
@@ -70,8 +68,6 @@ export async function POST(
     if (groupBuy.status !== "open")
       return NextResponse.json({ error: "Kèo này đã đóng." }, { status: 400 });
 
-    // === SỬA LỖI TẠI ĐÂY ===
-    // Chỉ kiểm tra hết hạn NẾU có set deadline
     if (groupBuy.join_deadline) {
       const now = new Date();
       const deadline = new Date(groupBuy.join_deadline);
@@ -82,12 +78,9 @@ export async function POST(
         );
       }
     }
-    // ======================
 
-    // 2. Tính tổng tiền
     const totalAmount = Number(groupBuy.price_per_unit) * qty;
 
-    // 3. Kiểm tra số dư User
     const { data: user } = await supabase
       .from("users")
       .select("balance")
@@ -101,9 +94,6 @@ export async function POST(
       );
     }
 
-    // 4. THỰC HIỆN GIAO DỊCH (Trừ tiền + Join)
-
-    // A. Trừ tiền User
     const { error: balanceError } = await supabase
       .from("users")
       .update({ balance: Number(user.balance) - totalAmount })
@@ -111,7 +101,6 @@ export async function POST(
 
     if (balanceError) throw balanceError;
 
-    // B. Ghi log Payment
     await supabase.from("platform_payments").insert({
       user_id: userId,
       amount: totalAmount,
@@ -121,7 +110,6 @@ export async function POST(
       related_id: groupBuyId,
     });
 
-    // C. Thêm vào danh sách tham gia
     const { error: upsertError } = await supabase
       .from("group_buy_participants")
       .upsert(

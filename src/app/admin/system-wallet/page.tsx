@@ -1,4 +1,3 @@
-// src/app/admin/system-wallet/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -41,9 +40,7 @@ const formatCurrency = (val: number) =>
     val
   );
 
-// Helper phân loại màu sắc
 const getLogTypeStyle = (type: string) => {
-  // Revenue (Fees - Doanh thu)
   if (
     [
       "transaction_commission",
@@ -59,7 +56,7 @@ const getLogTypeStyle = (type: string) => {
       icon: DollarSign,
     };
   }
-  // Inflow (Deposits - Tiền vào)
+
   if (type === "deposit" || type === "group_buy_order") {
     return {
       label: "Inflow (Deposit/Hold)",
@@ -67,11 +64,11 @@ const getLogTypeStyle = (type: string) => {
       icon: ArrowDownLeft,
     };
   }
-  // Outflow (Withdrawals/Refunds - Tiền ra)
+
   if (
     type === "withdrawal" ||
     type === "group_buy_refund" ||
-    type === "auction_fee_refund" // <--- Hiển thị hoàn tiền đấu giá là Outflow
+    type === "auction_fee_refund"
   ) {
     return {
       label: "Outflow (Withdraw/Refund)",

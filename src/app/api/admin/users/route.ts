@@ -1,4 +1,3 @@
-// src/app/api/admin/users/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -6,7 +5,6 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-// --- Configuration ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -33,7 +31,6 @@ function getSupabaseAdmin(): SupabaseClient | null {
 }
 
 export async function GET(request: NextRequest) {
-  // 1. Validate Config
   if (!JWT_SECRET) {
     return NextResponse.json(
       { error: "Server misconfiguration." },
@@ -41,7 +38,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 2. Auth Check
   try {
     let token: string | undefined = undefined;
     const cookieHeader = request.headers.get("cookie");
@@ -62,12 +58,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid token." }, { status: 401 });
   }
 
-  // 3. Fetch Data with Pagination
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search");
 
-    // Pagination Params
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const from = (page - 1) * limit;
@@ -76,7 +70,6 @@ export async function GET(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Failed to init Admin Client");
 
-    // Select with count
     let query = supabaseAdmin
       .from("users")
       .select(
@@ -84,19 +77,12 @@ export async function GET(request: NextRequest) {
         { count: "exact" }
       );
 
-    // === FILTER ===
     if (search) {
-      // Safety limit for text search (similar to products) to prevent timeouts
-      // We apply the limit to the query logic itself implicitly by how many rows pass the filter
-      // But Supabase doesn't support sub-query limiting easily in OR filters without raw SQL.
-      // For now, simple text search is fine, but standard practice is to rely on paginated response.
-
       query = query.or(
         `username.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`
       );
     }
 
-    // === SORT & PAGINATE ===
     query = query.order("created_at", { ascending: false }).range(from, to);
 
     const { data: users, error, count } = await query;

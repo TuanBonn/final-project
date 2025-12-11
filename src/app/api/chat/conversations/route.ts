@@ -1,4 +1,3 @@
-// src/app/api/chat/conversations/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -44,7 +43,6 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseAdmin();
 
   try {
-    // 1. Lấy các conversation_id mà user tham gia
     const { data: myConvos, error: convoError } = await supabase
       .from("conversation_participants")
       .select("conversation_id")
@@ -58,7 +56,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ conversations: [] }, { status: 200 });
     }
 
-    // 2. Lấy thông tin chi tiết conversation + người tham gia + tin nhắn cuối
     const { data: conversations, error: dataError } = await supabase
       .from("conversations")
       .select(
@@ -75,16 +72,15 @@ export async function GET(request: NextRequest) {
       `
       )
       .in("id", conversationIds)
-      .order("created_at", { ascending: false }); // Sắp xếp theo tin nhắn mới nhất (cần logic messages order)
+      .order("created_at", { ascending: false });
 
     if (dataError) throw dataError;
 
-    // Format dữ liệu: Lọc bỏ bản thân ra khỏi danh sách participants để lấy "đối phương"
     const formatted = conversations.map((c: any) => {
       const partner = c.participants.find(
         (p: any) => p.user.id !== userId
       )?.user;
-      // Lấy tin nhắn cuối cùng (cần sort messages bên trong hoặc query riêng, ở đây làm đơn giản)
+
       const lastMessage =
         c.messages && c.messages.length > 0
           ? c.messages.sort(
@@ -102,7 +98,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Sort lại lần nữa theo tin nhắn cuối
     formatted.sort(
       (a: any, b: any) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -114,7 +109,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === POST: Tạo hội thoại mới (hoặc lấy cũ nếu đã có) ===
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -131,9 +125,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
 
-    // 1. Kiểm tra xem đã có hội thoại giữa 2 người chưa
-    // (Logic này hơi phức tạp với Supabase thuần, ta dùng cách: Tìm các convo của User A, sau đó check xem User B có trong đó không)
-
     const { data: myConvos } = await supabase
       .from("conversation_participants")
       .select("conversation_id")
@@ -147,7 +138,7 @@ export async function POST(request: NextRequest) {
         .select("conversation_id")
         .eq("user_id", partnerId)
         .in("conversation_id", myConvoIds)
-        .maybeSingle(); // Chỉ cần 1 cái khớp
+        .maybeSingle();
 
       if (existingConvo) {
         return NextResponse.json({
@@ -157,16 +148,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Nếu chưa có, tạo mới
     const { data: newConvo, error: createError } = await supabase
       .from("conversations")
-      .insert({}) // Tạo dòng mới
+      .insert({})
       .select()
       .single();
 
     if (createError) throw createError;
 
-    // 3. Add participants
     await supabase.from("conversation_participants").insert([
       { conversation_id: newConvo.id, user_id: userId },
       { conversation_id: newConvo.id, user_id: partnerId },

@@ -36,7 +36,6 @@ import { cn } from "@/lib/utils";
 import { ImageUploadPreview } from "@/components/ImageUploadPreview";
 import Link from "next/link";
 
-// Validation Schema
 const formSchema = z.object({
   name: z.string().min(5, "Product name must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
@@ -71,7 +70,6 @@ export default function CreateAuctionPage() {
   });
 
   useEffect(() => {
-    // Fetch brands
     const fetchBrands = async () => {
       try {
         const res = await fetch("/api/admin/brands");
@@ -114,7 +112,6 @@ export default function CreateAuctionPage() {
     }
   };
 
-  // Helper to convert File to Base64 string
   const convertFilesToBase64 = async (files: File[]): Promise<string[]> => {
     const promises = files.map((file) => {
       return new Promise<string>((resolve, reject) => {
@@ -145,7 +142,6 @@ export default function CreateAuctionPage() {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            {/* Images Field - FIXED for compatibility */}
             <FormField
               control={form.control}
               name="images"
@@ -153,22 +149,14 @@ export default function CreateAuctionPage() {
                 <FormItem>
                   <FormLabel>Product Images</FormLabel>
                   <FormControl>
-                    {/* Sử dụng đúng tên prop 'onFilesChange' và xử lý chuyển đổi File -> Base64 */}
                     <ImageUploadPreview
-                      // Nếu component cũ của bạn hỗ trợ 'value' để hiển thị ảnh đã chọn, hãy giữ lại.
-                      // Nếu không, có thể bỏ dòng value={...} để tránh lỗi type.
-                      // value={field.value}
-
-                      // Quan trọng: Mapping đúng tên prop
                       onFilesChange={async (files: any[]) => {
-                        // Kiểm tra nếu files là mảng File object thì convert
                         if (files.length > 0 && files[0] instanceof File) {
                           const base64Images = await convertFilesToBase64(
                             files
                           );
                           field.onChange(base64Images);
                         } else {
-                          // Trường hợp component trả về mảng rỗng hoặc định dạng khác
                           field.onChange(files);
                         }
                       }}

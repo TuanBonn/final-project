@@ -1,4 +1,3 @@
-// src/app/api/auth/logout/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
@@ -10,7 +9,6 @@ export async function POST(request: Request) {
     if (!cookieStore.has(COOKIE_NAME))
       return NextResponse.json({ message: "Đã đăng xuất." }, { status: 200 });
 
-    // Xóa cookie
     cookieStore.set({
       name: COOKIE_NAME,
       value: "",

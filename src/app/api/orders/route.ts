@@ -1,4 +1,3 @@
-// src/app/api/orders/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -56,8 +55,6 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    // Khởi tạo query cơ bản
-    // QUAN TRỌNG: Thêm group_buy_id và auction_id vào select
     let query = supabase.from("transactions").select(
       `
         id,
@@ -77,30 +74,25 @@ export async function GET(request: NextRequest) {
       { count: "exact" }
     );
 
-    // 1. Filter theo loại (Mua / Bán)
     if (type === "sell") {
       query = query.eq("seller_id", userId);
     } else {
       query = query.eq("buyer_id", userId);
     }
 
-    // 2. XỬ LÝ TÌM KIẾM (Chiến thuật Pre-fetch IDs)
     if (search) {
-      // A. Tìm các Product có tên khớp
       const { data: foundProducts } = await supabase
         .from("products")
         .select("id")
         .ilike("name", `%${search}%`);
       const productIds = foundProducts?.map((p) => p.id) || [];
 
-      // B. Tìm các User có tên khớp
       const { data: foundUsers } = await supabase
         .from("users")
         .select("id")
         .or(`username.ilike.%${search}%,full_name.ilike.%${search}%`);
       const userIds = foundUsers?.map((u) => u.id) || [];
 
-      // C. Ghép điều kiện OR
       const conditions = [];
 
       if (productIds.length > 0) {
@@ -122,7 +114,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 3. Sắp xếp & Phân trang
     query = query.order("created_at", { ascending: false }).range(from, to);
 
     const { data: orders, error, count } = await query;

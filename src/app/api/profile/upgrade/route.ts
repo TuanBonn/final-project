@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   const supabase = getSupabaseAdmin();
 
   try {
-    const { type } = await request.json(); // 'verify' | 'dealer'
+    const { type } = await request.json();
 
     if (!["verify", "dealer"].includes(type)) {
       return NextResponse.json(
@@ -52,11 +52,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Xác định Key settings và Validate User
     let settingKey = "";
     let paymentType = "";
 
-    // Lấy thông tin User hiện tại
     const { data: user } = await supabase
       .from("users")
       .select("balance, is_verified, role")
@@ -76,7 +74,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      settingKey = "verification_fee"; // Key trong bảng app_settings
+      settingKey = "verification_fee";
       paymentType = "verification_fee";
     } else if (type === "dealer") {
       if (user.role === "dealer" || user.role === "admin") {
@@ -85,26 +83,21 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      settingKey = "dealer_subscription"; // Key trong bảng app_settings (bạn cần thêm vào DB nếu chưa có)
+      settingKey = "dealer_subscription";
       paymentType = "dealer_subscription";
     }
 
-    // 2. Lấy mức phí từ Cấu hình
     const { data: setting } = await supabase
       .from("app_settings")
       .select("value")
       .eq("key", settingKey)
       .single();
 
-    // Mặc định phí cao để tránh lỗi free nếu chưa cấu hình (hoặc set 0 nếu muốn free)
     const fee = setting?.value ? parseInt(setting.value.replace(/\D/g, "")) : 0;
 
     if (fee <= 0) {
-      // Nếu phí = 0, có thể cho qua luôn hoặc báo lỗi tùy logic
-      // Ở đây tôi giả sử là miễn phí nếu chưa set
     }
 
-    // 3. Kiểm tra số dư
     const currentBalance = Number(user.balance);
     if (currentBalance < fee) {
       return NextResponse.json(
@@ -117,9 +110,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Thực hiện Giao dịch (Trừ tiền + Update User)
-
-    // A. Trừ tiền
     const { error: balanceError } = await supabase
       .from("users")
       .update({ balance: currentBalance - fee })
@@ -127,7 +117,6 @@ export async function POST(request: NextRequest) {
 
     if (balanceError) throw balanceError;
 
-    // B. Ghi log Payment
     await supabase.from("platform_payments").insert({
       user_id: userId,
       amount: fee,
@@ -136,7 +125,6 @@ export async function POST(request: NextRequest) {
       currency: "VND",
     });
 
-    // C. Cập nhật trạng thái User
     let updateData = {};
     if (type === "verify") {
       updateData = { is_verified: true };
@@ -151,7 +139,6 @@ export async function POST(request: NextRequest) {
 
     if (updateError) throw updateError;
 
-    // D. (Tùy chọn) Gửi thông báo
     await supabase.from("notifications").insert({
       user_id: userId,
       title: "🎉 Nâng cấp thành công!",

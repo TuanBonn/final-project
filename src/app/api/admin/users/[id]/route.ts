@@ -1,16 +1,10 @@
-// src/app/api/admin/users/[id]/route.ts
-// ĐÃ SỬA LỖI: Cú pháp "await params"
-
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
 
-// === GHIM VÀO NODE.JS ===
 export const runtime = "nodejs";
-// ======================
 
-// --- Cấu hình ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -20,7 +14,6 @@ interface JwtPayload {
   [key: string]: unknown;
 }
 
-// --- Hàm khởi tạo Admin Client ---
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("API Admin/PATCH: Thiếu Supabase URL hoặc Service Key!");
@@ -36,13 +29,11 @@ function getSupabaseAdmin(): SupabaseClient | null {
   }
 }
 
-// --- Hàm xử lý PATCH request (ĐÃ SỬA LỖI await) ---
 export async function PATCH(
   request: NextRequest,
-  // === SỬA LỖI 1: Thêm Promise<> vào kiểu ===
+
   ctx: { params: Promise<{ id: string }> }
 ) {
-  // 1. Xác thực Admin
   try {
     let token: string | undefined = undefined;
     const cookieHeader = request.headers.get("cookie");
@@ -60,9 +51,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Token không hợp lệ." }, { status: 401 });
   }
 
-  // === SỬA LỖI 2: Thêm "await" và đổi cách lấy "id" ===
   const { id: targetUserId } = await ctx.params;
-  // ===========================================
 
   if (!targetUserId) {
     return NextResponse.json(
@@ -71,7 +60,6 @@ export async function PATCH(
     );
   }
 
-  // 3. Lấy dữ liệu update
   let updateData: {
     status?: "active" | "banned";
     role?: "user" | "dealer";
@@ -107,7 +95,6 @@ export async function PATCH(
     );
   }
 
-  // 4. Cập nhật (Dùng Admin Client)
   try {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi khởi tạo Admin Client");

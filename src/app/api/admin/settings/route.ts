@@ -1,5 +1,3 @@
-// src/app/api/admin/settings/route.ts
-
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -7,7 +5,6 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-// --- Configuration ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -22,7 +19,6 @@ type AppSetting = {
   value: string | null;
 };
 
-// --- Helpers ---
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   try {
@@ -48,21 +44,17 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === GET METHOD ===
 export async function GET(request: NextRequest) {
-  // 1. Check if the requester is an admin
   const isAdmin = await verifyAdmin(request);
 
-  // 2. Define keys that are public/visible to regular users
-  // IMPORTANT: Add any new fee/config you want users to see here
   const PUBLIC_KEYS = [
-    "verification_fee", // Fee for account verification
-    "dealer_subscription", // Fee for upgrading to Dealer
-    "auction_creation_fee", // Fee to create an auction
-    "auction_bid_fee", // Fee per bid (if any)
-    "AUCTION_PARTICIPATION_FEE", // Deposit fee to join auction
-    "TRANSACTION_COMMISSION_PERCENT", // Platform commission percentage
-    "withdraw_fee", // Fee for withdrawal (optional)
+    "verification_fee",
+    "dealer_subscription",
+    "auction_creation_fee",
+    "auction_bid_fee",
+    "AUCTION_PARTICIPATION_FEE",
+    "TRANSACTION_COMMISSION_PERCENT",
+    "withdraw_fee",
   ];
 
   try {
@@ -74,7 +66,6 @@ export async function GET(request: NextRequest) {
       .select("*")
       .order("key", { ascending: true });
 
-    // 3. If NOT admin, filter to return ONLY public keys
     if (!isAdmin) {
       query = query.in("key", PUBLIC_KEYS);
     }
@@ -91,7 +82,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === PATCH METHOD (Update settings - ADMIN ONLY) ===
 export async function PATCH(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
     return NextResponse.json(
@@ -112,20 +102,15 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // === DATA TRANSFORMATION LOGIC ===
     const transformedSettings = settingsToUpdate.map((setting) => {
-      // 1. Logic for PERCENT keys (e.g. 5% -> 0.05)
       const percentKeys = ["TRANSACTION_COMMISSION_PERCENT"];
       if (percentKeys.includes(setting.key) && setting.value) {
         const numericValue = parseFloat(setting.value);
         if (!isNaN(numericValue)) {
-          // Store as decimal (e.g., 5 becomes 0.05)
-          // Note: Adjust this logic if your frontend sends 0.05 directly
           return { ...setting, value: (numericValue / 100).toString() };
         }
       }
 
-      // 2. Logic for CURRENCY keys (Remove non-digits like dots/commas)
       const currencyKeys = [
         "verification_fee",
         "dealer_subscription",
@@ -136,7 +121,7 @@ export async function PATCH(request: NextRequest) {
       ];
 
       if (currencyKeys.includes(setting.key) && setting.value) {
-        const rawValue = setting.value.replace(/\D/g, ""); // "10.000.000" -> "10000000"
+        const rawValue = setting.value.replace(/\D/g, "");
         return { ...setting, value: rawValue };
       }
 

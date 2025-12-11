@@ -1,4 +1,3 @@
-// src/app/api/admin/stats/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -46,32 +45,25 @@ export async function GET(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Supabase Admin Client Error");
 
-    // 1. Count Users
     const { count: userCount } = await supabaseAdmin
       .from("users")
       .select("*", { count: "exact", head: true });
 
-    // 2. Count Products (Available)
     const { count: productCount } = await supabaseAdmin
       .from("products")
       .select("*", { count: "exact", head: true })
       .eq("status", "available");
 
-    // 3. Count Completed Transactions
     const { count: transactionCount } = await supabaseAdmin
       .from("transactions")
       .select("*", { count: "exact", head: true })
       .eq("status", "completed");
 
-    // 4. Count Active Auctions
     const { count: auctionCount } = await supabaseAdmin
       .from("auctions")
       .select("*", { count: "exact", head: true })
       .eq("status", "active");
 
-    // 5. CALCULATE TOTAL REVENUE (Net)
-
-    // A. Revenue from Commissions
     const { data: txRevenue } = await supabaseAdmin
       .from("transactions")
       .select("platform_commission")
@@ -83,7 +75,6 @@ export async function GET(request: NextRequest) {
         0
       ) || 0;
 
-    // B. Revenue from Direct Fees
     const { data: feeRevenue } = await supabaseAdmin
       .from("platform_payments")
       .select("amount")
@@ -98,7 +89,6 @@ export async function GET(request: NextRequest) {
     const otherFeesRevenue =
       feeRevenue?.reduce((acc, item) => acc + Number(item.amount || 0), 0) || 0;
 
-    // C. [NEW] Subtract Refunds
     const { data: feeRefunds } = await supabaseAdmin
       .from("platform_payments")
       .select("amount")
@@ -108,7 +98,6 @@ export async function GET(request: NextRequest) {
     const totalRefunds =
       feeRefunds?.reduce((acc, item) => acc + Number(item.amount || 0), 0) || 0;
 
-    // Net Revenue = Commission + Fees - Refunds
     const totalRevenue = commissionRevenue + otherFeesRevenue - totalRefunds;
 
     const stats = {

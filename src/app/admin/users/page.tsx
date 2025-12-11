@@ -1,4 +1,3 @@
-// src/app/admin/users/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -19,18 +18,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button"; // [New]
+import { Button } from "@/components/ui/button";
 import {
   Loader2,
   AlertCircle,
   Search,
   ChevronLeft,
   ChevronRight,
-} from "lucide-react"; // [New Icons]
+} from "lucide-react";
 import { UserActions } from "@/components/admin/UserActions";
 import { Input } from "@/components/ui/input";
 
-// Define User Type
 interface User {
   id: string;
   username: string | null;
@@ -49,15 +47,11 @@ export default function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // [New] Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // === FETCH FUNCTION ===
   const fetchUsers = useCallback(
     async (searchQuery: string, page: number = 1) => {
-      // Only show full loading on initial load or page change (if desired)
-      // Here using 'loading' for initial and 'isSearching' for updates to keep UI responsive
       if (page === 1 && !searchQuery) setLoading(true);
       else setIsSearching(true);
 
@@ -91,22 +85,18 @@ export default function AdminUsersPage() {
     []
   );
 
-  // 1. Initial Load
   useEffect(() => {
     fetchUsers("", 1);
   }, [fetchUsers]);
 
-  // 2. Debounced Search
   useEffect(() => {
     const timeout = setTimeout(() => {
-      // Reset to page 1 when searching
       fetchUsers(searchTerm, 1);
     }, 500);
 
     return () => clearTimeout(timeout);
   }, [searchTerm, fetchUsers]);
 
-  // [New] Handle Page Change
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
@@ -114,7 +104,6 @@ export default function AdminUsersPage() {
     }
   };
 
-  // --- Render UI ---
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">

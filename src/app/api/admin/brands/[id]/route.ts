@@ -1,4 +1,3 @@
-// src/app/api/admin/brands/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -6,7 +5,6 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-// --- Cấu hình ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -17,7 +15,6 @@ interface JwtPayload {
   [key: string]: unknown;
 }
 
-// --- (Hàm getSupabaseAdmin và verifyAdmin...) ---
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) return null;
   try {
@@ -42,7 +39,6 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === HÀM PATCH (Sửa tên brand) ===
 export async function PATCH(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -101,7 +97,6 @@ export async function PATCH(
   }
 }
 
-// === HÀM DELETE (Xóa brand) ===
 export async function DELETE(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }

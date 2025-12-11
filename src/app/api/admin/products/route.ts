@@ -1,4 +1,3 @@
-// src/app/api/admin/products/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -54,8 +53,6 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    // OPTIMIZATION 1: Select only necessary columns
-    // Avoid selecting 'description' or heavy JSON columns to reduce payload size
     let query = supabaseAdmin
       .from("products")
       .select(
@@ -63,30 +60,23 @@ export async function GET(request: NextRequest) {
         { count: "exact" }
       );
 
-    // === OPTIMIZED SEARCH LOGIC ===
     if (search) {
-      // 1. Find Seller IDs matching username
-      // OPTIMIZATION 2: Limit the number of users to check to prevent "Statement Timeout"
-      // If a search term matches 1000 users, passing 1000 IDs to the product query kills performance.
       const { data: sellers } = await supabaseAdmin
         .from("users")
         .select("id")
         .ilike("username", `%${search}%`)
-        .limit(50); // Hard limit to keep the query fast
+        .limit(50);
 
       const sellerIds = sellers?.map((u) => u.id) || [];
 
-      // 2. Create OR condition: (Product Name LIKE search) OR (Seller ID IN list)
       const conditions = [`name.ilike.%${search}%`];
 
-      // Only add seller condition if we found relevant sellers
       if (sellerIds.length > 0) {
         conditions.push(`seller_id.in.(${sellerIds.join(",")})`);
       }
 
       query = query.or(conditions.join(","));
     }
-    // ==============================
 
     query = query.order("created_at", { ascending: false }).range(from, to);
 
@@ -101,7 +91,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: any) {
-    console.error("Admin Product Fetch Error:", error); // Log for debugging
+    console.error("Admin Product Fetch Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

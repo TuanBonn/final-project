@@ -1,4 +1,3 @@
-// src/app/admin/brands/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -32,11 +31,9 @@ export default function AdminBrandsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Search State
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
-  // Fetch Function
   const fetchBrands = useCallback(
     async (searchTerm = "", isInitial = false) => {
       if (isInitial) setLoading(true);
@@ -64,12 +61,10 @@ export default function AdminBrandsPage() {
     []
   );
 
-  // 1. Initial Load
   useEffect(() => {
     fetchBrands("", true);
   }, [fetchBrands]);
 
-  // 2. Debounce Search
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchBrands(search, false);

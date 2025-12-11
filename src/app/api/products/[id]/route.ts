@@ -35,7 +35,6 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET: Lấy chi tiết ===
 export async function GET(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -75,7 +74,6 @@ export async function GET(
   }
 }
 
-// === PATCH: Cập nhật sản phẩm ===
 export async function PATCH(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -93,7 +91,6 @@ export async function PATCH(
     const { name, description, price, quantity, condition, imageUrls, status } =
       body;
 
-    // 1. Lấy thông tin hiện tại
     const { data: existingProduct } = await supabase
       .from("products")
       .select("seller_id, status, quantity")
@@ -105,7 +102,6 @@ export async function PATCH(
     if (existingProduct.seller_id !== userId)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    // Nếu đang đấu giá -> Không cho sửa
     if (existingProduct.status === "auction") {
       return NextResponse.json(
         { error: "Hàng đấu giá không được sửa." },
@@ -113,7 +109,6 @@ export async function PATCH(
       );
     }
 
-    // 2. Chuẩn bị dữ liệu update
     const updateData: any = {};
     if (name) updateData.name = name;
     if (description) updateData.description = description;
@@ -127,22 +122,12 @@ export async function PATCH(
       updateData.quantity = newQuantity;
     }
 
-    // === LOGIC TRẠNG THÁI (QUAN TRỌNG) ===
-
-    // A. Nếu sản phẩm ĐANG BỊ ADMIN ẨN (Hidden) -> Giữ nguyên 'hidden'
-    // Bất kể seller có set số lượng bao nhiêu hay cố tình gửi status='available'
     if (existingProduct.status === "hidden") {
       updateData.status = "hidden";
-    }
-
-    // B. Nếu sản phẩm KHÔNG BỊ ẨN -> Chạy logic tự động bình thường
-    else {
+    } else {
       if (newQuantity === 0) {
-        // Hết hàng -> Tự động Sold
         updateData.status = "sold";
       } else {
-        // Có hàng -> Tự động Available (hoặc giữ nguyên nếu đang là available)
-        // (Trừ khi seller cố tình muốn set 'sold' để ẩn tạm thời)
         if (status === "sold") {
           updateData.status = "sold";
         } else {
@@ -173,7 +158,6 @@ export async function PATCH(
   }
 }
 
-// === DELETE: Xóa sản phẩm (Giữ nguyên) ===
 export async function DELETE(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }

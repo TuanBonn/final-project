@@ -140,8 +140,6 @@ export default async function PublicProfilePage({
       { count: "exact" }
     )
     .eq("seller_id", profile.id)
-    // [CẬP NHẬT QUAN TRỌNG] Chỉ lấy sản phẩm có status là 'available'
-    // Loại bỏ 'auction' khỏi danh sách hiển thị
     .eq("status", "available");
 
   if (searchQuery) {

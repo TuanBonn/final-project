@@ -26,7 +26,6 @@ function ResetPasswordContent() {
 
   useEffect(() => {
     if (!token) {
-      // Logic check token...
     }
   }, [token, router]);
 

@@ -43,7 +43,6 @@ interface Message {
   created_at: string;
 }
 
-// === Tách logic chính vào component con ===
 function MessagesContent() {
   const { user } = useUser();
   const searchParams = useSearchParams();
@@ -397,7 +396,6 @@ function MessagesContent() {
   );
 }
 
-// === Component chính export ra ngoài ===
 export default function MessagesPage() {
   return (
     <Suspense

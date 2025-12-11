@@ -1,4 +1,3 @@
-// src/app/api/auctions/[id]/bid/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -58,7 +57,6 @@ export async function POST(
     if (isNaN(bidAmount))
       return NextResponse.json({ error: "Giá không hợp lệ" }, { status: 400 });
 
-    // 1. Lấy thông tin phiên đấu giá
     const { data: auction, error } = await supabase
       .from("auctions")
       .select(
@@ -76,7 +74,6 @@ export async function POST(
         { status: 404 }
       );
 
-    // 2. Validate cơ bản
     if (auction.status !== "active") {
       return NextResponse.json(
         { error: "Phiên đấu giá này chưa bắt đầu hoặc đã kết thúc." },
@@ -97,7 +94,6 @@ export async function POST(
       );
     }
 
-    // 3. Kiểm tra đã tham gia (đã trả phí)
     const { data: participant } = await supabase
       .from("auction_participants")
       .select("user_id")
@@ -112,7 +108,6 @@ export async function POST(
       );
     }
 
-    // 4. Validate Bước giá
     const { data: highestBidRecord } = await supabase
       .from("bids")
       .select("bid_amount, bidder_id")
@@ -145,7 +140,6 @@ export async function POST(
       );
     }
 
-    // 5. Tạo Bid mới
     const { error: insertError } = await supabase.from("bids").insert({
       auction_id: auctionId,
       bidder_id: userId,
@@ -154,7 +148,6 @@ export async function POST(
 
     if (insertError) throw insertError;
 
-    // 6. Chống Snipe (Gia hạn thêm 2 phút nếu bid ở phút cuối)
     const endTime = new Date(auction.end_time).getTime();
     const timeRemaining = endTime - now.getTime();
 
@@ -166,7 +159,6 @@ export async function POST(
         .eq("id", auctionId);
     }
 
-    // 7. Thông báo cho người bị vượt giá
     if (highestBidRecord && highestBidRecord.bidder_id !== userId) {
       createNotification(supabase, {
         userId: highestBidRecord.bidder_id,

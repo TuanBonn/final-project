@@ -42,9 +42,8 @@ export async function PATCH(
   const supabase = getSupabaseAdmin();
 
   try {
-    const { status } = await request.json(); // Admin gửi: 'hidden' hoặc 'available' (để khôi phục)
+    const { status } = await request.json();
 
-    // 1. Lấy thông tin hiện tại để check số lượng (nếu cần khôi phục)
     const { data: product } = await supabase
       .from("products")
       .select("quantity")
@@ -56,13 +55,11 @@ export async function PATCH(
 
     let newStatus = status;
 
-    // LOGIC KHÔI PHỤC THÔNG MINH
     if (status === "available") {
-      // Nếu admin muốn khôi phục, kiểm tra kho:
       if (product.quantity > 0) {
         newStatus = "available";
       } else {
-        newStatus = "sold"; // Hết hàng thì chỉ về Sold chứ không Available
+        newStatus = "sold";
       }
     }
 
@@ -82,7 +79,6 @@ export async function PATCH(
   }
 }
 
-// GET (Giữ nguyên để lấy info nếu cần)
 export async function GET(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }

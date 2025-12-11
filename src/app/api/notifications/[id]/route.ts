@@ -1,4 +1,3 @@
-// src/app/api/notifications/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";

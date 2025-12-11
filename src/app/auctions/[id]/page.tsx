@@ -35,7 +35,6 @@ const formatCurrency = (val: number) =>
     val
   );
 
-// Component đếm ngược (Đã tích hợp hiển thị trạng thái Waiting)
 const Countdown = ({
   targetDate,
   status,
@@ -48,7 +47,6 @@ const Countdown = ({
   const [timeLeft, setTimeLeft] = useState("");
 
   useEffect(() => {
-    // Ưu tiên hiển thị trạng thái đặc biệt
     if (status === "waiting") {
       setTimeLeft("CHỜ THANH TOÁN");
       return;
@@ -134,7 +132,6 @@ export default function AuctionDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!id) return;
     const channel = supabase
@@ -303,7 +300,7 @@ export default function AuctionDetailPage() {
           <Card
             className={`border-2 shadow-lg bg-card z-20 ${
               isWinner && isWaiting
-                ? "border-orange-500 ring-2 ring-orange-200" // Hiệu ứng cho người thắng khi chờ thanh toán
+                ? "border-orange-500 ring-2 ring-orange-200"
                 : isWinner && isEnded
                 ? "border-green-500"
                 : "border-primary/20"
@@ -396,11 +393,11 @@ export default function AuctionDetailPage() {
                         id: auction.product.id,
                         name: auction.product.name,
                         price: auction.currentPrice,
-                        status: "auction", // status giả định để pass validation
+                        status: "auction",
                         quantity: 1,
                       }}
                       fixedPrice={auction.currentPrice}
-                      auctionId={auction.id} // Quan trọng để backend xử lý
+                      auctionId={auction.id}
                     />
                   </div>
                 ) : (

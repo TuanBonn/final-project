@@ -12,7 +12,6 @@ import {
   Gavel,
 } from "lucide-react";
 
-// Định nghĩa kiểu Stats
 interface DashboardStats {
   userCount: number;
   productCount: number;
@@ -21,7 +20,6 @@ interface DashboardStats {
   auctionCount: number;
 }
 
-// Hàm format tiền (Giữ vi-VN để có dấu chấm phân cách hàng nghìn dễ nhìn)
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -29,7 +27,6 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// --- QUAN TRỌNG: PHẢI CÓ EXPORT DEFAULT FUNCTION ---
 export default function AdminHomePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);

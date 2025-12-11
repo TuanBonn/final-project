@@ -1,4 +1,3 @@
-// src/app/api/my-products/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -49,16 +48,13 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("products")
       .select("*")
-      .eq("seller_id", userId) // Chỉ lấy của chính mình
+      .eq("seller_id", userId)
 
-      // === BỘ LỌC MỚI ===
-      .neq("status", "auction") // 1. Loại bỏ sản phẩm Đấu giá
-      .not("name", "ilike", "[Group Buy]%") // 2. Loại bỏ sản phẩm Mua chung (Proxy)
-      // ==================
+      .neq("status", "auction")
+      .not("name", "ilike", "[Group Buy]%")
 
       .order("created_at", { ascending: false });
 
-    // Nếu có tìm kiếm
     if (search) {
       query = query.ilike("name", `%${search}%`);
     }

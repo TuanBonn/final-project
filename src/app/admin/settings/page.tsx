@@ -20,14 +20,12 @@ import {
   Settings2,
 } from "lucide-react";
 
-// Định nghĩa kiểu dữ liệu Setting
 interface AppSetting {
   key: string;
   value: string | null;
   description: string | null;
 }
 
-// === CẤU HÌNH NHÓM (KEY MAPPING) ===
 const BANK_KEYS = ["BANK_ID", "ACCOUNT_NO", "ACCOUNT_NAME", "QR_TEMPLATE"];
 const FEE_KEYS = [
   "TRANSACTION_COMMISSION_PERCENT",
@@ -36,7 +34,6 @@ const FEE_KEYS = [
   "dealer_subscription",
 ];
 
-// Các key cần xử lý đặc biệt
 const PERCENT_KEYS = ["TRANSACTION_COMMISSION_PERCENT"];
 const CURRENCY_KEYS = [
   "AUCTION_PARTICIPATION_FEE",
@@ -44,7 +41,6 @@ const CURRENCY_KEYS = [
   "dealer_subscription",
 ];
 
-// Helper: Format tiền tệ (VD: 10000 -> 10.000)
 const formatCurrencyInput = (val: string | number | null): string => {
   if (!val) return "";
   const strVal = val.toString().replace(/\D/g, "");
@@ -53,7 +49,6 @@ const formatCurrencyInput = (val: string | number | null): string => {
   return new Intl.NumberFormat("vi-VN").format(number);
 };
 
-// Helper: Format label sang tiếng Anh cho đẹp
 const getLabel = (key: string) => {
   switch (key) {
     case "BANK_ID":
@@ -94,7 +89,6 @@ const getDescription = (key: string) => {
   }
 };
 
-// === 1. TÁCH COMPONENT SettingRow RA NGOÀI (Tránh mất focus) ===
 interface SettingRowProps {
   item: AppSetting;
   onSave: (key: string, value: string | null) => void;
@@ -141,28 +135,24 @@ const SettingRow = ({ item, onSave, onChange, isSaving }: SettingRowProps) => {
   );
 };
 
-// === 2. COMPONENT CHÍNH ===
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
-  // Fetch dữ liệu
   const fetchSettings = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/settings");
       const data = await res.json();
 
-      // Xử lý dữ liệu trước khi hiển thị (Format tiền & %)
       const rawSettings: AppSetting[] = data.settings || [];
       const formattedSettings = rawSettings.map((s) => {
-        // Nếu là %, nhân 100 để hiển thị (0.05 -> 5)
         if (PERCENT_KEYS.includes(s.key) && s.value) {
           const val = parseFloat(s.value);
           return { ...s, value: isNaN(val) ? s.value : (val * 100).toString() };
         }
-        // Nếu là tiền, format dấu chấm (50000 -> 50.000)
+
         if (CURRENCY_KEYS.includes(s.key) && s.value) {
           return { ...s, value: formatCurrencyInput(s.value) };
         }
@@ -181,18 +171,14 @@ export default function AdminSettingsPage() {
     fetchSettings();
   }, [fetchSettings]);
 
-  // Xử lý thay đổi giá trị input
   const handleChange = (key: string, newValue: string) => {
     let processedValue = newValue;
 
-    // Nếu là ô tiền tệ, format ngay khi gõ
     if (CURRENCY_KEYS.includes(key)) {
       processedValue = formatCurrencyInput(newValue);
     }
-    // Nếu là ô phần trăm, chỉ cho nhập số
+
     if (PERCENT_KEYS.includes(key)) {
-      // Cho phép nhập số thập phân nhưng thường % là số nguyên
-      // processedValue = newValue.replace(/[^0-9.]/g, "");
     }
 
     setSettings((prev) =>
@@ -200,14 +186,9 @@ export default function AdminSettingsPage() {
     );
   };
 
-  // Xử lý lưu từng setting
   const handleSave = async (key: string, value: string | null) => {
     setSavingKey(key);
     try {
-      // Lưu ý: API PATCH của chúng ta đã có logic tự động:
-      // - Nếu key là PERCENT -> Chia 100
-      // - Nếu key là CURRENCY -> Bỏ dấu chấm (replace non-digits)
-      // Nên ở đây ta cứ gửi value y nguyên như trên UI
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -215,8 +196,6 @@ export default function AdminSettingsPage() {
       });
 
       if (!res.ok) throw new Error("Save failed");
-
-      // alert("Saved successfully!");
     } catch (error) {
       alert("Failed to save setting!");
     } finally {
@@ -224,7 +203,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // === LOGIC PHÂN NHÓM SETTINGS ===
   const bankSettings = settings.filter((s) => BANK_KEYS.includes(s.key));
   const feeSettings = settings.filter((s) => FEE_KEYS.includes(s.key));
   const otherSettings = settings.filter(

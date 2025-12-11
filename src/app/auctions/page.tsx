@@ -157,7 +157,6 @@ export default function AuctionsPage() {
               </div>
 
               <CardHeader className="p-4 pb-0">
-                {/* [CẬP NHẬT] Link tới Profile */}
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                   <Link href={`/user/${auction.sellerName}`}>
                     <Avatar className="h-5 w-5 cursor-pointer hover:opacity-80">

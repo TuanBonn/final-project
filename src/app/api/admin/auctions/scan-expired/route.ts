@@ -1,4 +1,3 @@
-// src/app/api/admin/auctions/scan-expired/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createNotification } from "@/lib/notification";
@@ -20,8 +19,6 @@ export async function POST(request: NextRequest) {
   try {
     const now = new Date().toISOString();
 
-    // 1. Tìm các phiên 'active' đã hết hạn (end_time < now)
-    // Limit 50 để xử lý từng đợt, tránh timeout nếu số lượng quá lớn
     const { data: expiredAuctions } = await supabase
       .from("auctions")
       .select(
@@ -39,14 +36,12 @@ export async function POST(request: NextRequest) {
 
     let processedCount = 0;
 
-    // 2. Xử lý từng phiên
     await Promise.allSettled(
       expiredAuctions.map(async (auction) => {
         const bids = auction.bids || [];
         const productName = auction.product?.name || "Product";
 
         if (bids.length === 0) {
-          // CASE 1: Không có bid -> CANCELLED
           await supabase
             .from("auctions")
             .update({ status: "cancelled" })
@@ -60,7 +55,6 @@ export async function POST(request: NextRequest) {
             link: `/auctions/${auction.id}`,
           });
         } else {
-          // CASE 2: Có bid -> WAITING (Chờ thanh toán)
           const winningBid = bids.sort(
             (a: any, b: any) => Number(b.bid_amount) - Number(a.bid_amount)
           )[0];
@@ -74,7 +68,6 @@ export async function POST(request: NextRequest) {
               })
               .eq("id", auction.id);
 
-            // Notify winner
             await createNotification(supabase, {
               userId: winningBid.bidder_id,
               title: "🎉 You Won!",
@@ -83,7 +76,6 @@ export async function POST(request: NextRequest) {
               link: `/auctions/${auction.id}`,
             });
 
-            // Notify seller
             await createNotification(supabase, {
               userId: auction.seller_id,
               title: "Auction Ended",

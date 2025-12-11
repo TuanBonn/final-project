@@ -1,4 +1,3 @@
-// src/app/api/admin/auctions/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -50,13 +49,11 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const search = searchParams.get("search");
 
-    // --- PAGINATION PARAMS ---
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    // Query initialization
     let query = supabaseAdmin
       .from("auctions")
       .select(
@@ -71,19 +68,16 @@ export async function GET(request: NextRequest) {
         seller:users!seller_id ( username ),
         bids:bids ( count )
       `,
-        { count: "exact" } // Fetch total count for pagination
+        { count: "exact" }
       )
       .order("created_at", { ascending: false });
 
-    // === SEARCH LOGIC ===
     if (search) {
-      // 1. Find Product IDs with matching name
       const { data: products } = await supabaseAdmin
         .from("products")
         .select("id")
         .ilike("name", `%${search}%`);
 
-      // 2. Find Seller IDs with matching username
       const { data: sellers } = await supabaseAdmin
         .from("users")
         .select("id")
@@ -101,24 +95,20 @@ export async function GET(request: NextRequest) {
       if (conditions.length > 0) {
         query = query.or(conditions.join(","));
       } else {
-        // Search yields no results -> Return empty by querying non-existent ID
         query = query.eq("id", "00000000-0000-0000-0000-000000000000");
       }
     }
-    // ======================
 
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
 
-    // Apply pagination range
     query = query.range(from, to);
 
     const { data: auctions, error, count } = await query;
 
     if (error) throw error;
 
-    // Format data
     const formattedAuctions = auctions?.map((auction: any) => ({
       ...auction,
       bid_count: auction.bids?.[0]?.count || 0,

@@ -1,4 +1,3 @@
-// src/app/api/profile/products/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -45,7 +44,6 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabaseAdmin();
 
   try {
-    // === SỬA LỖI TẠI ĐÂY: Thêm relation brand và seller ===
     const { data: products, error } = await supabase
       .from("products")
       .select(

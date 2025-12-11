@@ -1,4 +1,3 @@
-// src/app/admin/posts/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -24,9 +23,9 @@ import {
   MessageSquare,
   ThumbsUp,
   AlertCircle,
-  Eye, // <-- Import icon Eye
+  Eye,
 } from "lucide-react";
-import { Button } from "@/components/ui/button"; // <-- Import Button
+import { Button } from "@/components/ui/button";
 import { PostActions } from "@/components/admin/PostActions";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -36,7 +35,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"; // <-- Import Dialog components
+} from "@/components/ui/dialog";
 
 interface PostRow {
   id: string;
@@ -55,10 +54,8 @@ export default function AdminPostsPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // State cho Dialog xem chi tiết
   const [selectedPost, setSelectedPost] = useState<PostRow | null>(null);
 
-  // Fetch Function
   const fetchPosts = useCallback(async (searchTerm = "", isInitial = false) => {
     if (isInitial) setLoading(true);
     else setIsSearching(true);
@@ -86,12 +83,10 @@ export default function AdminPostsPage() {
     }
   }, []);
 
-  // 1. Initial Load
   useEffect(() => {
     fetchPosts("", true);
   }, [fetchPosts]);
 
-  // 2. Debounced Search (Auto search after 500ms)
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchPosts(search, false);

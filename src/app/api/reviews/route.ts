@@ -1,4 +1,3 @@
-// src/app/api/reviews/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -50,7 +49,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Thiếu thông tin." }, { status: 400 });
     }
 
-    // 1. Kiểm tra giao dịch (Phải là của user này, đã hoàn thành, và chưa được review)
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
       .select("id, status, buyer_id, seller_id")
@@ -74,7 +72,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
 
-    // Kiểm tra đã review chưa (dựa vào relation transaction-review 1-1)
     const { data: existingReview } = await supabase
       .from("reviews")
       .select("id")
@@ -87,13 +84,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
 
-    // 2. Tạo Review
     const { data: review, error: reviewError } = await supabase
       .from("reviews")
       .insert({
         transaction_id: transactionId,
         reviewer_id: userId,
-        reviewee_id: transaction.seller_id, // Người bán bị đánh giá
+        reviewee_id: transaction.seller_id,
         rating: rating,
         comment: comment,
       })
@@ -102,14 +98,11 @@ export async function POST(request: NextRequest) {
 
     if (reviewError) throw reviewError;
 
-    // 3. Cập nhật điểm uy tín cho người bán (Reputation Score)
-    // Logic đơn giản: Cộng thêm số sao vào điểm uy tín
     const { error: updateError } = await supabase.rpc("increment_reputation", {
       user_id: transaction.seller_id,
       amount: rating,
     });
 
-    // Fallback nếu chưa có RPC: Update thủ công (không safe lắm nhưng chạy được)
     if (updateError) {
       const { data: seller } = await supabase
         .from("users")

@@ -1,4 +1,3 @@
-// src/app/api/group-buys/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 

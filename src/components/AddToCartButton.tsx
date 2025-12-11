@@ -95,7 +95,6 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   if (e.target.value === "") {
-                    // @ts-ignore
                     setQuantity("");
                     return;
                   }

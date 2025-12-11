@@ -1,4 +1,3 @@
-// src/app/api/forum/posts/[id]/comments/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -36,7 +35,6 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET COMMENTS ===
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -44,7 +42,7 @@ export async function GET(
   const { id: postId } = await params;
   try {
     const supabase = getSupabaseAdmin();
-    // Lấy comment, sắp xếp mới nhất lên đầu (hoặc cũ nhất tùy bạn)
+
     const { data: comments, error } = await supabase
       .from("comments")
       .select(
@@ -54,7 +52,7 @@ export async function GET(
       `
       )
       .eq("post_id", postId)
-      .order("created_at", { ascending: true }); // Cũ trước, mới sau (giống Facebook)
+      .order("created_at", { ascending: true });
 
     if (error) throw error;
 
@@ -64,7 +62,6 @@ export async function GET(
   }
 }
 
-// === POST COMMENT ===
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

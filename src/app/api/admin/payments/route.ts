@@ -1,4 +1,3 @@
-// src/app/api/admin/payments/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -45,7 +44,6 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const search = searchParams.get("search");
 
-    // Pagination params
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const from = (page - 1) * limit;
@@ -68,7 +66,6 @@ export async function GET(request: NextRequest) {
       )
       .order("created_at", { ascending: false });
 
-    // === SEARCH LOGIC ===
     if (search) {
       const { data: foundUsers } = await supabaseAdmin
         .from("users")
@@ -86,13 +83,11 @@ export async function GET(request: NextRequest) {
         );
       }
     }
-    // ====================
 
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
 
-    // Apply pagination range
     query = query.range(from, to);
 
     const { data: payments, error, count } = await query;

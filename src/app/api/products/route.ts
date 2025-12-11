@@ -1,4 +1,3 @@
-// src/app/api/products/route.ts
 import { NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -23,7 +22,6 @@ function getSupabaseAdmin(): SupabaseClient | null {
   });
 }
 
-// ================== GET: Lấy danh sách cho Homepage ==================
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -60,21 +58,18 @@ export async function GET(request: Request) {
         { count: "exact" }
       )
       .eq("status", "available")
-      .gt("quantity", 0); // <--- QUAN TRỌNG: Chỉ lấy sản phẩm còn hàng (> 0)
+      .gt("quantity", 0);
 
-    // Tìm kiếm
     if (search) {
       query = query.ilike("name", `%${search}%`);
     }
 
-    // Bộ lọc
     if (filterConditions.length > 0)
       query = query.in("condition", filterConditions);
     if (filterBrandIds.length > 0) query = query.in("brand_id", filterBrandIds);
     if (filterVerified) query = query.eq("seller.is_verified", true);
     if (filterSellerId) query = query.eq("seller_id", filterSellerId);
 
-    // Sắp xếp
     if (sort === "price_asc") query = query.order("price", { ascending: true });
     else if (sort === "price_desc")
       query = query.order("price", { ascending: false });
@@ -102,7 +97,6 @@ export async function GET(request: Request) {
   }
 }
 
-// ================== POST: Đăng bán sản phẩm mới ==================
 export async function POST(request: Request) {
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json(
@@ -167,7 +161,6 @@ export async function POST(request: Request) {
 
     const initialQty = quantity ? parseInt(quantity.toString()) : 1;
 
-    // Logic tự động: Nếu nhập số lượng 0 thì tự set sold, ngược lại available
     const initialStatus = initialQty > 0 ? "available" : "sold";
 
     const { data, error: insertError } = await supabaseAdmin
@@ -180,7 +173,7 @@ export async function POST(request: Request) {
         brand_id,
         condition,
         image_urls: imageUrls,
-        status: initialStatus, // <--- SET STATUS TỰ ĐỘNG
+        status: initialStatus,
         quantity: initialQty,
       })
       .select()

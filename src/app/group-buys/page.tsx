@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation"; // Import useRouter
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ export default function GroupBuysPage() {
   const [groupBuys, setGroupBuys] = useState<GroupBuy[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const router = useRouter(); // Hook
+  const router = useRouter();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -56,7 +56,6 @@ export default function GroupBuysPage() {
     gb.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Helper
   const handleHostClick = (e: React.MouseEvent, username: string) => {
     e.preventDefault();
     e.stopPropagation();

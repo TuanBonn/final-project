@@ -38,11 +38,9 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
 
-    // Lấy các tham số filter
     const search = searchParams.get("search");
     const status = searchParams.get("status");
 
-    // 1. Query Logs (Danh sách giao dịch để hiển thị bảng)
     let query = supabase!
       .from("platform_payments")
       .select(
@@ -54,12 +52,10 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(50);
 
-    // [LOGIC 1] Lọc theo Status (Để chia tab hoạt động)
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
 
-    // [LOGIC 2] Tìm kiếm theo User (Giữ nguyên logic cũ của bạn)
     if (search) {
       const { data: foundUsers } = await supabase!
         .from("users")
@@ -71,7 +67,6 @@ export async function GET(request: NextRequest) {
       if (userIds.length > 0) {
         query = query.in("user_id", userIds);
       } else {
-        // Nếu không tìm thấy user nào -> Trả về rỗng bằng cách query ID không tồn tại
         query = query.eq("id", "00000000-0000-0000-0000-000000000000");
       }
     }
@@ -79,11 +74,6 @@ export async function GET(request: NextRequest) {
     const { data: logs, error } = await query;
     if (error) throw error;
 
-    // === 2. TÍNH TOÁN TỔNG QUAN (GLOBAL SUMMARY) ===
-    // Phần này tính trên TOÀN BỘ dữ liệu (không bị ảnh hưởng bởi filter status/search)
-    // để các thẻ Card ở trên cùng luôn hiển thị đúng tổng tài sản hệ thống.
-
-    // A. Tổng tiền vào (Inflow: Nạp + Giữ hộ)
     const { data: deposits } = await supabase!
       .from("platform_payments")
       .select("amount")
@@ -93,14 +83,13 @@ export async function GET(request: NextRequest) {
     const totalDeposits =
       deposits?.reduce((a, b) => a + Number(b.amount), 0) || 0;
 
-    // B. Tổng tiền ra (Outflow: Rút + Hoàn trả)
     const { data: withdrawals } = await supabase!
       .from("platform_payments")
       .select("amount")
       .in("payment_for_type", [
         "withdrawal",
         "group_buy_refund",
-        "auction_fee_refund", // Bao gồm cả hoàn phí đấu giá mới thêm
+        "auction_fee_refund",
       ])
       .eq("status", "succeeded");
 

@@ -1,4 +1,3 @@
-// src/app/api/admin/payments/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -42,14 +41,13 @@ export async function PATCH(
   }
 
   const supabase = getSupabaseAdmin();
-  const { status } = await request.json(); // status: 'succeeded' | 'failed'
+  const { status } = await request.json();
 
   if (!["succeeded", "failed"].includes(status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
   try {
-    // 1. Lấy thông tin giao dịch hiện tại
     const { data: payment } = await supabase
       .from("platform_payments")
       .select("*")
@@ -70,11 +68,8 @@ export async function PATCH(
     const userId = payment.user_id;
     const amount = Number(payment.amount);
 
-    // 2. Xử lý Logic cộng/trừ tiền theo loại giao dịch
-    // === TRƯỜNG HỢP DUYỆT (APPROVE / SUCCEEDED) ===
     if (status === "succeeded") {
       if (payment.payment_for_type === "deposit") {
-        // Nạp tiền thành công -> Cộng tiền vào ví
         const { data: user } = await supabase
           .from("users")
           .select("balance")
@@ -88,13 +83,10 @@ export async function PATCH(
             .eq("id", userId);
         }
       }
-      // Nếu là withdrawal: Tiền đã trừ lúc tạo lệnh, nên duyệt chỉ là đổi status, không cần trừ thêm.
     }
 
-    // === TRƯỜNG HỢP HỦY (REJECT / FAILED) ===
     if (status === "failed") {
       if (payment.payment_for_type === "withdrawal") {
-        // Rút tiền thất bại (Admin từ chối) -> Hoàn tiền lại vào ví
         const { data: user } = await supabase
           .from("users")
           .select("balance")
@@ -108,10 +100,8 @@ export async function PATCH(
             .eq("id", userId);
         }
       }
-      // Nếu là deposit: Hủy lệnh nạp thì không làm gì cả (vì chưa cộng tiền).
     }
 
-    // 3. Cập nhật trạng thái Payment
     const { error: updateError } = await supabase
       .from("platform_payments")
       .update({ status })
@@ -119,7 +109,6 @@ export async function PATCH(
 
     if (updateError) throw updateError;
 
-    // 4. Gửi thông báo cho User
     const title =
       status === "succeeded"
         ? "✅ Giao dịch thành công"

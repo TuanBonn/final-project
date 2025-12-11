@@ -1,4 +1,3 @@
-// src/app/admin/group-buys/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -20,7 +19,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button"; // [NEW]
+import { Button } from "@/components/ui/button";
 import {
   Loader2,
   Search,
@@ -28,7 +27,7 @@ import {
   ShoppingBag,
   ChevronLeft,
   ChevronRight,
-} from "lucide-react"; // [NEW Icons]
+} from "lucide-react";
 import { GroupBuyActions } from "@/components/admin/GroupBuyActions";
 
 interface GroupBuy {
@@ -63,12 +62,10 @@ export default function AdminGroupBuysPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // [NEW] Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   const fetchGroupBuys = useCallback(async (searchTerm = "", page = 1) => {
-    // Logic loading: Load cứng lần đầu, load nhẹ khi search/chuyển trang
     if (page === 1 && !searchTerm) setLoading(true);
     else setIsSearching(true);
 
@@ -78,7 +75,7 @@ export default function AdminGroupBuysPage() {
       const params = new URLSearchParams();
       if (searchTerm) params.append("search", searchTerm);
       params.append("page", page.toString());
-      params.append("limit", "10"); // Giới hạn 10 item/trang
+      params.append("limit", "10");
 
       const res = await fetch(`/api/admin/group-buys?${params.toString()}`);
 
@@ -100,20 +97,17 @@ export default function AdminGroupBuysPage() {
     }
   }, []);
 
-  // 1. Initial Load
   useEffect(() => {
     fetchGroupBuys("", 1);
   }, [fetchGroupBuys]);
 
-  // 2. Debounce Search
   useEffect(() => {
     const timeout = setTimeout(() => {
-      fetchGroupBuys(search, 1); // Reset về trang 1 khi search
+      fetchGroupBuys(search, 1);
     }, 500);
     return () => clearTimeout(timeout);
   }, [search, fetchGroupBuys]);
 
-  // [NEW] Handle Page Change
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);

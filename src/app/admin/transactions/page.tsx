@@ -1,4 +1,3 @@
-// src/app/admin/transactions/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -95,7 +94,7 @@ export default function AdminTransactionsPage() {
           <div className="relative w-full md:w-72">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Tìm theo tên SP hoặc Mã đơn..." // <-- SỬA DÒNG NÀY
+              placeholder="Tìm theo tên SP hoặc Mã đơn..."
               className="pl-9 w-full bg-background"
               value={search}
               onChange={(e) => {

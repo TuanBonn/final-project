@@ -1,4 +1,3 @@
-// src/app/api/forum/posts/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -45,7 +44,6 @@ export async function GET(
   try {
     const supabase = getSupabaseAdmin();
 
-    // Lấy thông tin bài viết
     const { data: post, error } = await supabase
       .from("posts")
       .select(
@@ -66,7 +64,6 @@ export async function GET(
       );
     }
 
-    // Kiểm tra trạng thái Like
     const userId = await getUserId(request);
     let isLiked = false;
 
@@ -81,12 +78,11 @@ export async function GET(
       if (like) isLiked = true;
     }
 
-    // Format data
     const formattedPost = {
       ...post,
       like_count: post.likes?.[0]?.count || 0,
       comment_count: post.comments?.[0]?.count || 0,
-      isLiked: isLiked, // Trả về trạng thái like
+      isLiked: isLiked,
     };
 
     return NextResponse.json({ post: formattedPost }, { status: 200 });
@@ -95,11 +91,9 @@ export async function GET(
   }
 }
 
-// DELETE (nếu cần xóa bài của chính mình sau này)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // ... (Logic xóa bài nếu cần thiết)
   return NextResponse.json({ message: "Not implemented" }, { status: 501 });
 }

@@ -1,4 +1,3 @@
-// src/app/admin/auctions/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -60,7 +59,6 @@ export default function AdminAuctionsPage() {
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
-  // Pagination states
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -74,7 +72,6 @@ export default function AdminAuctionsPage() {
         if (currentTab !== "all") params.append("status", currentTab);
         if (searchTerm) params.append("search", searchTerm);
 
-        // Add pagination params
         params.append("page", currentPage.toString());
         params.append("limit", "10");
 
@@ -93,13 +90,11 @@ export default function AdminAuctionsPage() {
     [currentTab]
   );
 
-  // Reset to page 1 when tab changes
   useEffect(() => {
     setPage(1);
     fetchData(search, 1, true);
   }, [currentTab]);
 
-  // Reset to page 1 when search changes
   useEffect(() => {
     const timeout = setTimeout(() => {
       setPage(1);
@@ -113,7 +108,6 @@ export default function AdminAuctionsPage() {
     fetchData(search, newPage, false);
   };
 
-  // Logic: Scan Overdue (Waiting -> Cancelled)
   const handleScanOverdue = async () => {
     if (!confirm("Scan 'Waiting' auctions overdue (24h) to cancel & penalize?"))
       return;
@@ -124,7 +118,7 @@ export default function AdminAuctionsPage() {
       });
       const data = await res.json();
       alert(data.message || "Scan completed.");
-      fetchData(search, page, false); // Reload current page
+      fetchData(search, page, false);
     } catch (error) {
       alert("Scan error.");
     } finally {
@@ -132,7 +126,6 @@ export default function AdminAuctionsPage() {
     }
   };
 
-  // Logic: Scan Expired (Active -> Waiting/Ended)
   const handleScanExpired = async () => {
     setScanningExpired(true);
     try {
@@ -141,7 +134,7 @@ export default function AdminAuctionsPage() {
       });
       const data = await res.json();
       alert(data.message || "Expired auctions processed.");
-      fetchData(search, page, false); // Reload current page
+      fetchData(search, page, false);
     } catch (error) {
       console.error(error);
       alert("Failed to scan expired auctions.");

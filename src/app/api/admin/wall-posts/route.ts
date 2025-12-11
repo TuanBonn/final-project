@@ -1,4 +1,3 @@
-// src/app/api/admin/wall-posts/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -32,7 +31,6 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === GET WALL POSTS ===
 export async function GET(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
@@ -58,24 +56,22 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false });
 
     if (search) {
-      // Tìm theo caption
       query = query.ilike("caption", `%${search}%`);
     }
 
     const { data, error } = await query;
     if (error) throw error;
 
-    // Format data
     const posts = data?.map((p: any) => ({
       id: p.id,
-      title: "(Ảnh/Caption Tường nhà)", // Wall post không có title, dùng placeholder hoặc caption
+      title: "(Ảnh/Caption Tường nhà)",
       content: p.caption,
       image_urls: p.image_urls,
       created_at: p.created_at,
       author: p.author,
       like_count: p.likes?.[0]?.count || 0,
       comment_count: p.comments?.[0]?.count || 0,
-      type: "wall", // Đánh dấu loại
+      type: "wall",
     }));
 
     return NextResponse.json({ posts: posts || [] }, { status: 200 });

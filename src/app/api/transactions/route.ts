@@ -1,4 +1,3 @@
-// src/app/api/transactions/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi cấu hình server.");
 
-    // Lấy auctionId từ request body
     const { productId, paymentMethod, quantity, auctionId } =
       await request.json();
     const buyQty = quantity ? parseInt(quantity) : 1;
@@ -64,7 +62,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // === 0. KIỂM TRA ĐỊA CHỈ GIAO HÀNG ===
     const { data: buyer } = await supabaseAdmin
       .from("users")
       .select("shipping_info, balance, username, email")
@@ -81,7 +78,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Lấy thông tin sản phẩm
     const { data: product, error: productError } = await supabaseAdmin
       .from("products")
       .select("id, price, status, seller_id, name, quantity")
@@ -97,7 +93,6 @@ export async function POST(request: NextRequest) {
 
     let totalAmount = 0;
 
-    // === LOGIC ĐẤU GIÁ ===
     if (auctionId) {
       const { data: auction } = await supabaseAdmin
         .from("auctions")
@@ -111,7 +106,6 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
 
-      // [QUAN TRỌNG] Chỉ cho phép thanh toán nếu đang 'active' hoặc 'waiting'
       if (auction.status !== "active" && auction.status !== "waiting") {
         return NextResponse.json(
           { error: "Phiên đấu giá đã kết thúc hoặc bị hủy." },
@@ -119,7 +113,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate Winner
       if (auction.winning_bidder_id !== buyerId) {
         return NextResponse.json(
           { error: "Bạn không phải người thắng cuộc." },
@@ -127,11 +120,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check trùng đơn
       const { data: existingTx } = await supabaseAdmin
         .from("transactions")
         .select("id")
-        .eq("auction_id", auctionId) // Check theo auction_id chuẩn xác hơn
+        .eq("auction_id", auctionId)
         .neq("status", "cancelled")
         .maybeSingle();
 
@@ -145,7 +137,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Lấy giá thắng cao nhất
       const { data: highestBid } = await supabaseAdmin
         .from("bids")
         .select("bid_amount")
@@ -158,8 +149,6 @@ export async function POST(request: NextRequest) {
         ? Number(highestBid.bid_amount)
         : Number(auction.starting_bid);
     } else {
-      // --- MUA THƯỜNG ---
-      // Chấp nhận status 'auction' nếu là sản phẩm vừa chốt từ đấu giá/groupbuy (phòng hờ)
       if (product.status !== "available" && product.status !== "auction") {
         return NextResponse.json(
           { error: "Sản phẩm này không khả dụng." },
@@ -181,7 +170,6 @@ export async function POST(request: NextRequest) {
       totalAmount = Number(product.price) * buyQty;
     }
 
-    // === 2. XỬ LÝ THANH TOÁN (VÍ) ===
     let transactionStatus = "initiated";
 
     if (paymentMethod === "wallet") {
@@ -211,13 +199,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. Cập nhật kho & Status sản phẩm
     const qtyToDeduct = auctionId ? product.quantity : buyQty;
     const newStock = Math.max(0, product.quantity - qtyToDeduct);
 
     let finalProductStatus;
     if (auctionId) {
-      finalProductStatus = "auction"; // Giữ nguyên flag auction
+      finalProductStatus = "auction";
     } else {
       finalProductStatus = newStock === 0 ? "sold" : "available";
     }
@@ -227,7 +214,6 @@ export async function POST(request: NextRequest) {
       .update({ quantity: newStock, status: finalProductStatus })
       .eq("id", productId);
 
-    // 4. Tạo Giao dịch
     const { data: transaction, error: txError } = await supabaseAdmin
       .from("transactions")
       .insert({
@@ -253,7 +239,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // [QUAN TRỌNG] Cập nhật AUCTION -> ENDED (Để ẩn khỏi danh sách)
     if (auctionId) {
       await supabaseAdmin
         .from("auctions")
@@ -261,7 +246,6 @@ export async function POST(request: NextRequest) {
         .eq("id", auctionId);
     }
 
-    // 5. Gửi Email & Thông báo
     if (buyer.email) {
       sendOrderConfirmationEmail(
         buyer.email,

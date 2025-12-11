@@ -31,8 +31,6 @@ export function UpgradeAccount() {
         const data = await res.json();
         const settings = data.settings || [];
 
-        // Updated: Removed hardcoded fallbacks ("50000", "200000")
-        // Now defaults to "0" if the key is not found in App Settings
         const vFee =
           settings.find((s: any) => s.key === "verification_fee")?.value || "0";
         const dFee =

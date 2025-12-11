@@ -1,4 +1,3 @@
-// src/app/api/notifications/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -47,7 +46,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Config Error" }, { status: 500 });
 
   try {
-    // Lấy 20 thông báo gần nhất
     const { data: notifications, error } = await supabase
       .from("notifications")
       .select("*")
@@ -57,7 +55,6 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Đếm số lượng chưa đọc
     const { count } = await supabase
       .from("notifications")
       .select("*", { count: "exact", head: true })

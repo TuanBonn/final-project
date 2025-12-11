@@ -31,12 +31,11 @@ export async function POST(request: Request) {
     const supabaseAdmin = getSupabaseAdmin();
     const now = new Date().toISOString();
 
-    // 1. Tìm user có token khớp và chưa hết hạn
     const { data: user, error } = await supabaseAdmin
       .from("users")
       .select("id")
       .eq("reset_token", token)
-      .gt("reset_token_expiry", now) // expiry > now
+      .gt("reset_token_expiry", now)
       .single();
 
     if (error || !user) {
@@ -46,15 +45,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Hash mật khẩu mới
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
-    // 3. Cập nhật mật khẩu và xóa token
     await supabaseAdmin
       .from("users")
       .update({
         password_hash: passwordHash,
-        reset_token: null, // Xóa token để không dùng lại được
+        reset_token: null,
         reset_token_expiry: null,
       })
       .eq("id", user.id);

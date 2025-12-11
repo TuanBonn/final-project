@@ -53,7 +53,6 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Helper to format display value
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
   const numericValue = value.replace(/\D/g, "");
@@ -61,7 +60,6 @@ const formatCurrencyForInput = (value: string | number): string => {
   return new Intl.NumberFormat("vi-VN").format(parseInt(numericValue, 10));
 };
 
-// Updated Validation Schema
 const productSchema = z.object({
   name: z
     .string()
@@ -88,7 +86,7 @@ const productSchema = z.object({
     .refine(
       (val) => {
         const numericVal = parseInt(val.replace(/\D/g, ""), 10);
-        return numericVal <= 10000000000; // 10 Billion limit
+        return numericVal <= 10000000000;
       },
       { message: "Price is too high. Please check again." }
     ),
@@ -166,7 +164,6 @@ export default function SellPage() {
     }
 
     try {
-      // 1. Validate Images Strict Check
       if (selectedFiles.length === 0) {
         throw new Error("Please upload at least 1 image of the product.");
       }
@@ -174,20 +171,17 @@ export default function SellPage() {
         throw new Error("You can only upload a maximum of 10 images.");
       }
 
-      // Check file size (limit 5MB per file)
       for (const file of selectedFiles) {
         if (file.size > 5 * 1024 * 1024) {
           throw new Error(`File "${file.name}" is too large. Max size is 5MB.`);
         }
       }
 
-      // 2. Upload Images
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
       const imageUrls = await Promise.all(uploadPromises);
 
-      // 3. Submit Data
       const response = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -195,7 +189,7 @@ export default function SellPage() {
           ...values,
           name: values.name.trim(),
           description: values.description?.trim(),
-          price: values.price.replace(/\D/g, ""), // Clean currency string
+          price: values.price.replace(/\D/g, ""),
           quantity: parseInt(values.quantity, 10),
           imageUrls: imageUrls,
         }),

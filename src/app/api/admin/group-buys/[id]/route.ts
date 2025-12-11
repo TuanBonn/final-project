@@ -1,4 +1,3 @@
-// src/app/api/admin/group-buys/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -44,29 +43,20 @@ export async function PATCH(
   const supabase = getSupabaseAdmin();
 
   try {
-    // 1. Lấy thông tin kèo hiện tại
     const { data: gb } = await supabase
       .from("group_buys")
-      .select("*") // Lấy hết để tạo Product
+      .select("*")
       .eq("id", id)
       .single();
 
     if (!gb) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Check quyền (Admin hoặc Host)
-    // (Giả sử bạn có logic check admin ở đây, hoặc host)
     if (gb.host_id !== userId) {
-      // Cần check thêm role admin nếu muốn admin cũng được duyệt
-      // Tạm thời chỉ check host cho đơn giản theo flow mới
-      // return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { status } = await request.json();
 
-    // === LOGIC 1: CHỐT KÈO THÀNH CÔNG (TẠO ĐƠN HÀNG) ===
     if (status === "successful" && gb.status !== "successful") {
-      // A. Tạo một "Sản phẩm ảo" dựa trên Group Buy để làm tham chiếu cho Transaction
-      // (Vì Transaction bắt buộc phải có product_id)
       const { data: proxyProduct, error: prodError } = await supabase
         .from("products")
         .insert({
@@ -74,10 +64,10 @@ export async function PATCH(
           name: `[Group Buy] ${gb.product_name}`,
           description: gb.product_description,
           price: gb.price_per_unit,
-          condition: "new", // Mặc định
-          status: "sold", // Set sold để không hiện lên sàn
+          condition: "new",
+          status: "sold",
           image_urls: gb.product_images,
-          quantity: 0, // Đã bán hết qua group buy
+          quantity: 0,
         })
         .select()
         .single();
@@ -85,7 +75,6 @@ export async function PATCH(
       if (prodError)
         throw new Error("Lỗi tạo sản phẩm ảo: " + prodError.message);
 
-      // B. Lấy danh sách người tham gia đã cọc tiền (paid)
       const { data: participants } = await supabase
         .from("group_buy_participants")
         .select("user_id, quantity")
@@ -93,11 +82,9 @@ export async function PATCH(
         .eq("status", "paid");
 
       if (participants && participants.length > 0) {
-        // C. Tạo Transaction cho từng người
         for (const p of participants) {
           const amount = Number(gb.price_per_unit) * p.quantity;
 
-          // Lấy shipping info của user để lưu vào đơn hàng
           const { data: buyer } = await supabase
             .from("users")
             .select("shipping_info")
@@ -110,14 +97,13 @@ export async function PATCH(
             buyer_id: p.user_id,
             amount: amount,
             quantity: p.quantity,
-            status: "buyer_paid", // QUAN TRỌNG: Đã thanh toán, chờ giao
+            status: "buyer_paid",
             payment_method: "wallet",
-            platform_commission: 0, // Sẽ tính khi hoàn tất
-            shipping_address: buyer?.shipping_info, // Lưu địa chỉ
-            group_buy_id: id, // Link ngược lại group buy
+            platform_commission: 0,
+            shipping_address: buyer?.shipping_info,
+            group_buy_id: id,
           });
 
-          // Thông báo cho người mua
           createNotification(supabase, {
             userId: p.user_id,
             title: "🎉 Kèo Mua chung thành công!",
@@ -128,7 +114,6 @@ export async function PATCH(
         }
       }
 
-      // Thông báo cho Host
       createNotification(supabase, {
         userId: gb.host_id,
         title: "✅ Đã chốt kèo & Tạo đơn hàng",
@@ -138,10 +123,7 @@ export async function PATCH(
       });
     }
 
-    // === LOGIC 2: HỦY KÈO (HOÀN TIỀN) - GIỮ NGUYÊN ===
     if (status === "failed" && gb.status !== "failed") {
-      // ... (Giữ nguyên code hoàn tiền cũ của bạn ở đây) ...
-      // Copy lại đoạn code hoàn tiền từ câu trả lời trước
       const { data: participants } = await supabase
         .from("group_buy_participants")
         .select("user_id, quantity")
@@ -187,7 +169,6 @@ export async function PATCH(
       }
     }
 
-    // Cập nhật trạng thái GroupBuy
     const { data, error } = await supabase
       .from("group_buys")
       .update({ status })

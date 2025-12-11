@@ -1,4 +1,3 @@
-// src/app/admin/products/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -26,7 +25,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-} from "lucide-react"; // [NEW] Icons
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ProductActions } from "@/components/admin/ProductActions";
 
@@ -56,12 +55,10 @@ export default function AdminProductsPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // [NEW] Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   const fetchProducts = useCallback(async (searchTerm = "", page = 1) => {
-    // Don't set full loading on pagination change, just searching state or similar if needed
     if (page === 1 && !searchTerm) setLoading(true);
     else setIsSearching(true);
 
@@ -71,7 +68,7 @@ export default function AdminProductsPage() {
       const params = new URLSearchParams();
       if (searchTerm) params.append("search", searchTerm);
       params.append("page", page.toString());
-      params.append("limit", "10"); // Keep limit 10 per page
+      params.append("limit", "10");
 
       const response = await fetch(`/api/admin/products?${params.toString()}`);
 
@@ -92,21 +89,17 @@ export default function AdminProductsPage() {
     }
   }, []);
 
-  // 1. Initial Load
   useEffect(() => {
     fetchProducts("", 1);
   }, [fetchProducts]);
 
-  // 2. Debounce Search
   useEffect(() => {
     const timeout = setTimeout(() => {
-      // Reset to page 1 when searching
       fetchProducts(search, 1);
     }, 500);
     return () => clearTimeout(timeout);
   }, [search, fetchProducts]);
 
-  // [NEW] Handle Page Change
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);

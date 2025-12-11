@@ -1,4 +1,3 @@
-// src/app/api/auctions/[id]/finalize/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -37,14 +36,12 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === REFUND HELPER ===
 async function processRefunds(
   supabase: SupabaseClient,
   auctionId: string,
   productName: string,
   reason: string
 ) {
-  // Get all participants
   const { data: participants } = await supabase
     .from("auction_participants")
     .select("user_id")
@@ -55,7 +52,6 @@ async function processRefunds(
 
     await Promise.all(
       participants.map(async (p) => {
-        // 1. Get current balance
         const { data: user } = await supabase
           .from("users")
           .select("balance")
@@ -63,18 +59,16 @@ async function processRefunds(
           .single();
 
         if (user) {
-          // 2. Refund to wallet
           await supabase
             .from("users")
             .update({ balance: Number(user.balance) + PARTICIPATION_FEE })
             .eq("id", p.user_id);
 
-          // 3. Log transaction
           await supabase.from("platform_payments").insert({
             user_id: p.user_id,
             amount: PARTICIPATION_FEE,
             currency: "VND",
-            payment_for_type: "auction_fee_refund", // Using new enum type
+            payment_for_type: "auction_fee_refund",
             status: "succeeded",
             withdrawal_info: {
               description: `Auction Fee Refund: ${productName}`,
@@ -83,7 +77,6 @@ async function processRefunds(
             },
           });
 
-          // 4. Notify user
           await createNotification(supabase, {
             userId: p.user_id,
             title: "💰 Auction Refund",
@@ -119,7 +112,6 @@ export async function POST(
       return NextResponse.json({ error: "Auction not found" }, { status: 404 });
     }
 
-    // Check permission
     if (!isAdmin && auction.seller_id !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
@@ -133,7 +125,6 @@ export async function POST(
 
     const productName = auction.product?.name || "Product";
 
-    // === CASE 1: MANUAL CANCEL ===
     if (status === "cancelled") {
       await supabase
         .from("auctions")
@@ -152,11 +143,9 @@ export async function POST(
       });
     }
 
-    // === CASE 2: AUTO FINALIZE ===
     const bids = auction.bids || [];
 
     if (bids.length === 0) {
-      // 0 Bids -> Cancel & Refund everyone
       await supabase
         .from("auctions")
         .update({ status: "cancelled" })
@@ -169,7 +158,6 @@ export async function POST(
       });
     }
 
-    // Has bids -> Waiting Payment
     const winningBid = bids.sort(
       (a: any, b: any) => Number(b.bid_amount) - Number(a.bid_amount)
     )[0];

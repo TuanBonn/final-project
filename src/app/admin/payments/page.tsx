@@ -122,7 +122,6 @@ export default function AdminPaymentsPage() {
   const [search, setSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
-  // Pagination states
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -136,11 +135,9 @@ export default function AdminPaymentsPage() {
         if (currentTab !== "all") params.append("status", currentTab);
         if (searchTerm) params.append("search", searchTerm);
 
-        // Add pagination params
         params.append("page", currentPage.toString());
         params.append("limit", "10");
 
-        // Updated endpoint to /api/admin/payments
         const res = await fetch(`/api/admin/payments?${params.toString()}`);
         const data = await res.json();
 
@@ -156,16 +153,14 @@ export default function AdminPaymentsPage() {
     [currentTab]
   );
 
-  // Reset page to 1 when tab changes
   useEffect(() => {
     setPage(1);
     fetchData(search, 1, true);
   }, [currentTab]);
 
-  // Debounce search
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setPage(1); // Reset page on new search
+      setPage(1);
       fetchData(search, 1, false);
     }, 500);
     return () => clearTimeout(timeout);
@@ -200,7 +195,7 @@ export default function AdminPaymentsPage() {
       }
 
       alert("Updated successfully!");
-      fetchData(search, page, false); // Refresh current page
+      fetchData(search, page, false);
     } catch (error: any) {
       alert(error.message);
     }

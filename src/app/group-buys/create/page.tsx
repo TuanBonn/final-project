@@ -30,7 +30,6 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 
-// 1. Define Zod Schema
 const groupBuySchema = z.object({
   productName: z
     .string()
@@ -74,10 +73,8 @@ const groupBuySchema = z.object({
     ),
 });
 
-// Infer TS Type from Schema
 type GroupBuyFormValues = z.infer<typeof groupBuySchema>;
 
-// Helper to format currency display
 const formatCurrencyForInput = (value: string | number): string => {
   if (typeof value === "number") value = value.toString();
   const numericValue = value.replace(/\D/g, "");
@@ -92,7 +89,6 @@ export default function CreateGroupBuyPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  // 2. Setup Hook Form
   const form = useForm<GroupBuyFormValues>({
     resolver: zodResolver(groupBuySchema),
     defaultValues: {
@@ -103,7 +99,6 @@ export default function CreateGroupBuyPage() {
     },
   });
 
-  // 3. Handle Submit
   const onSubmit = async (values: GroupBuyFormValues) => {
     setServerError(null);
 
@@ -113,7 +108,6 @@ export default function CreateGroupBuyPage() {
       return;
     }
 
-    // Manual validation for files (since it's not a text input)
     if (selectedFiles.length === 0) {
       setServerError("Please select at least 1 image.");
       return;
@@ -122,20 +116,18 @@ export default function CreateGroupBuyPage() {
     setLoading(true);
 
     try {
-      // Upload Images
       const uploadPromises = selectedFiles.map((file) =>
         uploadFileViaApi("products", file)
       );
       const imageUrls = await Promise.all(uploadPromises);
 
-      // Call API
       const res = await fetch("/api/group-buys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productName: values.productName,
           description: values.description,
-          price: values.pricePerUnit, // sending raw string, API cleans it
+          price: values.pricePerUnit,
           targetQuantity: values.targetQuantity,
           imageUrls: imageUrls,
         }),

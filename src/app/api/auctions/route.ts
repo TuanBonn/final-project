@@ -1,4 +1,3 @@
-// src/app/api/auctions/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -36,12 +35,10 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET: List Auctions (No Auto-Cleanup) ===
 export async function GET(request: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { searchParams } = new URL(request.url);
 
-  // Filter params
   const statusFilter =
     searchParams.getAll("status").length > 0
       ? searchParams.getAll("status")
@@ -50,7 +47,6 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "20");
 
   try {
-    // Chỉ thực hiện truy vấn lấy dữ liệu, KHÔNG update gì cả
     const { data: auctions, error } = await supabase
       .from("auctions")
       .select(
@@ -66,7 +62,7 @@ export async function GET(request: NextRequest) {
       `
       )
       .in("status", statusFilter)
-      .order("end_time", { ascending: true }) // Sắp xếp cái nào sắp hết giờ lên đầu
+      .order("end_time", { ascending: true })
       .limit(limit);
 
     if (error) throw error;
@@ -103,7 +99,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === POST: Create Auction ===
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -123,7 +118,6 @@ export async function POST(request: NextRequest) {
       endTime,
     } = body;
 
-    // Validation
     if (!name || !startingBid || !endTime || !brand_id || !condition) {
       return NextResponse.json(
         { error: "Missing required fields." },
@@ -141,7 +135,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Create Product
     const { data: newProduct, error: prodError } = await supabase
       .from("products")
       .insert({
@@ -162,7 +155,6 @@ export async function POST(request: NextRequest) {
       throw new Error("Failed to create product for auction.");
     }
 
-    // 2. Create Auction
     const { data: newAuction, error: auctionError } = await supabase
       .from("auctions")
       .insert({
@@ -177,7 +169,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (auctionError) {
-      // Rollback product
       await supabase.from("products").delete().eq("id", newProduct.id);
       throw auctionError;
     }

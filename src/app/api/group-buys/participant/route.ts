@@ -1,4 +1,3 @@
-// src/app/api/group-buys/participant/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -12,7 +11,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const JWT_SECRET = process.env.JWT_SECRET;
 const COOKIE_NAME = "auth-token";
 
-// ... (Giữ nguyên các hàm helper getSupabaseAdmin, getUserId như cũ) ...
 function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false },
@@ -48,7 +46,6 @@ export async function PATCH(request: NextRequest) {
   try {
     const { action, groupBuyId, reason } = await request.json();
 
-    // Lấy thông tin Kèo để hiển thị tên trong thông báo
     const { data: gb } = await supabase
       .from("group_buys")
       .select("product_name")
@@ -57,9 +54,6 @@ export async function PATCH(request: NextRequest) {
 
     if (!gb) return NextResponse.json({ error: "Kèo lỗi" }, { status: 404 });
 
-    // === CHỈ CÒN GIỮ LẠI ACTION: BÁO CÁO / YÊU CẦU HỦY ===
-    // (Các action 'ship' và 'confirm' đã bị xóa vì chuyển sang module Orders)
-
     if (action === "report") {
       if (!reason)
         return NextResponse.json(
@@ -67,21 +61,18 @@ export async function PATCH(request: NextRequest) {
           { status: 400 }
         );
 
-      // 1. Lấy danh sách Admin
       const { data: admins } = await supabase
         .from("users")
         .select("id")
         .eq("role", "admin");
 
       if (admins && admins.length > 0) {
-        // 2. Lấy thông tin người báo cáo
         const { data: reporter } = await supabase
           .from("users")
           .select("username")
           .eq("id", userId)
           .single();
 
-        // 3. Gửi thông báo cho từng Admin
         for (const admin of admins) {
           await createNotification(supabase, {
             userId: admin.id,

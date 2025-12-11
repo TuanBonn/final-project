@@ -1,4 +1,3 @@
-// src/app/api/admin/auctions/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -37,7 +36,6 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === PATCH ===
 export async function PATCH(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }

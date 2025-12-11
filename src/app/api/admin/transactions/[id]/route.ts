@@ -1,9 +1,8 @@
-// src/app/api/admin/transactions/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
 import jwt from "jsonwebtoken";
-import { createNotification } from "@/lib/notification"; // Import thông báo
+import { createNotification } from "@/lib/notification";
 
 export const runtime = "nodejs";
 
@@ -42,7 +41,6 @@ export async function PATCH(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  // 1. Check quyền Admin
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
   }
@@ -53,9 +51,8 @@ export async function PATCH(
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Lỗi Admin Client");
 
-    const { status: newStatus } = await request.json(); // 'completed' | 'cancelled'
+    const { status: newStatus } = await request.json();
 
-    // 2. Lấy thông tin giao dịch hiện tại
     const { data: tx, error: fetchError } = await supabaseAdmin
       .from("transactions")
       .select("*")
@@ -69,7 +66,6 @@ export async function PATCH(
       );
     }
 
-    // Không cho phép sửa nếu đã hoàn tất/hủy (trừ khi cần fix lỗi)
     if (tx.status === "completed" || tx.status === "cancelled") {
       return NextResponse.json(
         { error: "Giao dịch này đã kết thúc." },
@@ -77,12 +73,7 @@ export async function PATCH(
       );
     }
 
-    // ==========================================
-    // LOGIC 1: XỬ LÝ HỦY ĐƠN (HOÀN TIỀN & KHO)
-    // ==========================================
     if (newStatus === "cancelled") {
-      // A. Hoàn tiền (Nếu đã thanh toán qua Ví)
-      // Các trạng thái coi là "đã giữ tiền": buyer_paid, seller_shipped, buyer_confirmed, disputed
       const moneyHeldStatuses = [
         "buyer_paid",
         "seller_shipped",
@@ -101,17 +92,15 @@ export async function PATCH(
           .single();
 
         if (buyer) {
-          // Cộng lại tiền vào ví Buyer
           await supabaseAdmin
             .from("users")
             .update({ balance: Number(buyer.balance) + Number(tx.amount) })
             .eq("id", tx.buyer_id);
 
-          // Ghi log hoàn tiền
           await supabaseAdmin.from("platform_payments").insert({
             user_id: tx.buyer_id,
             amount: Number(tx.amount),
-            payment_for_type: "deposit", // Coi như tiền nạp lại (Refund)
+            payment_for_type: "deposit",
             status: "succeeded",
             currency: "VND",
             related_id: transactionId,
@@ -119,7 +108,6 @@ export async function PATCH(
         }
       }
 
-      // B. Hoàn lại tồn kho
       const orderQty = tx.quantity || 1;
       const { data: prod } = await supabaseAdmin
         .from("products")
@@ -132,12 +120,11 @@ export async function PATCH(
           .from("products")
           .update({
             quantity: prod.quantity + orderQty,
-            status: "available", // Mở bán lại
+            status: "available",
           })
           .eq("id", tx.product_id);
       }
 
-      // C. Thông báo
       await createNotification(supabaseAdmin, {
         userId: tx.buyer_id,
         title: "🚫 Đơn hàng đã bị hủy",
@@ -145,17 +132,10 @@ export async function PATCH(
         type: "order",
         link: "/wallet",
       });
-    }
-
-    // ==========================================
-    // LOGIC 2: XỬ LÝ HOÀN TẤT (CHUYỂN TIỀN CHO SELLER)
-    // ==========================================
-    else if (newStatus === "completed") {
-      // Tính toán tiền
-      const commission = Number(tx.amount) * 0.05; // Phí sàn 5% (Nên lấy từ settings)
+    } else if (newStatus === "completed") {
+      const commission = Number(tx.amount) * 0.05;
       const netAmount = Number(tx.amount) - commission;
 
-      // A. Cộng tiền vào ví Seller
       const { data: seller } = await supabaseAdmin
         .from("users")
         .select("balance")
@@ -168,24 +148,21 @@ export async function PATCH(
           .update({ balance: Number(seller.balance) + netAmount })
           .eq("id", tx.seller_id);
 
-        // Ghi log tiền vào
         await supabaseAdmin.from("platform_payments").insert({
           user_id: tx.seller_id,
           amount: netAmount,
-          payment_for_type: "deposit", // Doanh thu bán hàng
+          payment_for_type: "deposit",
           status: "succeeded",
           currency: "VND",
           related_id: transactionId,
         });
       }
 
-      // B. Cập nhật hoa hồng vào transaction
       await supabaseAdmin
         .from("transactions")
         .update({ platform_commission: commission })
         .eq("id", transactionId);
 
-      // C. Thông báo
       await createNotification(supabaseAdmin, {
         userId: tx.seller_id,
         title: "💰 Giao dịch thành công",
@@ -195,7 +172,6 @@ export async function PATCH(
       });
     }
 
-    // 3. Cập nhật trạng thái cuối cùng
     const { data: updatedTx, error: updateError } = await supabaseAdmin
       .from("transactions")
       .update({

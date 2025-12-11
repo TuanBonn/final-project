@@ -25,7 +25,6 @@ export async function POST(request: Request) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // 1. Tìm user
     const { data: user } = await supabaseAdmin
       .from("users")
       .select("id, username, email")
@@ -33,18 +32,15 @@ export async function POST(request: Request) {
       .single();
 
     if (!user) {
-      // Bảo mật: Không báo lỗi nếu email không tồn tại, chỉ báo thành công giả để tránh check user
       return NextResponse.json(
         { message: "Nếu email tồn tại, hệ thống đã gửi link reset." },
         { status: 200 }
       );
     }
 
-    // 2. Tạo token và thời hạn (1 giờ)
     const token = uuidv4();
-    const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour from now
+    const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-    // 3. Lưu vào DB
     const { error } = await supabaseAdmin
       .from("users")
       .update({
@@ -55,7 +51,6 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    // 4. Gửi email
     await sendPasswordResetEmail(user.email, token, user.username || "User");
 
     return NextResponse.json(

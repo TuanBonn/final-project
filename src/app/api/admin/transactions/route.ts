@@ -1,4 +1,3 @@
-// src/app/api/admin/transactions/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -72,14 +71,11 @@ export async function GET(request: NextRequest) {
       { count: "exact" }
     );
 
-    // Filter theo status
     if (status && status !== "all") {
       query = query.eq("status", status);
     }
 
-    // Filter Tìm kiếm: Chỉ tìm theo Tên Sản Phẩm để tránh lỗi OR chéo bảng
     if (search) {
-      // Nếu search là UUID (ID đơn hàng), tìm theo ID
       const isUUID =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
           search
@@ -87,7 +83,6 @@ export async function GET(request: NextRequest) {
       if (isUUID) {
         query = query.eq("id", search);
       } else {
-        // Ngược lại tìm theo tên sản phẩm
         query = query.ilike("product.name", `%${search}%`);
       }
     }

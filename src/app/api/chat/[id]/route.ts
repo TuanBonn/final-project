@@ -1,4 +1,3 @@
-// src/app/api/chat/[id]/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -36,7 +35,6 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET MESSAGES ===
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,7 +47,6 @@ export async function GET(
   const supabase = getSupabaseAdmin();
 
   try {
-    // 1. Verify User is in conversation
     const { data: participant, error: checkError } = await supabase
       .from("conversation_participants")
       .select("user_id")
@@ -64,7 +61,6 @@ export async function GET(
       );
     }
 
-    // 2. Get messages
     const { data: messages, error } = await supabase
       .from("messages")
       .select(
@@ -74,7 +70,7 @@ export async function GET(
         `
       )
       .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true }); // Tin cũ nhất ở trên
+      .order("created_at", { ascending: true });
 
     if (error) throw error;
 
@@ -84,7 +80,6 @@ export async function GET(
   }
 }
 
-// === POST MESSAGE ===
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -101,7 +96,6 @@ export async function POST(
     if (!content || !content.trim())
       return NextResponse.json({ error: "Empty message" }, { status: 400 });
 
-    // Insert
     const { data: newMessage, error } = await supabase
       .from("messages")
       .insert({

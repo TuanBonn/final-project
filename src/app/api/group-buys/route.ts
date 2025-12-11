@@ -1,4 +1,3 @@
-// src/app/api/group-buys/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -36,7 +35,6 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET: Lấy danh sách kèo ===
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
@@ -49,8 +47,8 @@ export async function GET(request: NextRequest) {
         participants:group_buy_participants ( count )
       `
       )
-      .neq("status", "failed") // Ẩn kèo đã hủy
-      .neq("status", "completed") // Ẩn kèo đã xong
+      .neq("status", "failed")
+      .neq("status", "completed")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -72,7 +70,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === POST: Tạo kèo mới ===
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)
@@ -91,7 +88,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clean giá tiền (100.000 -> 100000)
     const cleanPrice = price.toString().replace(/\D/g, "");
 
     const { data: newGroupBuy, error } = await supabase
@@ -104,7 +100,6 @@ export async function POST(request: NextRequest) {
         target_quantity: Number(targetQuantity),
         product_images: imageUrls || [],
         status: "open",
-        // join_deadline: null // Bỏ deadline
       })
       .select()
       .single();

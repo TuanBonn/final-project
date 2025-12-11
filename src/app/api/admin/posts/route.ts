@@ -1,4 +1,3 @@
-// src/app/api/admin/posts/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -57,14 +56,12 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false });
 
     if (search) {
-      // Search by title OR content
       query = query.or(`title.ilike.%${search}%,content.ilike.%${search}%`);
     }
 
     const { data, error } = await query;
     if (error) throw error;
 
-    // Flatten counts
     const posts = data?.map((p: any) => ({
       ...p,
       like_count: p.likes?.[0]?.count || 0,

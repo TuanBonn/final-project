@@ -1,4 +1,3 @@
-// src/app/api/profile/me/route.ts
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -22,7 +21,6 @@ function getSupabaseAdmin(): SupabaseClient | null {
   });
 }
 
-// === GET ===
 export async function GET(request: Request) {
   if (!JWT_SECRET || !supabaseUrl || !supabaseServiceKey) {
     return NextResponse.json({ error: "Config Error" }, { status: 500 });
@@ -51,14 +49,12 @@ export async function GET(request: Request) {
     if (error) throw error;
     if (user) delete (user as any).password_hash;
 
-    // Trả về key là 'user' để khớp với Context mới
     return NextResponse.json({ user }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
   }
 }
 
-// === PATCH ===
 export async function PATCH(request: Request) {
   let token: string | undefined = undefined;
   try {
@@ -82,7 +78,6 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json();
 
-    // Destructure các trường cho phép update
     const { full_name, username, avatar_url, bank_info, shipping_info, email } =
       body;
 
@@ -93,7 +88,6 @@ export async function PATCH(request: Request) {
     if (bank_info !== undefined) updateData.bank_info = bank_info;
     if (shipping_info !== undefined) updateData.shipping_info = shipping_info;
 
-    // Check Username trùng
     if (username !== undefined) {
       if (username.length < 3)
         return NextResponse.json(
@@ -101,7 +95,6 @@ export async function PATCH(request: Request) {
           { status: 400 }
         );
 
-      // Check db xem có trùng không
       const { data: existing } = await supabaseAdmin
         .from("users")
         .select("id")

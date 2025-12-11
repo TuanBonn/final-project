@@ -1,4 +1,3 @@
-// src/app/api/admin/group-buys/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -49,7 +48,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search");
 
-    // === PAGINATION PARAMS ===
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const from = (page - 1) * limit;
@@ -63,9 +61,7 @@ export async function GET(request: NextRequest) {
       { count: "exact" }
     );
 
-    // === OPTIMIZED SEARCH ===
     if (search) {
-      // 1. Find Host IDs matching username (Limit 50 to prevent timeout)
       const { data: hosts } = await supabaseAdmin
         .from("users")
         .select("id")
@@ -74,8 +70,7 @@ export async function GET(request: NextRequest) {
 
       const hostIds = hosts?.map((u) => u.id) || [];
 
-      // 2. Build Condition: (Product Name LIKE search) OR (Host ID IN list)
-      const conditions = [`product_name.ilike.%${search}%`]; // Removed 'title' as it doesn't exist in schema
+      const conditions = [`product_name.ilike.%${search}%`];
       if (hostIds.length > 0) {
         conditions.push(`host_id.in.(${hostIds.join(",")})`);
       }
@@ -83,7 +78,6 @@ export async function GET(request: NextRequest) {
       query = query.or(conditions.join(","));
     }
 
-    // === SORT & RANGE ===
     query = query.order("created_at", { ascending: false }).range(from, to);
 
     const { data, error, count } = await query;

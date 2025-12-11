@@ -47,7 +47,6 @@ export async function POST(
   const supabase = getSupabaseAdmin();
 
   try {
-    // === 0. [MỚI] KIỂM TRA CHỦ SỞ HỮU (Chặn tự tham gia) ===
     const { data: auction } = await supabase
       .from("auctions")
       .select("seller_id")
@@ -61,16 +60,13 @@ export async function POST(
       );
     }
 
-    // Nếu người dùng hiện tại là người bán -> Trả về lỗi
     if (auction.seller_id === userId) {
       return NextResponse.json(
         { error: "You cannot join your own auction." },
         { status: 403 }
       );
     }
-    // ========================================================
 
-    // 1. Lấy phí tham gia từ cài đặt
     const { data: feeSetting } = await supabase
       .from("app_settings")
       .select("value")
@@ -79,9 +75,8 @@ export async function POST(
 
     const fee = feeSetting?.value
       ? parseInt(feeSetting.value.replace(/\D/g, ""))
-      : 50000; // Mặc định 50k
+      : 50000;
 
-    // 2. Kiểm tra đã tham gia chưa
     const { data: existing } = await supabase
       .from("auction_participants")
       .select("user_id")
@@ -96,7 +91,6 @@ export async function POST(
       );
     }
 
-    // 3. Kiểm tra và Trừ tiền ví
     const { data: user } = await supabase
       .from("users")
       .select("balance")
@@ -110,23 +104,20 @@ export async function POST(
       );
     }
 
-    // Trừ tiền
     await supabase
       .from("users")
       .update({ balance: Number(user.balance) - fee })
       .eq("id", userId);
 
-    // Ghi log trừ tiền
     await supabase.from("platform_payments").insert({
       user_id: userId,
       amount: fee,
-      payment_for_type: "auction_creation_fee", // Hoặc loại phí phù hợp trong enum
+      payment_for_type: "auction_creation_fee",
       status: "succeeded",
       currency: "VND",
       related_id: auctionId,
     });
 
-    // 4. Thêm vào danh sách tham gia
     const { error: joinError } = await supabase
       .from("auction_participants")
       .insert({

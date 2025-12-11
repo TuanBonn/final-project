@@ -1,24 +1,19 @@
-// src/app/api/auth/register/route.ts
-// Đã chuyển sang dùng Service Key (Admin Client)
-
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 
 const SALT_ROUNDS = 10;
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Dùng Service Key
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Hàm khởi tạo Admin Client (dùng nội bộ)
 function getSupabaseAdmin(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseServiceKey) {
     console.error("API Register: Thiếu Supabase URL hoặc Service Key!");
     return null;
   }
   try {
-    // Tạo và trả về client mới mỗi lần gọi
     return createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false }, // Không cần session cho admin
+      auth: { persistSession: false },
     });
   } catch (error) {
     console.error("API Register: Lỗi tạo Admin Client:", error);
@@ -27,7 +22,7 @@ function getSupabaseAdmin(): SupabaseClient | null {
 }
 
 export async function POST(request: Request) {
-  const supabaseAdmin = getSupabaseAdmin(); // Lấy Admin Client
+  const supabaseAdmin = getSupabaseAdmin();
   if (!supabaseAdmin) {
     return NextResponse.json(
       { error: "Lỗi cấu hình server (Admin Client)." },
@@ -39,7 +34,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { email, password, username, fullName } = body;
 
-    // --- Validation ---
     if (!email || !password || !username || !fullName)
       return NextResponse.json({ error: "Thiếu thông tin." }, { status: 400 });
     if (username.length < 3)
@@ -48,7 +42,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
 
-    // --- Check Exists (Dùng Admin Client) ---
     const { data: existingUser, error: checkError } = await supabaseAdmin
       .from("users")
       .select("id")
@@ -64,16 +57,14 @@ export async function POST(request: Request) {
         { status: 409 }
       );
 
-    // --- Hash Password ---
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // --- Insert User (Dùng Admin Client) ---
     const { error: insertError } = await supabaseAdmin.from("users").insert({
       email: email,
       password_hash: passwordHash,
       username: username,
       full_name: fullName,
-      avatar_url: "https://i.imgur.com/6VBx3io.png", // Default avatar
+      avatar_url: "https://i.imgur.com/6VBx3io.png",
     });
     if (insertError) {
       console.error("API Register: Lỗi insert user:", insertError);
@@ -87,7 +78,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error("API Register Error:", error);
     let message = "Lỗi server.";
-    // ... (Xử lý lỗi chi tiết hơn nếu cần) ...
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

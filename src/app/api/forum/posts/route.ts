@@ -1,4 +1,3 @@
-// src/app/api/forum/posts/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -36,7 +35,6 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// === GET: Lấy danh sách bài viết ===
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -71,7 +69,6 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // --- KIỂM TRA TRẠNG THÁI LIKE CỦA USER ---
     const userId = await getUserId(request);
     const likedPostIds = new Set<string>();
 
@@ -85,9 +82,7 @@ export async function GET(request: NextRequest) {
 
       myLikes?.forEach((l: any) => likedPostIds.add(l.post_id));
     }
-    // -----------------------------------------
 
-    // Format dữ liệu trả về
     const posts = postsData?.map((p: any) => ({
       id: p.id,
       title: p.title,
@@ -101,7 +96,7 @@ export async function GET(request: NextRequest) {
       },
       likeCount: p.likes?.[0]?.count || 0,
       commentCount: p.comments?.[0]?.count || 0,
-      isLiked: likedPostIds.has(p.id), // Trạng thái like
+      isLiked: likedPostIds.has(p.id),
     }));
 
     const totalPages = count ? Math.ceil(count / limit) : 1;
@@ -118,7 +113,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === POST: Đăng bài mới ===
 export async function POST(request: NextRequest) {
   const userId = await getUserId(request);
   if (!userId)

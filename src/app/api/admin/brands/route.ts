@@ -1,4 +1,3 @@
-// src/app/api/admin/brands/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { parse as parseCookie } from "cookie";
@@ -41,21 +40,19 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
-// === GET ===
 export async function GET(request: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Admin Client Error");
 
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search"); // <--- Lấy param search
+    const search = searchParams.get("search");
 
     let query = supabaseAdmin
       .from("brands")
       .select("*")
       .order("name", { ascending: true });
 
-    // === LOGIC SEARCH ===
     if (search) {
       query = query.ilike("name", `%${search}%`);
     }
@@ -71,7 +68,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// === POST ===
 export async function POST(request: NextRequest) {
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -80,7 +76,6 @@ export async function POST(request: NextRequest) {
   try {
     const { name } = await request.json();
 
-    // === VALIDATION SERVER-SIDE ===
     if (!name || name.trim().length === 0) {
       return NextResponse.json(
         { error: "Brand name is required." },
@@ -93,7 +88,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    // Regex: Chỉ chấp nhận chữ (a-z, A-Z) và số (0-9)
+
     const alphanumericRegex = /^[a-zA-Z0-9]+$/;
     if (!alphanumericRegex.test(name)) {
       return NextResponse.json(
@@ -101,7 +96,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    // ==============================
 
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) throw new Error("Admin Client Error");
